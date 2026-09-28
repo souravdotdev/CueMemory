@@ -18,8 +18,8 @@
   "devDependencies": {
     "@cue-memory/eslint-config": "workspace:*",
     "@cue-memory/typescript-config": "workspace:*",
-    "@types/node": "^26.5.1",
-    "drizzle-kit": "^0.31.10",
+    "@types/node": "^26.6.2",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
     "typescript": "^6.0.3"
   }

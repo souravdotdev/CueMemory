@@ -13,13 +13,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.2"
+    "drizzle-orm": "^0.45.3"
   },
   "devDependencies": {
     "@cue-memory/eslint-config": "workspace:*",
     "@cue-memory/typescript-config": "workspace:*",
     "@cue-memory/vitest-config": "workspace:*",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.2",
     "eslint": "^9.39.5",
     "typescript": "^6.0.3",
     "vitest": "^5.0.1"
