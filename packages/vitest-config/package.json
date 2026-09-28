@@ -1,5 +1,5 @@
 {
-  "name": "@second-brain/vitest-config",
+  "name": "@cue-memory/vitest-config",
   "version": "0.0.0",
   "private": true,
   "type": "module",

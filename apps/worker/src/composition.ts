@@ -1,7 +1,7 @@
 import { Container } from "inversify";
-import { TYPES as ItemsTypes } from "@second-brain/items";
-import type { ItemRepository, MetadataFetcher } from "@second-brain/items";
-import { DrizzleItemRepository, StubMetadataFetcher } from "@second-brain/items";
+import { TYPES as ItemsTypes } from "@cue-memory/items";
+import type { ItemRepository, MetadataFetcher } from "@cue-memory/items";
+import { DrizzleItemRepository, StubMetadataFetcher } from "@cue-memory/items";
 
 /**
  * Composition root: the one place concrete infrastructure adapters get

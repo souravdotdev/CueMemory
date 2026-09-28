@@ -1,5 +1,5 @@
 {
-  "name": "@second-brain/eslint-config",
+  "name": "@cue-memory/eslint-config",
   "version": "0.0.0",
   "private": true,
   "type": "module",

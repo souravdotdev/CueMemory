@@ -1,5 +1,5 @@
 {
-  "name": "@second-brain/items",
+  "name": "@cue-memory/items",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,9 +13,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@second-brain/auth": "workspace:*",
-    "@second-brain/shared-kernel": "workspace:*",
-    "@second-brain/types": "workspace:*",
+    "@cue-memory/auth": "workspace:*",
+    "@cue-memory/shared-kernel": "workspace:*",
+    "@cue-memory/types": "workspace:*",
     "bullmq": "^6.3.6",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.12.4",
@@ -26,9 +26,9 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@second-brain/eslint-config": "workspace:*",
-    "@second-brain/typescript-config": "workspace:*",
-    "@second-brain/vitest-config": "workspace:*",
+    "@cue-memory/eslint-config": "workspace:*",
+    "@cue-memory/typescript-config": "workspace:*",
+    "@cue-memory/vitest-config": "workspace:*",
     "@types/node": "^26.5.1",
     "eslint": "^9.39.5",
     "typescript": "^6.0.3",

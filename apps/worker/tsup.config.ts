@@ -8,6 +8,6 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   // See apps/api/tsup.config.ts for the full rationale — same setup here.
-  noExternal: [/^@second-brain\//],
+  noExternal: [/^@cue-memory\//],
   skipNodeModulesBundle: true,
 });

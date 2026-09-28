@@ -18,7 +18,7 @@ Registered with `{ contentSecurityPolicy: false }`. This sets the standard helme
 
 `{ max: 100, timeWindow: "1 minute", redis: rateLimitRedis }`, global (applies to every route). The `429` response and `x-ratelimit-*` headers were confirmed both via a real Redis-backed request against a live server and via `src/security.test.ts` (using an in-memory store with `max: 2` for a fast, deterministic test).
 
-**Why a dedicated Redis connection** (`src/rate-limit-redis.ts`), not the existing BullMQ connection from `@second-brain/shared-kernel/redis`: BullMQ requires `maxRetriesPerRequest: null` so its blocking commands retry forever — necessary for a job queue, but the opposite of what a rate-limit check wants. Reusing that connection directly risks every API request hanging (not just erroring) during a Redis outage, waiting on a rate-limit check that never resolves. `rate-limit-redis.ts` instead does:
+**Why a dedicated Redis connection** (`src/rate-limit-redis.ts`), not the existing BullMQ connection from `@cue-memory/shared-kernel/redis`: BullMQ requires `maxRetriesPerRequest: null` so its blocking commands retry forever — necessary for a job queue, but the opposite of what a rate-limit check wants. Reusing that connection directly risks every API request hanging (not just erroring) during a Redis outage, waiting on a rate-limit check that never resolves. `rate-limit-redis.ts` instead does:
 
 ```ts
 export const rateLimitRedis: Redis = redisConnection.duplicate({

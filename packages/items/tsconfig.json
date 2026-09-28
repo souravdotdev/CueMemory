@@ -1,5 +1,5 @@
 {
-  "extends": "@second-brain/typescript-config/library.json",
+  "extends": "@cue-memory/typescript-config/library.json",
   "compilerOptions": {
     "outDir": "dist",
     "rootDir": "src",

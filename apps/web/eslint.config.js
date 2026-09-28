@@ -1,3 +1,3 @@
-import { nextJsConfig } from "@second-brain/eslint-config/next-js";
+import { nextJsConfig } from "@cue-memory/eslint-config/next-js";
 
 export default nextJsConfig;

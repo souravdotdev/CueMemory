@@ -1,6 +1,6 @@
 # Documentation
 
-Reference docs for the `second-brain` monorepo, covering what's been set up and why.
+Reference docs for the `cue-memory` monorepo, covering what's been set up and why.
 
 - [Architecture](./architecture.md) — monorepo layout, tech stack, and the architectural pattern in use
 - [Clean Architecture](./clean-architecture.md) — the layering convention (entities/use cases/adapters), strictly enforced, and where new code should go

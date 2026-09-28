@@ -1,5 +1,5 @@
 {
-  "name": "@second-brain/db",
+  "name": "@cue-memory/db",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,13 +11,13 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@second-brain/auth": "workspace:*",
-    "@second-brain/items": "workspace:*",
-    "@second-brain/shared-kernel": "workspace:*"
+    "@cue-memory/auth": "workspace:*",
+    "@cue-memory/items": "workspace:*",
+    "@cue-memory/shared-kernel": "workspace:*"
   },
   "devDependencies": {
-    "@second-brain/eslint-config": "workspace:*",
-    "@second-brain/typescript-config": "workspace:*",
+    "@cue-memory/eslint-config": "workspace:*",
+    "@cue-memory/typescript-config": "workspace:*",
     "@types/node": "^26.5.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.5",

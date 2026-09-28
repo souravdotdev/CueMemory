@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ItemWithRelations } from "@second-brain/types";
+import type { ItemWithRelations } from "@cue-memory/types";
 import type { ItemRepository } from "../../domain/ports/item-repository";
 import { listItems } from "./list-items";
 

@@ -1,4 +1,4 @@
-import type { ItemType } from "@second-brain/types";
+import type { ItemType } from "@cue-memory/types";
 
 /** Enqueued right after a paste-a-link save; a worker fetches metadata + AI tags. */
 export interface ProcessItemJob {

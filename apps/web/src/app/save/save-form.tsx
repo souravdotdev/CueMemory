@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@second-brain/ui/button";
+import { Button } from "@cue-memory/ui/button";
 import { createItem } from "@/lib/api";
 
 export function SaveForm() {

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Fastify from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
-import type { Item } from "@second-brain/types";
+import type { Item } from "@cue-memory/types";
 import type { ItemQueue } from "../../domain/ports/item-queue";
 import type { ItemRepository } from "../../domain/ports/item-repository";
 import { itemRoutes } from "./items.routes";

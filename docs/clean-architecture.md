@@ -34,7 +34,7 @@ This repo currently has two feature packages:
 - **`domain/`** — `ports/` (`ItemRepository`, `ItemQueue`, `MetadataFetcher` — interfaces infrastructure must implement), `detect-item-type.ts` (a pure business rule: inferring item type from a URL), `tokens.ts` (DI symbols for this package's ports).
 - **`application/use-cases/`** — the actual interactors: `saveItem`, `listItems`, `processItem`. Each takes a `deps` object typed against the port interfaces, plus a plain input object, and returns a plain result. No HTTP, no SQL, no queue library — fully unit-testable by passing hand-written fake implementations of the ports.
 - **`infrastructure/`**:
-  - `persistence/` — `schema/` (Drizzle tables for `items`, `tags`, `collections`, `reminders`, and their join tables; imports `users` from `@second-brain/auth/schema` only for the FK column type), `drizzle-item-repository.ts` (`DrizzleItemRepository implements ItemRepository`), `item-mappers.ts` (`toItem`/`toTag`/`toCollection` — translates Drizzle's raw row shapes into domain entities, e.g. `Date` → `string`).
+  - `persistence/` — `schema/` (Drizzle tables for `items`, `tags`, `collections`, `reminders`, and their join tables; imports `users` from `@cue-memory/auth/schema` only for the FK column type), `drizzle-item-repository.ts` (`DrizzleItemRepository implements ItemRepository`), `item-mappers.ts` (`toItem`/`toTag`/`toCollection` — translates Drizzle's raw row shapes into domain entities, e.g. `Date` → `string`).
   - `queue/` — `queues.ts` (the BullMQ `Queue` instance + queue name constants), `bullmq-item-queue.ts` (`BullMqItemQueue implements ItemQueue`).
   - `metadata/` — `stub-metadata-fetcher.ts` (`StubMetadataFetcher implements MetadataFetcher`, currently a placeholder — the seam where real extraction gets plugged in later).
 - **`presentation/`**:
@@ -54,8 +54,8 @@ No `application/` or `presentation/` folder exists in this package. Don't create
 
 Two things are genuinely cross-feature and don't belong inside any one feature package:
 
-- **`packages/shared-kernel`** — raw connection primitives only: `db/client.ts` (a raw `postgres()` client, **not** wrapped in `drizzle()` — no schema bound here) and `redis/connection.ts` (a raw `ioredis` instance). Exported as two independent subpaths, `./db` and `./redis`, specifically so importing one doesn't eagerly validate the other's env vars (e.g. `packages/db`'s migration runner only needs `DATABASE_URL`, not `REDIS_URL`). No `@second-brain/*` dependencies — a true leaf package.
-- **`packages/db`** — not a feature package. It's the single centralized Drizzle-kit migration runner: `schema.ts` re-exports `@second-brain/items/schema` + `@second-brain/auth/schema`, and `drizzle.config.ts` points at that shim. One Postgres database has one migration history spanning every feature's tables, so this can't be split per feature the way application code can.
+- **`packages/shared-kernel`** — raw connection primitives only: `db/client.ts` (a raw `postgres()` client, **not** wrapped in `drizzle()` — no schema bound here) and `redis/connection.ts` (a raw `ioredis` instance). Exported as two independent subpaths, `./db` and `./redis`, specifically so importing one doesn't eagerly validate the other's env vars (e.g. `packages/db`'s migration runner only needs `DATABASE_URL`, not `REDIS_URL`). No `@cue-memory/*` dependencies — a true leaf package.
+- **`packages/db`** — not a feature package. It's the single centralized Drizzle-kit migration runner: `schema.ts` re-exports `@cue-memory/items/schema` + `@cue-memory/auth/schema`, and `drizzle.config.ts` points at that shim. One Postgres database has one migration history spanning every feature's tables, so this can't be split per feature the way application code can.
 
 Each feature package wraps the shared raw `pgClient` in its **own** local `drizzle(pgClient, { schema })` call (e.g. `packages/items/src/infrastructure/persistence/drizzle-item-repository.ts`) — safe because the connection pool lives in the raw postgres client, not the Drizzle wrapper, so multiple independent `drizzle()` instances coexist over it without conflict.
 
@@ -65,10 +65,10 @@ Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (sc
 
 Concrete adapters get wired into use cases at the **composition root**, the one spot in each app allowed to know about every concrete implementation at once. Wiring uses an [InversifyJS](https://inversify.io) `Container`:
 
-- `apps/api/src/composition.ts` — binds `ItemsTypes.ItemRepository → DrizzleItemRepository` and `ItemsTypes.ItemQueue → BullMqItemQueue` (both `inSingletonScope()`, both imported from `@second-brain/items`), resolves both via `container.get(...)`, exports the result as a plain `dependencies` object.
+- `apps/api/src/composition.ts` — binds `ItemsTypes.ItemRepository → DrizzleItemRepository` and `ItemsTypes.ItemQueue → BullMqItemQueue` (both `inSingletonScope()`, both imported from `@cue-memory/items`), resolves both via `container.get(...)`, exports the result as a plain `dependencies` object.
 - `apps/worker/src/composition.ts` — binds `ItemsTypes.ItemRepository → DrizzleItemRepository` and `ItemsTypes.MetadataFetcher → StubMetadataFetcher`, same pattern, same source package.
 
-Neither composition root imports `@second-brain/db` — that package has no runtime exports left to import. As more features gain ports (e.g. `auth` growing a real repository), their composition-root bindings get added the same way, each feature's `TYPES` imported under its own alias (`TYPES as ItemsTypes`, `TYPES as AuthTypes`, ...) so multiple registries coexist cleanly.
+Neither composition root imports `@cue-memory/db` — that package has no runtime exports left to import. As more features gain ports (e.g. `auth` growing a real repository), their composition-root bindings get added the same way, each feature's `TYPES` imported under its own alias (`TYPES as ItemsTypes`, `TYPES as AuthTypes`, ...) so multiple registries coexist cleanly.
 
 Both `apps/api/src/index.ts` and `apps/worker/src/index.ts` import the resolved `dependencies` object from their composition root and pass it into a controller/handler factory (`itemRoutes(dependencies)`, `createProcessItemHandler(dependencies)`), which closes over it and passes it through to use-case calls unchanged. The container is purely an implementation detail of `composition.ts` — nothing in a feature's use cases, routes, or job processor knows Inversify exists.
 

@@ -4,7 +4,7 @@ import { collections, items, itemsToCollections, itemsToTags, reminders, tags } 
 // `items.user`/`collections.user` (the forward side of the auth FK) are
 // intentionally not declared here — nothing in the codebase queries them
 // (grep-verified), and keeping them out is what makes this package have
-// zero runtime dependency on @second-brain/auth (only a schema-level one,
+// zero runtime dependency on @cue-memory/auth (only a schema-level one,
 // for the FK column type). The FK columns themselves are unaffected.
 export const itemsRelations = relations(items, ({ many }) => ({
   reminders: many(reminders),

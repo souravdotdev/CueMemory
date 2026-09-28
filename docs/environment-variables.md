@@ -7,9 +7,9 @@ Each app/package that needs configuration has its own local `.env` file — ther
 Every app/package that reads `process.env` validates it through a Zod schema in its own `src/env.ts`, rather than reading `process.env.X` directly wherever it's needed. Each one calls `schema.safeParse(...)` and throws one formatted error listing every missing/invalid variable if validation fails, instead of failing later with a confusing runtime error (e.g. a Postgres client throwing on a malformed connection string) or silently limping along with `undefined`.
 
 - `packages/shared-kernel/src/db/env.ts` — `DATABASE_URL` must be a valid URL. Used by `db/client.ts` and `packages/db/drizzle.config.ts`.
-- `packages/shared-kernel/src/redis/env.ts` — `REDIS_URL` must be a valid URL. Used by `redis/connection.ts`. Exported as a separate subpath (`@second-brain/shared-kernel/redis`) from the DB env, specifically so importing one doesn't force-validate the other.
-- `apps/api/src/env.ts` — `PORT` (coerced to a number, defaults to `4000`) and `CORS_ORIGIN` (must be a valid URL, defaults to `http://localhost:3000` — see [Security Middleware](./security.md)). `DATABASE_URL`/`REDIS_URL` aren't re-validated here — importing `@second-brain/shared-kernel/db`/`@second-brain/shared-kernel/redis` (transitively, via `@second-brain/items`) already validates them at import time, so `apps/api` inherits that check for free.
-- `apps/worker` — no `env.ts` of its own for the same reason: it only ever reads env vars indirectly through `@second-brain/shared-kernel`'s `db`/`redis` subpaths, both of which validate themselves.
+- `packages/shared-kernel/src/redis/env.ts` — `REDIS_URL` must be a valid URL. Used by `redis/connection.ts`. Exported as a separate subpath (`@cue-memory/shared-kernel/redis`) from the DB env, specifically so importing one doesn't force-validate the other.
+- `apps/api/src/env.ts` — `PORT` (coerced to a number, defaults to `4000`) and `CORS_ORIGIN` (must be a valid URL, defaults to `http://localhost:3000` — see [Security Middleware](./security.md)). `DATABASE_URL`/`REDIS_URL` aren't re-validated here — importing `@cue-memory/shared-kernel/db`/`@cue-memory/shared-kernel/redis` (transitively, via `@cue-memory/items`) already validates them at import time, so `apps/api` inherits that check for free.
+- `apps/worker` — no `env.ts` of its own for the same reason: it only ever reads env vars indirectly through `@cue-memory/shared-kernel`'s `db`/`redis` subpaths, both of which validate themselves.
 - `apps/web/src/env.ts` — `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:4000`). Imported as a side effect in `next.config.ts` so an invalid value fails `next dev`/`next build` immediately, before anything else runs.
 
 One Next.js-specific detail: `apps/web/src/env.ts` reads `process.env.NEXT_PUBLIC_API_URL` as a single literal expression rather than spreading the whole `process.env` object into `safeParse`. Next.js statically replaces `process.env.NEXT_PUBLIC_*` expressions with their literal value at build time for anything that ends up in the client bundle — spreading the whole object would defeat that replacement and crash in the browser, where `process` doesn't exist.
@@ -24,12 +24,12 @@ Required for `pnpm db:generate`, `pnpm db:migrate`, `pnpm db:studio`, and any ot
 
 ## `apps/api/.env`
 
-| Variable       | Purpose                                                                            | Local dev value                                              |
-| -------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `PORT`         | Port the Fastify server listens on                                                 | `4000`                                                       |
-| `DATABASE_URL` | Postgres connection string (via `@second-brain/shared-kernel/db`)                  | `postgres://postgres:postgres@localhost:5433/universal_save` |
-| `REDIS_URL`    | Redis connection string (via `@second-brain/shared-kernel/redis`, to enqueue jobs) | `redis://localhost:6380`                                     |
-| `CORS_ORIGIN`  | The web app's origin — the only one allowed to call this API                       | `http://localhost:3000`                                      |
+| Variable       | Purpose                                                                          | Local dev value                                              |
+| -------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `PORT`         | Port the Fastify server listens on                                               | `4000`                                                       |
+| `DATABASE_URL` | Postgres connection string (via `@cue-memory/shared-kernel/db`)                  | `postgres://postgres:postgres@localhost:5433/universal_save` |
+| `REDIS_URL`    | Redis connection string (via `@cue-memory/shared-kernel/redis`, to enqueue jobs) | `redis://localhost:6380`                                     |
+| `CORS_ORIGIN`  | The web app's origin — the only one allowed to call this API                     | `http://localhost:3000`                                      |
 
 ## `apps/worker/.env`
 

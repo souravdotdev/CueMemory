@@ -1,7 +1,7 @@
 import { Container } from "inversify";
-import { TYPES as ItemsTypes } from "@second-brain/items";
-import type { ItemQueue, ItemRepository } from "@second-brain/items";
-import { DrizzleItemRepository, BullMqItemQueue } from "@second-brain/items";
+import { TYPES as ItemsTypes } from "@cue-memory/items";
+import type { ItemQueue, ItemRepository } from "@cue-memory/items";
+import { DrizzleItemRepository, BullMqItemQueue } from "@cue-memory/items";
 
 /**
  * Composition root: the one place concrete infrastructure adapters get

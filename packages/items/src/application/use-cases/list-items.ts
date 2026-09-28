@@ -1,4 +1,4 @@
-import type { ItemWithRelations } from "@second-brain/types";
+import type { ItemWithRelations } from "@cue-memory/types";
 import type { ItemRepository } from "../../domain/ports/item-repository";
 
 export interface ListItemsDeps {

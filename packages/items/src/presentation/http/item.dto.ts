@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * DTOs for the /items HTTP boundary. These intentionally mirror
- * @second-brain/types' Item/ItemWithRelations shapes but are a separate,
+ * @cue-memory/types' Item/ItemWithRelations shapes but are a separate,
  * hand-maintained Zod schema — per Clean Architecture, a controller's DTOs
  * are a boundary concern distinct from the domain entities in packages/types,
  * even where their shape currently overlaps closely. Domain entities stay

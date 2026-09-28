@@ -1,3 +1,3 @@
-import { config } from "@second-brain/eslint-config/node-library";
+import { config } from "@cue-memory/eslint-config/node-library";
 
 export default config;

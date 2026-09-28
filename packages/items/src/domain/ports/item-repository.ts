@@ -1,4 +1,4 @@
-import type { Item, ItemStatus, ItemType, ItemWithRelations } from "@second-brain/types";
+import type { Item, ItemStatus, ItemType, ItemWithRelations } from "@cue-memory/types";
 
 export interface CreateItemRecord {
   userId: string;

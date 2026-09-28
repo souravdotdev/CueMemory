@@ -4,7 +4,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
-import { itemRoutes } from "@second-brain/items";
+import { itemRoutes } from "@cue-memory/items";
 import { dependencies } from "./composition";
 import { env } from "./env";
 import { rateLimitRedis } from "./rate-limit-redis";
@@ -20,7 +20,7 @@ await app.register(rateLimit, {
   max: 100,
   timeWindow: "1 minute",
   redis: rateLimitRedis,
-  nameSpace: "second-brain-api-rate-limit-",
+  nameSpace: "cue-memory-api-rate-limit-",
 });
 
 await app.register(itemRoutes(dependencies));

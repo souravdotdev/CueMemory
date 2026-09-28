@@ -1,4 +1,4 @@
-import type { Item } from "@second-brain/types";
+import type { Item } from "@cue-memory/types";
 import type { ItemRepository } from "../../domain/ports/item-repository";
 import type { ItemQueue } from "../../domain/ports/item-queue";
 import { detectItemType } from "../../domain/detect-item-type";

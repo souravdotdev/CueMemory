@@ -1,5 +1,5 @@
 import { Queue } from "bullmq";
-import { redisConnection } from "@second-brain/shared-kernel/redis";
+import { redisConnection } from "@cue-memory/shared-kernel/redis";
 import type { ProcessItemJob } from "../../domain/ports/item-queue";
 
 export const QUEUE_NAMES = {

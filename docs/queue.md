@@ -6,7 +6,7 @@ Async processing is handled with [BullMQ](https://docs.bullmq.io) backed by Redi
 
 Per [Clean Architecture](./clean-architecture.md), the `ProcessItemJob` payload type and the `ItemQueue` port interface are owned by `packages/items`' own `domain/ports` — the infrastructure here implements that port, it doesn't define the contract:
 
-- `queues.ts` — `QUEUE_NAMES.ITEM_PROCESSING` and the `itemProcessingQueue` BullMQ `Queue` instance (typed against `ProcessItemJob`), built on the shared `redisConnection` from `@second-brain/shared-kernel/redis`
+- `queues.ts` — `QUEUE_NAMES.ITEM_PROCESSING` and the `itemProcessingQueue` BullMQ `Queue` instance (typed against `ProcessItemJob`), built on the shared `redisConnection` from `@cue-memory/shared-kernel/redis`
 - `bullmq-item-queue.ts` — `BullMqItemQueue`, the concrete class implementing `ItemQueue`. Its `enqueueProcessing` method is the only place `itemProcessingQueue.add(...)` gets called.
 
 Default job options (`queues.ts`): 3 attempts with exponential backoff (5s base delay), and completed/failed jobs are trimmed (`removeOnComplete: 1000`, `removeOnFail: 5000`) so Redis doesn't accumulate job history indefinitely.

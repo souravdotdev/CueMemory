@@ -1,9 +1,9 @@
 import { injectable } from "inversify";
 import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { pgClient } from "@second-brain/shared-kernel/db";
+import { pgClient } from "@cue-memory/shared-kernel/db";
 import type { CreateItemRecord, ItemRepository } from "../../domain/ports/item-repository";
-import type { Item, ItemStatus, ItemWithRelations } from "@second-brain/types";
+import type { Item, ItemStatus, ItemWithRelations } from "@cue-memory/types";
 import * as schema from "./schema";
 import { items } from "./schema/items";
 import { toCollection, toItem, toTag } from "./item-mappers";

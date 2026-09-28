@@ -1,5 +1,5 @@
 {
-  "name": "second-brain",
+  "name": "cue-memory",
   "private": true,
   "packageManager": "pnpm@10.13.1",
   "engines": {
@@ -13,9 +13,9 @@
     "test": "turbo run test",
     "format": "prettier --write . --ignore-unknown",
     "format:check": "prettier --check . --ignore-unknown",
-    "db:generate": "turbo run db:generate --filter=@second-brain/db",
-    "db:migrate": "turbo run db:migrate --filter=@second-brain/db",
-    "db:studio": "turbo run db:studio --filter=@second-brain/db",
+    "db:generate": "turbo run db:generate --filter=@cue-memory/db",
+    "db:migrate": "turbo run db:migrate --filter=@cue-memory/db",
+    "db:studio": "turbo run db:studio --filter=@cue-memory/db",
     "prepare": "husky"
   },
   "devDependencies": {

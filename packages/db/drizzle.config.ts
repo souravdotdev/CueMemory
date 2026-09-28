@@ -1,5 +1,5 @@
 import { defineConfig } from "drizzle-kit";
-import { dbEnv } from "@second-brain/shared-kernel/db";
+import { dbEnv } from "@cue-memory/shared-kernel/db";
 
 export default defineConfig({
   schema: "./schema.ts",

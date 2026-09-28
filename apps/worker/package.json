@@ -12,8 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@second-brain/items": "workspace:*",
-    "@second-brain/shared-kernel": "workspace:*",
+    "@cue-memory/items": "workspace:*",
+    "@cue-memory/shared-kernel": "workspace:*",
     "bullmq": "^6.3.6",
     "drizzle-orm": "^0.45.2",
     "inversify": "^8.2.3",
@@ -23,9 +23,9 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@second-brain/eslint-config": "workspace:*",
-    "@second-brain/typescript-config": "workspace:*",
-    "@second-brain/vitest-config": "workspace:*",
+    "@cue-memory/eslint-config": "workspace:*",
+    "@cue-memory/typescript-config": "workspace:*",
+    "@cue-memory/vitest-config": "workspace:*",
     "@types/node": "^26.5.1",
     "eslint": "^9.39.5",
     "tsup": "^8.5.1",

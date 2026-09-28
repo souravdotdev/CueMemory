@@ -1,5 +1,5 @@
 import { boolean, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
-import { users } from "@second-brain/auth/schema";
+import { users } from "@cue-memory/auth/schema";
 
 export const itemTypeEnum = pgEnum("item_type", [
   "article",

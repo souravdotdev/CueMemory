@@ -10,7 +10,7 @@ if (!parsed.success) {
   const issues = parsed.error.issues
     .map((issue) => `  - ${issue.path.join(".")}: ${issue.message}`)
     .join("\n");
-  throw new Error(`Invalid environment variables in @second-brain/shared-kernel:\n${issues}`);
+  throw new Error(`Invalid environment variables in @cue-memory/shared-kernel:\n${issues}`);
 }
 
 export const redisEnv = parsed.data;

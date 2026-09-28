@@ -1,4 +1,4 @@
-import { Card } from "@second-brain/ui/card";
+import { Card } from "@cue-memory/ui/card";
 import { fetchItems } from "@/lib/api";
 
 export default async function FeedPage() {

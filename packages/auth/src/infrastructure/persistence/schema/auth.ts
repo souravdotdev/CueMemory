@@ -4,7 +4,7 @@ export const users = pgTable("users", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
-  // Required by better-auth's user model but not surfaced in @second-brain/auth's User type —
+  // Required by better-auth's user model but not surfaced in @cue-memory/auth's User type —
   // populated from the OAuth profile, never read by application code.
   name: text("name").notNull(),
   firstName: text("first_name"),

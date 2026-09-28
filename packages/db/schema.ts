@@ -1,2 +1,2 @@
-export * from "@second-brain/items/schema";
-export * from "@second-brain/auth/schema";
+export * from "@cue-memory/items/schema";
+export * from "@cue-memory/auth/schema";

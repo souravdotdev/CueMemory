@@ -1,4 +1,4 @@
-import type { ItemWithRelations } from "@second-brain/types";
+import type { ItemWithRelations } from "@cue-memory/types";
 import { env } from "../env";
 
 const API_URL = env.NEXT_PUBLIC_API_URL;

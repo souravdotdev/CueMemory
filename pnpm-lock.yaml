@@ -35,6 +35,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@cue-memory/items':
+        specifier: workspace:*
+        version: link:../../packages/items
+      '@cue-memory/shared-kernel':
+        specifier: workspace:*
+        version: link:../../packages/shared-kernel
       '@fastify/cors':
         specifier: ^11.3.0
         version: 11.3.0
@@ -44,12 +50,6 @@ importers:
       '@fastify/rate-limit':
         specifier: ^11.2.0
         version: 11.2.0
-      '@second-brain/items':
-        specifier: workspace:*
-        version: link:../../packages/items
-      '@second-brain/shared-kernel':
-        specifier: workspace:*
-        version: link:../../packages/shared-kernel
       bullmq:
         specifier: ^6.3.6
         version: 6.3.6(ioredis@6.0.0)
@@ -78,13 +78,13 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@second-brain/eslint-config':
+      '@cue-memory/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@second-brain/typescript-config':
+      '@cue-memory/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
-      '@second-brain/vitest-config':
+      '@cue-memory/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
       '@types/node':
@@ -108,10 +108,10 @@ importers:
 
   apps/web:
     dependencies:
-      '@second-brain/types':
+      '@cue-memory/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@second-brain/ui':
+      '@cue-memory/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       next:
@@ -127,13 +127,13 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@second-brain/eslint-config':
+      '@cue-memory/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@second-brain/typescript-config':
+      '@cue-memory/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
-      '@second-brain/vitest-config':
+      '@cue-memory/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
       '@testing-library/react':
@@ -169,10 +169,10 @@ importers:
 
   apps/worker:
     dependencies:
-      '@second-brain/items':
+      '@cue-memory/items':
         specifier: workspace:*
         version: link:../../packages/items
-      '@second-brain/shared-kernel':
+      '@cue-memory/shared-kernel':
         specifier: workspace:*
         version: link:../../packages/shared-kernel
       bullmq:
@@ -197,13 +197,13 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@second-brain/eslint-config':
+      '@cue-memory/eslint-config':
         specifier: workspace:*
         version: link:../../packages/eslint-config
-      '@second-brain/typescript-config':
+      '@cue-memory/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
-      '@second-brain/vitest-config':
+      '@cue-memory/vitest-config':
         specifier: workspace:*
         version: link:../../packages/vitest-config
       '@types/node':
@@ -231,13 +231,13 @@ importers:
         specifier: ^0.45.2
         version: 0.45.2(postgres@3.4.9)
     devDependencies:
-      '@second-brain/eslint-config':
+      '@cue-memory/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@second-brain/typescript-config':
+      '@cue-memory/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
-      '@second-brain/vitest-config':
+      '@cue-memory/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -255,20 +255,20 @@ importers:
 
   packages/db:
     dependencies:
-      '@second-brain/auth':
+      '@cue-memory/auth':
         specifier: workspace:*
         version: link:../auth
-      '@second-brain/items':
+      '@cue-memory/items':
         specifier: workspace:*
         version: link:../items
-      '@second-brain/shared-kernel':
+      '@cue-memory/shared-kernel':
         specifier: workspace:*
         version: link:../shared-kernel
     devDependencies:
-      '@second-brain/eslint-config':
+      '@cue-memory/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@second-brain/typescript-config':
+      '@cue-memory/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -313,13 +313,13 @@ importers:
 
   packages/items:
     dependencies:
-      '@second-brain/auth':
+      '@cue-memory/auth':
         specifier: workspace:*
         version: link:../auth
-      '@second-brain/shared-kernel':
+      '@cue-memory/shared-kernel':
         specifier: workspace:*
         version: link:../shared-kernel
-      '@second-brain/types':
+      '@cue-memory/types':
         specifier: workspace:*
         version: link:../types
       bullmq:
@@ -347,13 +347,13 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@second-brain/eslint-config':
+      '@cue-memory/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@second-brain/typescript-config':
+      '@cue-memory/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
-      '@second-brain/vitest-config':
+      '@cue-memory/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -381,13 +381,13 @@ importers:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
-      '@second-brain/eslint-config':
+      '@cue-memory/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@second-brain/typescript-config':
+      '@cue-memory/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
-      '@second-brain/vitest-config':
+      '@cue-memory/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@types/node':
@@ -405,10 +405,10 @@ importers:
 
   packages/types:
     devDependencies:
-      '@second-brain/eslint-config':
+      '@cue-memory/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@second-brain/typescript-config':
+      '@cue-memory/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
       '@types/node':
@@ -425,13 +425,13 @@ importers:
 
   packages/ui:
     devDependencies:
-      '@second-brain/eslint-config':
+      '@cue-memory/eslint-config':
         specifier: workspace:*
         version: link:../eslint-config
-      '@second-brain/typescript-config':
+      '@cue-memory/typescript-config':
         specifier: workspace:*
         version: link:../typescript-config
-      '@second-brain/vitest-config':
+      '@cue-memory/vitest-config':
         specifier: workspace:*
         version: link:../vitest-config
       '@testing-library/react':

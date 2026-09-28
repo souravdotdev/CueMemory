@@ -1,4 +1,4 @@
-import type { ItemType } from "@second-brain/types";
+import type { ItemType } from "@cue-memory/types";
 
 export function detectItemType(url: string): ItemType {
   const { hostname, pathname } = new URL(url);
