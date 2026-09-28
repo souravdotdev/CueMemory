@@ -1,0 +1,27 @@
+{
+  "name": "@second-brain/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/infrastructure/persistence/schema/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2"
+  },
+  "devDependencies": {
+    "@second-brain/eslint-config": "workspace:*",
+    "@second-brain/typescript-config": "workspace:*",
+    "@second-brain/vitest-config": "workspace:*",
+    "@types/node": "^26.5.1",
+    "eslint": "^9.39.5",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
+  }
+}

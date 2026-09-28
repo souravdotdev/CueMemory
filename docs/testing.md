@@ -6,7 +6,7 @@
 
 Two presets, mirroring the eslint-config split between plain Node packages and `apps/web`:
 
-- `./node` (`node.mjs`) — plain Node test environment. Used by `packages/core`, `packages/db`, `packages/queue`, `apps/api`, `apps/worker`.
+- `./node` (`node.mjs`) — plain Node test environment. Used by `packages/items`, `packages/auth`, `packages/shared-kernel`, `apps/api`, `apps/worker`.
 - `./react` (`react.mjs`) — `jsdom` environment + `@vitejs/plugin-react`, built on top of `./node` via `mergeConfig`. Used by `packages/ui`, `apps/web`.
 
 Every package with tests has its own two-line `vitest.config.ts` importing one of these, and a `test` script (`vitest run`).
@@ -21,20 +21,23 @@ pnpm test   # vitest run in every package, via Turborepo
 
 ## What's actually tested, and why
 
-**`packages/core`** — the flagship test suite, and the direct payoff of the Clean Architecture refactor (see [Clean Architecture](./clean-architecture.md)): use cases take a `deps` object typed against plain interfaces, so tests pass hand-written fakes (usually `vi.fn()`-based) instead of a real database or Redis.
+**`packages/items`** — the flagship test suite, and the direct payoff of the Clean Architecture refactor (see [Clean Architecture](./clean-architecture.md)): use cases take a `deps` object typed against plain interfaces, so tests pass hand-written fakes (usually `vi.fn()`-based) instead of a real database or Redis.
 
-- `detect-item-type.test.ts` — every URL-classification branch
-- `save-item.test.ts` — creates with the right record shape, enqueues the right job, propagates a repository failure without enqueueing
-- `list-items.test.ts` — delegates to the repository with the right arguments
-- `process-item.test.ts` — success path (status → ready with title) and failure path (status → failed, error rethrown)
+- `domain/detect-item-type.test.ts` — every URL-classification branch
+- `application/use-cases/save-item.test.ts` — creates with the right record shape, enqueues the right job, propagates a repository failure without enqueueing
+- `application/use-cases/list-items.test.ts` — delegates to the repository with the right arguments
+- `application/use-cases/process-item.test.ts` — success path (status → ready with title) and failure path (status → failed, error rethrown)
+- `infrastructure/persistence/item-mappers.test.ts` — `toItem`/`toTag`/`toCollection` (the Drizzle-`Date`-to-domain-`string` conversion functions) in isolation, with no database connection. These were deliberately extracted into their own `item-mappers.ts` file specifically so they could be imported without pulling in the Drizzle client (which opens a real Postgres connection and validates `DATABASE_URL` at module load — see [Environment Variables](./environment-variables.md)). `DrizzleItemRepository` itself isn't unit-tested; its actual query logic needs a real or containerized Postgres, which isn't set up yet.
+- `presentation/http/items.routes.test.ts` — tests the Fastify routes via `app.inject()`, calling `itemRoutes(fakeDependencies)` directly rather than importing the real `composition.ts`. This avoids needing a live database/Redis entirely, since the route factory takes its dependencies as a parameter rather than reaching for a module-level singleton.
+- `presentation/queue/process-item.processor.test.ts` — tests `createProcessItemHandler(fakeDependencies)` directly with a hand-built fake BullMQ `Job` (just an object with a `.data` field) — same reasoning as the routes test, no real queue needed.
 
-**`packages/db`** — `item-mappers.test.ts` tests `toItem`/`toTag`/`toCollection` (the Drizzle-`Date`-to-domain-`string` conversion functions) in isolation, with no database connection. These were deliberately extracted into their own `item-mappers.ts` file specifically so they could be imported without pulling in `../client` (which opens a real Postgres connection and validates `DATABASE_URL` at module load — see [Environment Variables](./environment-variables.md)). `DrizzleItemRepository` itself isn't unit-tested; its actual query logic needs a real or containerized Postgres, which isn't set up yet.
+**`packages/auth`** — `user-mappers.test.ts` tests `toUser` the same way `packages/items`' mapper tests do: pure row→entity conversion, no database connection.
 
-**`packages/queue`** — wired (config + `test` script), but has no test file yet. `BullMqItemQueue` is a one-line wrapper around a live BullMQ `Queue` that needs a real Redis connection at import time — there's no pure logic to extract the way there was in `packages/db`. Its `vitest.config.ts` sets `passWithNoTests: true` so the empty suite doesn't fail the task.
+**`packages/shared-kernel`** — wired (config + `test` script), but has no test file yet. `pgClient`/`redisConnection` are one-line wrappers around a live connection that need real infra at import time — there's no pure logic to extract the way there was in `packages/items`' mappers. Its `vitest.config.ts` sets `passWithNoTests: true` so the empty suite doesn't fail the task.
 
-**`apps/api`** — `routes/items.test.ts` tests the Fastify routes via `app.inject()`, calling `itemRoutes(fakeDependencies)` directly rather than importing the real `composition.ts`. This avoids needing a live database/Redis entirely, since the route factory takes its dependencies as a parameter rather than reaching for a module-level singleton.
+**`apps/api`** — no item-specific tests anymore (those moved to `packages/items` with the routes themselves); `src/security.test.ts` still tests the app-level middleware stack directly (see below).
 
-**`apps/worker`** — `processors/process-item.test.ts` tests `createProcessItemHandler(fakeDependencies)` directly with a hand-built fake BullMQ `Job` (just an object with a `.data` field) — same reasoning as the api tests, no real queue needed.
+**`apps/worker`** — no test files at all anymore (its only test, the job-processor test, moved to `packages/items` with the processor itself); its `vitest.config.ts` sets `passWithNoTests: true` for the same reason `packages/shared-kernel`'s does — `composition.ts`/`index.ts` are pure wiring, and the logic they wire together is tested where it now lives.
 
 **`apps/web`** — `save-form.test.tsx` tests the `SaveForm` client component with `@testing-library/react` + `@testing-library/user-event`, mocking `next/navigation`'s `useRouter` and the `@/lib/api` module (so no real `fetch` call or `NEXT_PUBLIC_API_URL` env var is needed).
 

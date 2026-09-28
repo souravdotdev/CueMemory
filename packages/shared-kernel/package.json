@@ -1,0 +1,29 @@
+{
+  "name": "@second-brain/shared-kernel",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./db": "./src/db/index.ts",
+    "./redis": "./src/redis/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ioredis": "^6.0.0",
+    "postgres": "^3.4.9",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@second-brain/eslint-config": "workspace:*",
+    "@second-brain/typescript-config": "workspace:*",
+    "@second-brain/vitest-config": "workspace:*",
+    "@types/node": "^26.5.1",
+    "eslint": "^9.39.5",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
+  }
+}

@@ -3,9 +3,10 @@
   "apps/web/**/*.{ts,tsx,js}": "eslint --fix --config apps/web/eslint.config.js",
   "apps/api/**/*.{ts,js}": "eslint --fix --config apps/api/eslint.config.js",
   "apps/worker/**/*.{ts,js}": "eslint --fix --config apps/worker/eslint.config.js",
-  "packages/core/**/*.{ts,js}": "eslint --fix --config packages/core/eslint.config.js",
+  "packages/items/**/*.{ts,js}": "eslint --fix --config packages/items/eslint.config.js",
+  "packages/auth/**/*.{ts,js}": "eslint --fix --config packages/auth/eslint.config.js",
+  "packages/shared-kernel/**/*.{ts,js}": "eslint --fix --config packages/shared-kernel/eslint.config.js",
   "packages/db/**/*.{ts,js}": "eslint --fix --config packages/db/eslint.config.js",
-  "packages/queue/**/*.{ts,js}": "eslint --fix --config packages/queue/eslint.config.js",
   "packages/types/**/*.{ts,js}": "eslint --fix --config packages/types/eslint.config.js",
   "packages/ui/**/*.{ts,tsx,js}": "eslint --fix --config packages/ui/eslint.config.js"
 }

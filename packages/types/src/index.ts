@@ -2,15 +2,6 @@ export type ItemType = "article" | "tweet" | "image" | "video" | "pdf" | "link";
 
 export type ItemStatus = "processing" | "ready" | "failed";
 
-export interface User {
-  id: string;
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-  profileImg: string | null;
-  createdAt: string;
-}
-
 export interface Item {
   id: string;
   userId: string;

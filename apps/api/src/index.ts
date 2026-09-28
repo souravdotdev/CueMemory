@@ -4,7 +4,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
-import { itemRoutes } from "./routes/items";
+import { itemRoutes } from "@second-brain/items";
 import { dependencies } from "./composition";
 import { env } from "./env";
 import { rateLimitRedis } from "./rate-limit-redis";

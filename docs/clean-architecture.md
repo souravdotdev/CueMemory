@@ -7,82 +7,102 @@ This project follows Clean Architecture (ports-and-adapters / the dependency rul
 Source code dependencies point **inward only**. Outer layers depend on inner layers; inner layers know nothing about outer layers.
 
 ```
-Frameworks & Drivers   (Fastify, BullMQ, Drizzle, Postgres, Redis)
+presentation      (Fastify routes, BullMQ job processors, DTOs)
         ↓ depends on
-Interface Adapters     (route controllers, repository/queue adapter implementations)
+infrastructure     (Drizzle repositories/schema, BullMQ adapters, connection wiring)
         ↓ depends on
-Use Cases              (packages/core/src/use-cases)
+application        (use cases)
         ↓ depends on
-Entities                (packages/types)
+domain             (entities, port interfaces, pure business rules)
 ```
 
-An inner layer never imports from an outer one. Concretely: `packages/core` (use cases) never imports `drizzle-orm`, `bullmq`, or `fastify` — it only knows about the **port interfaces** it defines itself. Outer layers (`packages/db`, `packages/queue`, `apps/api`, `apps/worker`) import `@second-brain/core` to implement those interfaces or call those use cases — never the other way around.
+An inner layer never imports from an outer one. A feature's `domain`/`application` code never imports `drizzle-orm`, `bullmq`, or `fastify` — it only knows about the **port interfaces** it defines itself.
 
-## The layers, mapped to this codebase
+## Feature-first packages, not layer-first packages
 
-### Entities — `packages/types`
+Each **feature** is its own pnpm workspace package with all four layers nested inside it (`domain/`, `application/`, `infrastructure/`, `presentation/`), rather than one package per technical layer shared across every feature. A feature is a self-contained vertical slice — everything needed to build, persist, and expose it lives in one place, and the dependency rule is enforced _within_ that package by which subfolder imports which.
 
-Plain domain types with zero dependencies: `Item`, `Tag`, `Collection`, `Reminder`, `User`, plus DTOs like `CreateItemInput`. No framework, no I/O, no business rules beyond shape.
+This repo currently has two feature packages:
 
-### Use Cases — `packages/core`
+- **`packages/items`** — the paste-a-link save/list/process flow. Has real code in all four layers.
+- **`packages/auth`** — currently just a `User` entity and the better-auth-compatible DB schema. No port, use case, or route exists for auth yet (the API fakes it with an `x-user-id` dev header — see [API](./api.md#auth-placeholder)), so `application/`/`presentation/` folders don't exist in this package. **They appear only once real auth behavior is built, not before** — this is a deliberate application of the project's "no scaffolding for hypothetical requirements" rule, not an oversight.
 
-The application's actual business logic, and the **ports** (interfaces) it needs from the outside world. This package depends only on `packages/types`.
+`tags`, `collections`, and `reminders` do **not** have their own feature packages: they have DB schema but zero independent ports/use-cases/routes anywhere — they're read purely as nested data inside `items`' `ItemWithRelations` query. They live inside `packages/items` as item-aggregate data. If one of them grows independent behavior (its own CRUD, its own route), it becomes its own feature package at that point, following the same pattern `items`/`auth` already establish.
 
-- `src/ports/*.ts` — interfaces the use-case layer defines and infrastructure must implement: `ItemRepository` (persistence), `ItemQueue` (background jobs), `MetadataFetcher` (URL metadata extraction).
-- `src/use-cases/*.ts` — the actual interactors: `saveItem`, `listItems`, `processItem`. Each takes a `deps` object typed against the port interfaces, plus a plain input object, and returns a plain result. No HTTP, no SQL, no queue library — fully unit-testable by passing hand-written fake implementations of the ports.
-- `src/lib/detect-item-type.ts` — a pure business rule (inferring item type from a URL). It lives here, not in `apps/api`, because deciding what type a saved link is is a domain concern, not an HTTP concern.
+## The `items` feature, layer by layer
 
-### Interface Adapters — repository/queue implementations + route controllers
+- **`domain/`** — `ports/` (`ItemRepository`, `ItemQueue`, `MetadataFetcher` — interfaces infrastructure must implement), `detect-item-type.ts` (a pure business rule: inferring item type from a URL), `tokens.ts` (DI symbols for this package's ports).
+- **`application/use-cases/`** — the actual interactors: `saveItem`, `listItems`, `processItem`. Each takes a `deps` object typed against the port interfaces, plus a plain input object, and returns a plain result. No HTTP, no SQL, no queue library — fully unit-testable by passing hand-written fake implementations of the ports.
+- **`infrastructure/`**:
+  - `persistence/` — `schema/` (Drizzle tables for `items`, `tags`, `collections`, `reminders`, and their join tables; imports `users` from `@second-brain/auth/schema` only for the FK column type), `drizzle-item-repository.ts` (`DrizzleItemRepository implements ItemRepository`), `item-mappers.ts` (`toItem`/`toTag`/`toCollection` — translates Drizzle's raw row shapes into domain entities, e.g. `Date` → `string`).
+  - `queue/` — `queues.ts` (the BullMQ `Queue` instance + queue name constants), `bullmq-item-queue.ts` (`BullMqItemQueue implements ItemQueue`).
+  - `metadata/` — `stub-metadata-fetcher.ts` (`StubMetadataFetcher implements MetadataFetcher`, currently a placeholder — the seam where real extraction gets plugged in later).
+- **`presentation/`**:
+  - `http/` — `item.dto.ts` (Zod request/response schemas for the HTTP boundary), `items.routes.ts` (the Fastify controller — validates via DTO, calls a use case, formats the response).
+  - `queue/` — `process-item.processor.ts` (`createProcessItemHandler` — the BullMQ delivery-mechanism equivalent of a route controller: unwraps a `Job`, calls the `processItem` use case).
 
-Adapters translate between the use-case layer's abstractions and a specific technology:
+Package exports: `.` (the full barrel — domain + application + infrastructure + presentation) and `./schema` (schema-only, so `packages/db`'s migration runner can read table definitions without pulling in Fastify/BullMQ).
 
-- **`packages/db`**'s `DrizzleItemRepository` (`src/repositories/item-repository.ts`) implements `ItemRepository` from `@second-brain/core` using Drizzle + Postgres. It's also where infrastructure-shaped data gets translated into domain-shaped data — e.g. Drizzle returns `createdAt` as a native `Date`, but the `Item` entity declares it as `string`; the repository does that conversion so nothing outside `packages/db` ever sees a raw `Date`.
-- **`packages/queue`**'s `BullMqItemQueue` (`src/adapters/item-queue.ts`) implements `ItemQueue` using BullMQ.
-- **`apps/worker`**'s `StubMetadataFetcher` (`src/adapters/stub-metadata-fetcher.ts`) implements `MetadataFetcher` — currently a placeholder (uses the URL's hostname as the title). This is the seam where real extraction (Open Graph, oEmbed, the YouTube API, PDF text extraction — see the product plan's v2 scope) gets plugged in later, without touching anything else.
-- **`apps/api`**'s route handlers (`src/routes/items.ts`) are controllers: request/response shapes are validated against DTO schemas (`src/dto/item.dto.ts`, Zod, wired via `fastify-type-provider-zod` — see [API](./api.md#requestresponse-validation-dtos)), then a use case is called and its result formatted as the response. They contain zero business logic and never import Drizzle or BullMQ.
-- **`apps/worker`**'s job processor (`src/processors/process-item.ts`) is the equivalent controller for the BullMQ delivery mechanism: it unwraps a `Job`, calls the `processItem` use case, and returns.
+## The `auth` feature — deliberately partial
 
-### Frameworks & Drivers — the outermost layer
+- **`domain/user.ts`** — the `User` entity (relocated here from `packages/types`, since it's the one type actually owned by this feature).
+- **`infrastructure/persistence/`** — `schema/` (the better-auth-compatible `users`/`sessions`/`accounts`/`verifications` tables), `user-mappers.ts` (`toUser`).
 
-Fastify, BullMQ, Drizzle, Postgres, Redis, Next.js. These are configuration and setup, not business logic — `packages/db/src/client.ts` (the Drizzle client), `packages/db/schema/index.ts` (table definitions), `packages/queue/src/connection.ts` (the Redis connection), `apps/api/src/index.ts` (the Fastify server bootstrap).
+No `application/` or `presentation/` folder exists in this package. Don't create them speculatively — add them when a real auth port, use case, or route is actually being built, following the exact shape `items` already demonstrates.
 
-## The composition root
+## Shared infrastructure
 
-Concrete adapters have to get wired into the use cases _somewhere_ — that place is the **composition root**, the one spot in each app allowed to know about every concrete implementation at once. Wiring is done with an [InversifyJS](https://inversify.io) `Container`:
+Two things are genuinely cross-feature and don't belong inside any one feature package:
 
-- `apps/api/src/composition.ts` — binds `TYPES.ItemRepository` → `DrizzleItemRepository` and `TYPES.ItemQueue` → `BullMqItemQueue` (both `inSingletonScope()`), resolves both via `container.get(...)`, and exports the result as a plain `dependencies` object.
-- `apps/worker/src/composition.ts` — binds `TYPES.ItemRepository` → `DrizzleItemRepository` and `TYPES.MetadataFetcher` → `StubMetadataFetcher`, same pattern.
+- **`packages/shared-kernel`** — raw connection primitives only: `db/client.ts` (a raw `postgres()` client, **not** wrapped in `drizzle()` — no schema bound here) and `redis/connection.ts` (a raw `ioredis` instance). Exported as two independent subpaths, `./db` and `./redis`, specifically so importing one doesn't eagerly validate the other's env vars (e.g. `packages/db`'s migration runner only needs `DATABASE_URL`, not `REDIS_URL`). No `@second-brain/*` dependencies — a true leaf package.
+- **`packages/db`** — not a feature package. It's the single centralized Drizzle-kit migration runner: `schema.ts` re-exports `@second-brain/items/schema` + `@second-brain/auth/schema`, and `drizzle.config.ts` points at that shim. One Postgres database has one migration history spanning every feature's tables, so this can't be split per feature the way application code can.
 
-`TYPES` (`packages/core/src/tokens.ts`) is a small registry of `Symbol`s, one per port — Inversify needs a runtime-visible identifier to bind against, since the port _interfaces_ (`ItemRepository`, `ItemQueue`, `MetadataFetcher`) are erased at compile time and don't exist at runtime. **Deliberately, `packages/core` does not depend on the `inversify` package itself** — `TYPES` is just plain `Symbol.for(...)` calls, so the use-case layer stays framework-free. Only the concrete adapter classes (`DrizzleItemRepository`, `BullMqItemQueue`, `StubMetadataFetcher`) are decorated with `@injectable()`, and only the two composition roots import `inversify`'s `Container`.
+Each feature package wraps the shared raw `pgClient` in its **own** local `drizzle(pgClient, { schema })` call (e.g. `packages/items/src/infrastructure/persistence/drizzle-item-repository.ts`) — safe because the connection pool lives in the raw postgres client, not the Drizzle wrapper, so multiple independent `drizzle()` instances coexist over it without conflict.
 
-Both `apps/api/src/index.ts` and `apps/worker/src/index.ts` import the resolved `dependencies` object from their composition root and pass it into a controller/handler **factory** (`itemRoutes(dependencies)`, `createProcessItemHandler(dependencies)`), which closes over it and passes it through to use-case calls unchanged. This means the container is purely an implementation detail of `composition.ts` — nothing in `packages/core`, the routes, or the job processor knows Inversify exists, or would need to change if it were swapped out later.
+Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (schema-only, for the `users` FK column type), `items → shared-kernel`, `auth →` nothing. `auth` never depends on `items`, and neither depends back on `db`.
+
+## The composition roots
+
+Concrete adapters get wired into use cases at the **composition root**, the one spot in each app allowed to know about every concrete implementation at once. Wiring uses an [InversifyJS](https://inversify.io) `Container`:
+
+- `apps/api/src/composition.ts` — binds `ItemsTypes.ItemRepository → DrizzleItemRepository` and `ItemsTypes.ItemQueue → BullMqItemQueue` (both `inSingletonScope()`, both imported from `@second-brain/items`), resolves both via `container.get(...)`, exports the result as a plain `dependencies` object.
+- `apps/worker/src/composition.ts` — binds `ItemsTypes.ItemRepository → DrizzleItemRepository` and `ItemsTypes.MetadataFetcher → StubMetadataFetcher`, same pattern, same source package.
+
+Neither composition root imports `@second-brain/db` — that package has no runtime exports left to import. As more features gain ports (e.g. `auth` growing a real repository), their composition-root bindings get added the same way, each feature's `TYPES` imported under its own alias (`TYPES as ItemsTypes`, `TYPES as AuthTypes`, ...) so multiple registries coexist cleanly.
+
+Both `apps/api/src/index.ts` and `apps/worker/src/index.ts` import the resolved `dependencies` object from their composition root and pass it into a controller/handler factory (`itemRoutes(dependencies)`, `createProcessItemHandler(dependencies)`), which closes over it and passes it through to use-case calls unchanged. The container is purely an implementation detail of `composition.ts` — nothing in a feature's use cases, routes, or job processor knows Inversify exists.
 
 **Setup requirements** (both `apps/api` and `apps/worker`):
 
-- `import "reflect-metadata";` as the literal first line of `src/index.ts` — it's a side-effecting polyfill that must run before any `@injectable()`-decorated class is evaluated, since Inversify's runtime dependency resolution depends on the metadata it attaches.
-- `experimentalDecorators: true` and `emitDecoratorMetadata: true` in `tsconfig.json` — added only to the packages that actually declare a decorated class (`packages/db`, `packages/queue`, `apps/worker`), as a package-local override rather than in the shared `library.json` base, so packages with no decorators don't silently get the flag.
+- `import "reflect-metadata";` as the literal first line of `src/index.ts`.
+- `experimentalDecorators: true` and `emitDecoratorMetadata: true` in `tsconfig.json`, added only to the one package that actually declares `@injectable()` classes (`packages/items`) — not to the apps that merely reference them by identifier in `composition.ts`, and not to `packages/db` or `packages/auth`, neither of which has any decorated classes.
+
+## DI tokens
+
+Each feature package owns its own token registry, colocated with the ports it defines — `packages/items/src/domain/tokens.ts` exports `TYPES` (a plain `Symbol.for(...)` registry, deliberately not importing `inversify` itself, so the domain/application layers stay framework-free). `packages/auth` has no ports yet, so it has no tokens file at all. This keeps a feature's ports and their runtime identifiers as one unit that moves together, rather than a shared registry every feature reaches into.
 
 ## Where new code goes
 
 Ask these questions in order:
 
-1. **Is it a new business rule or workflow step?** → a new use case (or an addition to an existing one) in `packages/core/src/use-cases`. Define whatever new port method it needs on the relevant interface in `packages/core/src/ports`.
-2. **Does an existing port need a new capability to support that use case?** → add the method to the port interface in `packages/core`, then implement it in the corresponding adapter (`packages/db`'s repository, `packages/queue`'s adapter, etc.). The port interface changes first; the implementation follows.
-3. **Is it a new external integration** (a new port entirely — e.g. an email sender, an LLM tagging client)? → define the port interface in `packages/core/src/ports`, write a concrete adapter for it (in the package that owns that technology, or a new one if none fits), and wire it into the relevant app's `composition.ts`.
-4. **Is it purely a delivery-mechanism concern** (an HTTP route, request validation, response shaping, a new BullMQ queue registration)? → the controller/adapter layer in `apps/api` or `apps/worker`. It should still only ever call into `packages/core` for actual logic.
+1. **Is it a new business rule or workflow step for an existing feature?** → a new use case (or an addition to an existing one) in that feature's `application/use-cases`. Define whatever new port method it needs on the relevant interface in that feature's `domain/ports`.
+2. **Does an existing port need a new capability to support that use case?** → add the method to the port interface in `domain/ports`, then implement it in the corresponding adapter under `infrastructure/`. The port interface changes first; the implementation follows.
+3. **Is it a new external integration** (a new port entirely — e.g. an email sender, an LLM tagging client)? → define the port interface in that feature's `domain/ports`, write a concrete adapter for it under that feature's `infrastructure/`, and wire it into the relevant app's `composition.ts`.
+4. **Is it purely a delivery-mechanism concern** (an HTTP route, request validation, response shaping, a new BullMQ queue registration)? → that feature's `presentation/`. It should still only ever call into that feature's `application/use-cases` for actual logic.
+5. **Is it a genuinely new feature** with no existing package to live in? → a new `packages/<feature>` following the exact shape `items`/`auth` establish: start with whichever layers actually have content (often just `domain/` + `infrastructure/` for schema), and add `application/`/`presentation/` once real use cases/routes exist — never scaffold empty layer folders ahead of time.
 
-**Hard rule**: if you find yourself importing `drizzle-orm`, `bullmq`, `postgres`, `ioredis`, or `fastify` types into anything under `packages/core`, stop — that's the dependency rule being violated. Business logic must not know its infrastructure.
+**Hard rule**: if you find yourself importing `drizzle-orm`, `bullmq`, `postgres`, `ioredis`, or `fastify` types into a feature's `domain/` or `application/`, stop — that's the dependency rule being violated. Business logic must not know its infrastructure.
 
 ## Why this exists
 
 Clean Architecture's indirection has a real cost — an extra port interface and adapter class for something that could be a single inline database call. It pays for itself here because:
 
-- **Use cases are independently testable** — `saveItem`/`listItems`/`processItem` are tested (`packages/core/src/use-cases/*.test.ts`) with hand-written fake `ItemRepository`/`ItemQueue`/`MetadataFetcher` implementations, no database or Redis required. The same pattern extends to the controllers: `apps/api`'s route tests and `apps/worker`'s processor test both call the route/handler factory directly with fake dependencies, entirely bypassing the real `composition.ts` and its live infrastructure. See [Testing](./testing.md).
-- **Swapping infrastructure is a one-package change** — replacing Drizzle, or adding a second delivery mechanism (a CLI, a second API framework) alongside Fastify, touches `packages/db` or adds a new adapter, not the business logic itself.
-- **The dependency rule catches real bugs, not just style violations** — enforcing it during this refactor surfaced two pre-existing issues that loose typing had been hiding: the API was leaking raw `itemsToTags`/`itemsToCollections` join-table shapes into responses instead of the flat `tags`/`collections` the `ItemWithRelations` entity actually declares, and nothing was converting Drizzle's `Date` objects to the `string` the `Item` entity's `createdAt` field declares. Giving the repository an explicit interface to satisfy made TypeScript catch both immediately.
+- **Use cases are independently testable** — `saveItem`/`listItems`/`processItem` are tested (`packages/items/src/application/use-cases/*.test.ts`) with hand-written fake `ItemRepository`/`ItemQueue`/`MetadataFetcher` implementations, no database or Redis required. The same pattern extends to the controllers: `packages/items`' HTTP route tests and job-processor test both call the route/handler factory directly with fake dependencies, entirely bypassing the real `composition.ts` and its live infrastructure. See [Testing](./testing.md).
+- **Swapping infrastructure is a one-file change** — replacing Drizzle, or adding a second delivery mechanism (a CLI, a second API framework) alongside Fastify, touches one feature's `infrastructure/`/`presentation/` folder, not the business logic itself.
+- **A feature's full stack lives in one place** — reviewing or extending the paste-a-link flow means working inside `packages/items`, not jumping across three separately-versioned technical-layer packages to find the pieces that make up one concept.
 
 ## Why InversifyJS specifically
 
-At the current scale — two dependencies per app, wired in a ~10-line composition root — manually calling `new DrizzleItemRepository()` would do the same job with less ceremony, and that's what this project did initially. Inversify was added ahead of that need, on the expectation that the dependency graph will grow (more use cases, more ports, deeper chains where one adapter depends on another). At that point, manually sequencing every `new X(y, z)` call by hand gets error-prone; a container resolves the whole graph from a binding registry instead, and gives lifecycle control (singleton/transient/request scope) as a declared setting rather than something to hand-build.
+At the current scale — two dependencies per app, wired in a ~15-line composition root — manually calling `new DrizzleItemRepository()` would do the same job with less ceremony, and that's what this project did initially. Inversify was added ahead of that need, on the expectation that the dependency graph will grow (more use cases, more ports, deeper chains where one adapter depends on another). At that point, manually sequencing every `new X(y, z)` call by hand gets error-prone; a container resolves the whole graph from a binding registry instead, and gives lifecycle control (singleton/transient/request scope) as a declared setting rather than something to hand-build.
 
-The design choice that matters most here: **only the composition roots and the concrete adapter classes know Inversify exists.** The use-case layer (`packages/core`) was deliberately kept plain-function-based rather than converted to injectable classes, specifically so it keeps the property that made it valuable in the first place — trivial unit testing by passing hand-written fake objects, no container, no decorators, no metadata reflection required. Introducing a DI container didn't have to mean making everything in the codebase container-aware, and it doesn't here.
+The design choice that matters most here: **only the composition roots and the concrete adapter classes know Inversify exists.** Each feature's `application/`/`domain` layers were deliberately kept plain-function-based rather than converted to injectable classes, specifically so they keep the property that made them valuable in the first place — trivial unit testing by passing hand-written fake objects, no container, no decorators, no metadata reflection required. Introducing a DI container didn't have to mean making everything in the codebase container-aware, and it doesn't here.

@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { Worker } from "bullmq";
-import { QUEUE_NAMES, redisConnection } from "@second-brain/queue";
-import { createProcessItemHandler } from "./processors/process-item";
+import { QUEUE_NAMES, createProcessItemHandler } from "@second-brain/items";
+import { redisConnection } from "@second-brain/shared-kernel/redis";
 import { dependencies } from "./composition";
 
 const worker = new Worker(QUEUE_NAMES.ITEM_PROCESSING, createProcessItemHandler(dependencies), {

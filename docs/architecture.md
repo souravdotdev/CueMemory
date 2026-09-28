@@ -11,9 +11,13 @@ apps/
   worker/   BullMQ consumer that processes saved items
 
 packages/
-  core/               Use cases + port interfaces (the Clean Architecture application layer)
-  db/                 Drizzle ORM schema, Postgres client, and the ItemRepository adapter
-  queue/              BullMQ setup and the ItemQueue adapter
+  items/              Feature package: the paste-a-link save/list/process flow —
+                      domain/application/infrastructure/presentation all nested inside
+  auth/               Feature package: User entity + auth DB schema (minimal — no
+                      use cases/routes exist yet, see Clean Architecture)
+  shared-kernel/      Raw cross-feature infra: Postgres client, Redis connection
+  db/                 Centralized Drizzle-kit migration runner (schema.ts re-exports
+                      items'/auth's schemas; no runtime code of its own)
   types/              Shared domain entities (Item, Tag, Collection, Reminder, ...)
   ui/                 Shared React components
   eslint-config/      Shared flat ESLint configs
@@ -32,9 +36,10 @@ That's fine for anything bundler-based — but plain `node` cannot execute raw T
 ## Why this split
 
 - **`packages/types`** has zero dependencies and is imported by both the frontend and backend, so request/response shapes for the paste-a-link flow can't drift out of sync between `apps/web` and `apps/api`.
-- **`packages/core`** holds the actual business logic (use cases) and the port interfaces infrastructure must implement — it depends only on `packages/types`, never on Drizzle, BullMQ, or Fastify. See [Clean Architecture](./clean-architecture.md) for the full layering.
-- **`packages/queue`** exists so the job payload shape (`ProcessItemJob`, defined in `packages/core`) and queue name constants are defined once and shared between the producer (`apps/api`, which enqueues) and the consumer (`apps/worker`, which processes) — a mismatch there would fail silently at runtime otherwise.
-- **`packages/db`** centralizes the Drizzle schema so both `apps/api` and `apps/worker` query the same tables through the same typed client, rather than each maintaining its own connection/schema.
+- **`packages/items`** is a feature package — it holds the actual business logic (use cases), the port interfaces infrastructure must implement, and the concrete adapters (Drizzle repository, BullMQ queue, metadata fetcher) and delivery mechanisms (HTTP routes, job processor) that implement/expose them. See [Clean Architecture](./clean-architecture.md) for the full per-feature layering.
+- **`packages/auth`** is a feature package too, currently minimal — just the `User` entity and its DB schema, since no auth port/use-case/route exists yet.
+- **`packages/shared-kernel`** exists so the raw Postgres/Redis connections are built once and shared by whichever feature packages need them, rather than each feature opening its own pool against the same database/Redis instance.
+- **`packages/db`** is not a feature package — it's the single centralized Drizzle-kit migration runner, since one Postgres database has one migration history spanning every feature's tables.
 
 ## Tech stack
 
@@ -48,11 +53,11 @@ That's fine for anything bundler-based — but plain `node` cannot execute raw T
 
 **Worker** (`apps/worker`): BullMQ, `tsx`
 
-**Dependency injection** (`apps/api`, `apps/worker`, and the concrete adapters in `packages/db`/`packages/queue`): InversifyJS + `reflect-metadata` — see [Clean Architecture](./clean-architecture.md#the-composition-root)
+**Dependency injection** (`apps/api`, `apps/worker`, and the concrete adapters in `packages/items`): InversifyJS + `reflect-metadata` — see [Clean Architecture](./clean-architecture.md#the-composition-roots)
 
-**Database** (`packages/db`): Drizzle ORM, drizzle-kit (migrations/studio CLI), `postgres` (postgres.js driver), PostgreSQL 16 (Docker)
+**Database** (`packages/items`' infrastructure, migrations run via `packages/db`): Drizzle ORM, drizzle-kit (migrations/studio CLI), `postgres` (postgres.js driver), PostgreSQL 16 (Docker)
 
-**Queue** (`packages/queue`): BullMQ, ioredis, Redis 7 (Docker)
+**Queue** (`packages/items`' infrastructure): BullMQ, ioredis, Redis 7 (Docker)
 
 **Linting**: ESLint 9 (flat config), `typescript-eslint`, `eslint-config-next`, `eslint-config-prettier`
 
@@ -66,4 +71,4 @@ See [Code Quality](./code-quality.md) for how lint/format/type-check are wired t
 
 This project follows **Clean Architecture** (ports-and-adapters), strictly and as a standing convention for every future change — not just the current code. Dependencies point inward only: infrastructure (Fastify routes, Drizzle, BullMQ) depends on the use-case layer, never the reverse. See [Clean Architecture](./clean-architecture.md) for the full layer breakdown, the dependency rule, and where new code should go.
 
-This wasn't the original design — the project started with routes calling Drizzle/BullMQ directly, a deliberate simplification for early v1 scope. It was refactored to full Clean Architecture once the project's direction called for stricter discipline. `packages/core` holds the business logic and port interfaces; `packages/db` and `packages/queue` provide concrete adapters; `apps/api` and `apps/worker` each have a `src/composition.ts` composition root that wires concrete adapters into the use cases, and their route handlers / job processors are thin controllers that only call use cases.
+This wasn't the original design — the project started with routes calling Drizzle/BullMQ directly, a deliberate simplification for early v1 scope, then moved through an intermediate stage organized by technical layer (`packages/core`/`db`/`queue`) before settling on today's feature-first packages once the number of features and the need for stricter per-feature boundaries grew. Each feature package (`packages/items`, `packages/auth`) holds its own business logic, port interfaces, and concrete adapters; `apps/api` and `apps/worker` each have a `src/composition.ts` composition root that wires concrete adapters into the use cases, and their route handlers / job processors are thin controllers that only call use cases.

@@ -3,34 +3,24 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": {
-    ".": "./src/index.ts",
-    "./schema": "./schema/index.ts"
-  },
   "scripts": {
     "lint": "eslint .",
     "check-types": "tsc --noEmit",
-    "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@second-brain/core": "workspace:*",
-    "@second-brain/types": "workspace:*",
-    "drizzle-orm": "^0.45.2",
-    "inversify": "^8.2.3",
-    "postgres": "^3.4.9",
-    "zod": "^4.6.5"
+    "@second-brain/auth": "workspace:*",
+    "@second-brain/items": "workspace:*",
+    "@second-brain/shared-kernel": "workspace:*"
   },
   "devDependencies": {
     "@second-brain/eslint-config": "workspace:*",
     "@second-brain/typescript-config": "workspace:*",
-    "@second-brain/vitest-config": "workspace:*",
     "@types/node": "^26.5.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.5",
-    "typescript": "^6.0.3",
-    "vitest": "^5.0.1"
+    "typescript": "^6.0.3"
   }
 }

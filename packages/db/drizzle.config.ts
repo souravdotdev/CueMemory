@@ -1,11 +1,11 @@
 import { defineConfig } from "drizzle-kit";
-import { env } from "./src/env";
+import { dbEnv } from "@second-brain/shared-kernel/db";
 
 export default defineConfig({
-  schema: "./schema/index.ts",
+  schema: "./schema.ts",
   out: "./migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: env.DATABASE_URL,
+    url: dbEnv.DATABASE_URL,
   },
 });

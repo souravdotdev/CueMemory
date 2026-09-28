@@ -13,7 +13,7 @@ export default defineConfig({
   // skipNodeModulesBundle flips the default the other way: everything else
   // resolved from node_modules — including transitive deps pulled in only
   // through those workspace packages (ioredis, bullmq, postgres via
-  // @second-brain/queue/db, invisible to tsup's own package.json-based
+  // @second-brain/items/shared-kernel, invisible to tsup's own package.json-based
   // auto-external detection) — stays external automatically, rather than
   // needing every transitive dependency hand-listed.
   noExternal: [/^@second-brain\//],

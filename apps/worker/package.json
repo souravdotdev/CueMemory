@@ -12,9 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@second-brain/core": "workspace:*",
-    "@second-brain/db": "workspace:*",
-    "@second-brain/queue": "workspace:*",
+    "@second-brain/items": "workspace:*",
+    "@second-brain/shared-kernel": "workspace:*",
     "bullmq": "^6.3.6",
     "drizzle-orm": "^0.45.2",
     "inversify": "^8.2.3",
