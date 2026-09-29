@@ -24,7 +24,7 @@ docker compose up -d
 
 This starts:
 
-- **Postgres 16** on `localhost:5433` (db `universal_save`, user/pass `postgres`/`postgres`)
+- **Postgres 16** on `localhost:5433` (db `cue_memory`, user/pass `postgres`/`postgres`)
 - **Redis 7** on `localhost:6380`
 
 Stop them with `docker compose down` (add `-v` to also drop the Postgres volume and reset data).

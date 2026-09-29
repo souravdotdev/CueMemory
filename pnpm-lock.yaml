@@ -264,6 +264,9 @@ importers:
       '@cue-memory/shared-kernel':
         specifier: workspace:*
         version: link:../shared-kernel
+      postgres:
+        specifier: ^3.4.9
+        version: 3.4.9
     devDependencies:
       '@cue-memory/eslint-config':
         specifier: workspace:*

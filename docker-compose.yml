@@ -1,3 +1,5 @@
+name: cue-memory
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -5,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: universal_save
+      POSTGRES_DB: cue_memory
     ports:
       - "5433:5432"
     volumes:

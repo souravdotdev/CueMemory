@@ -13,7 +13,8 @@
   "dependencies": {
     "@cue-memory/auth": "workspace:*",
     "@cue-memory/items": "workspace:*",
-    "@cue-memory/shared-kernel": "workspace:*"
+    "@cue-memory/shared-kernel": "workspace:*",
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
     "@cue-memory/eslint-config": "workspace:*",

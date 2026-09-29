@@ -16,27 +16,27 @@ One Next.js-specific detail: `apps/web/src/env.ts` reads `process.env.NEXT_PUBLI
 
 ## `packages/db/.env`
 
-| Variable       | Purpose                                     | Local dev value                                              |
-| -------------- | ------------------------------------------- | ------------------------------------------------------------ |
-| `DATABASE_URL` | Postgres connection string, used by Drizzle | `postgres://postgres:postgres@localhost:5433/universal_save` |
+| Variable       | Purpose                                     | Local dev value                                          |
+| -------------- | ------------------------------------------- | -------------------------------------------------------- |
+| `DATABASE_URL` | Postgres connection string, used by Drizzle | `postgres://postgres:postgres@localhost:5433/cue_memory` |
 
 Required for `pnpm db:generate`, `pnpm db:migrate`, `pnpm db:studio`, and any other direct use of `drizzle-kit` in this package.
 
 ## `apps/api/.env`
 
-| Variable       | Purpose                                                                          | Local dev value                                              |
-| -------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `PORT`         | Port the Fastify server listens on                                               | `4000`                                                       |
-| `DATABASE_URL` | Postgres connection string (via `@cue-memory/shared-kernel/db`)                  | `postgres://postgres:postgres@localhost:5433/universal_save` |
-| `REDIS_URL`    | Redis connection string (via `@cue-memory/shared-kernel/redis`, to enqueue jobs) | `redis://localhost:6380`                                     |
-| `CORS_ORIGIN`  | The web app's origin — the only one allowed to call this API                     | `http://localhost:3000`                                      |
+| Variable       | Purpose                                                                          | Local dev value                                          |
+| -------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `PORT`         | Port the Fastify server listens on                                               | `4000`                                                   |
+| `DATABASE_URL` | Postgres connection string (via `@cue-memory/shared-kernel/db`)                  | `postgres://postgres:postgres@localhost:5433/cue_memory` |
+| `REDIS_URL`    | Redis connection string (via `@cue-memory/shared-kernel/redis`, to enqueue jobs) | `redis://localhost:6380`                                 |
+| `CORS_ORIGIN`  | The web app's origin — the only one allowed to call this API                     | `http://localhost:3000`                                  |
 
 ## `apps/worker/.env`
 
-| Variable       | Purpose                                                            | Local dev value                                              |
-| -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `DATABASE_URL` | Postgres connection string, to update item status after processing | `postgres://postgres:postgres@localhost:5433/universal_save` |
-| `REDIS_URL`    | Redis connection string, to consume queued jobs                    | `redis://localhost:6380`                                     |
+| Variable       | Purpose                                                            | Local dev value                                          |
+| -------------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
+| `DATABASE_URL` | Postgres connection string, to update item status after processing | `postgres://postgres:postgres@localhost:5433/cue_memory` |
+| `REDIS_URL`    | Redis connection string, to consume queued jobs                    | `redis://localhost:6380`                                 |
 
 No `PORT` — the worker doesn't expose an HTTP server, it just consumes the queue.
 
