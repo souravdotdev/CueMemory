@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^6.1.1",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.2"
   }
 }
