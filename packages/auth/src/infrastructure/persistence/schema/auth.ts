@@ -7,7 +7,8 @@ export const users = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     // Display name — better-auth's required `name`, mirrored from Google on every sign-in.
     name: text("name").notNull(),
-    // Captured once at sign-up and never overwritten; reminder emails go here.
+    // Reminder emails go here. Intended to be captured once at sign-up and never
+    // overwritten; enforced once better-auth sign-in is wired up (spec #12).
     email: text("email").notNull().unique(),
     // Required by better-auth's user model but not surfaced in @cue-memory/auth's User type.
     emailVerified: boolean("email_verified").notNull().default(false),
