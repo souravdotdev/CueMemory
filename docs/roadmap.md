@@ -4,21 +4,21 @@ Feature list derived from a competitive analysis of [mymind.com](https://mymind.
 
 ## V1 — MVP (core value prop must work before anything else)
 
-1. **Save/capture items** — URL, text note, image, document (single unified "item" model)
-2. **Note taking** — plain text/rich text notes
-3. **Basic keyword search**
-4. **Manual tagging** — simplest organization primitive
-5. **AI auto-tagging** — automatic organization alongside manual tags, the "no folders needed" pitch
-6. **Sync across devices** — cloud backend, not local-only (table stakes for a "second brain")
-7. **Accounts/auth**
-8. **Grid/masonry view UI**
+1. **Save/capture items** — paste a link (article, tweet, video, image, PDF, or any other page); every item starts from a URL
+2. **Basic keyword search**
+3. **Manual tagging** — simplest organization primitive
+4. **AI auto-tagging** — automatic organization alongside manual tags, the "no folders needed" pitch
+5. **Sync across devices** — cloud backend, not local-only (table stakes for a "second brain")
+6. **Accounts/auth**
+7. **Grid/masonry view UI**
 
 ## V1.x — Fast follow (rounds out capture, still no AI)
 
+8. **Note taking & text-note capture** — plain text/rich text notes as items with no source URL (moved from V1: the V1 item model is links only)
 9. **Chrome extension** — quick save without opening the app
 10. **Save entire articles** (reader-mode archive, not just a link)
 11. **Full-page screenshot capture**
-12. **PDF/document upload & storage**
+12. **PDF/document & image upload & storage**
 13. **Full-text search** across saved article/document content
 14. **Saving highlighted text** — capture a highlight + backlink to source
 
