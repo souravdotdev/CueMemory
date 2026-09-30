@@ -1,3 +1,2 @@
-// No tables or relations declared yet — the items schema is being redesigned
-// from scratch (see issue #11 for the tags design).
+// No relations declared yet — the tags design (issue #11) adds them.
 export {};

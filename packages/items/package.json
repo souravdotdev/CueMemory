@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@cue-memory/auth": "workspace:*",
     "@cue-memory/types": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },

@@ -273,6 +273,9 @@ importers:
 
   packages/items:
     dependencies:
+      '@cue-memory/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@cue-memory/types':
         specifier: workspace:*
         version: link:../types
