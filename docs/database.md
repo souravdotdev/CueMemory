@@ -4,29 +4,9 @@ Postgres, accessed through [Drizzle ORM](https://orm.drizzle.team) via the `post
 
 ## Schema
 
-Matches the data model in the product plan (`product-plan.md`, section 9).
+The schema is being redesigned from scratch. Right now only the better-auth tables (`users`, `sessions`, `accounts`, `verifications`) are defined in code, in `packages/auth/src/infrastructure/persistence/schema`. `packages/items` declares no tables yet (the tags design is tracked in issue #11). There are no migrations in `packages/db/migrations/` either: the first migration generated from the new design will be a fresh `0000`.
 
-| Table                                   | Owner            | Purpose                                                                                                                                                                      |
-| --------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `users`                                 | `packages/auth`  | `id`, `email`, `createdAt` (plus better-auth internals: `emailVerified`, `name`, `updatedAt`)                                                                                |
-| `sessions`, `accounts`, `verifications` | `packages/auth`  | better-auth's session/OAuth-account/verification-token tables — no application code reads these yet                                                                          |
-| `items`                                 | `packages/items` | A saved thing: `type` (article/tweet/image/video/pdf/link), `sourceUrl`, `status` (processing/ready/failed), `title`, `thumbnailUrl`, `author`, `extractedText`, `createdAt` |
-| `tags`                                  | `packages/items` | `name`, `isAiGenerated`, `createdAt`                                                                                                                                         |
-| `collections`                           | `packages/items` | User-created folders: `userId`, `name`, `createdAt`                                                                                                                          |
-| `reminders`                             | `packages/items` | `itemId`, `triggerAt`, `sentAt` (nullable — set once sent)                                                                                                                   |
-| `items_to_tags`                         | `packages/items` | Join table, `items` ↔ `tags` (composite PK)                                                                                                                                  |
-| `items_to_collections`                  | `packages/items` | Join table, `items` ↔ `collections` (composite PK)                                                                                                                           |
-
-All primary keys are `uuid` with `defaultRandom()`. `items.userId` and `collections.userId` reference `users.id` with `onDelete: "cascade"` (a cross-package FK: `packages/items`' schema imports the `users` table object from `@cue-memory/auth/schema` purely for this column reference — see [Clean Architecture](./clean-architecture.md#shared-infrastructure) for why that's a schema-only, not runtime, dependency); join-table foreign keys cascade on delete from either side.
-
-Relations (Drizzle's `relations()` helper) are defined per-package, for tables that are actually queried relationally — e.g. `apps/api`'s `GET /items` uses `db.query.items.findMany({ with: { itemsToTags: { with: { tag: true } }, ... } })` rather than hand-written joins. `packages/auth`'s and `packages/items`' relation files deliberately don't declare the `users ↔ items`/`users ↔ collections` reverse/forward relation (nothing in the codebase queries it), which is what keeps `auth` free of a runtime dependency on `items`.
-
-## Enums
-
-- `item_type`: `article` | `tweet` | `image` | `video` | `pdf` | `link`
-- `item_status`: `processing` | `ready` | `failed`
-
-Item type is inferred server-side from the URL (see `packages/items/src/domain/detect-item-type.ts`) — the client never sends it directly.
+Conventions for new tables: `uuid` primary keys with `defaultRandom()`, snake_case column names, `timestamptz NOT NULL DEFAULT now()` timestamps, and `onDelete: "cascade"` on foreign keys to `users.id`. A feature package references `users` by importing the table object from `@cue-memory/auth/schema`, which is a schema-only dependency, not a runtime one (see [Clean Architecture](./clean-architecture.md#shared-infrastructure)).
 
 ## Migration workflow
 
@@ -38,7 +18,10 @@ Drizzle Kit is configured in `packages/db/drizzle.config.ts`, pointed at `packag
 pnpm db:generate   # diff the schema against the last migration, write a new SQL migration file
 pnpm db:migrate    # apply all pending migrations to DATABASE_URL
 pnpm db:studio     # open Drizzle Studio, a local DB browser/editor
+pnpm db:reset      # LOCAL ONLY: drop every table, enum and drizzle's migration history
 ```
+
+`db:reset` (`packages/db/scripts/reset.ts`) drops and recreates the `public` schema and drops the `drizzle` schema, in one transaction. It refuses to run unless the `DATABASE_URL` host is `localhost`, `127.0.0.1` or `::1`. After a reset, `pnpm db:migrate` rebuilds the database from whatever is in `packages/db/migrations/`.
 
 These are all `turbo run <task> --filter=@cue-memory/db` under the hood (see root `package.json`). Requires `packages/db/.env` to be set — see [Environment Variables](./environment-variables.md).
 

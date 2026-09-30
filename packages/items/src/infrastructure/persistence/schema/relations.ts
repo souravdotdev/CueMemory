@@ -1,4 +1,3 @@
-// No relations declared yet — `items`, `collections`, `reminders`, and the
-// `items_to_tags`/`items_to_collections` join tables were dropped pending the
-// schema redesign; `tags` currently has nothing to relate to.
+// No tables or relations declared yet — the items schema is being redesigned
+// from scratch (see issue #11 for the tags design).
 export {};

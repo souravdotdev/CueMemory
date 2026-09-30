@@ -1,6 +1,2 @@
-export interface Tag {
-  id: string;
-  name: string;
-  isAiGenerated: boolean;
-  createdAt: string;
-}
+// No domain entities yet — they return with the schema redesign.
+export {};
