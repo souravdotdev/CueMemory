@@ -17,21 +17,21 @@ const row = (overrides: Partial<UserRow> = {}): UserRow => ({
 });
 
 describe("toUser", () => {
-  it("maps an active User with a null deletedAt, renaming image to profileImg and dropping better-auth internals", () => {
+  it("maps an active User with a null deletedAt and a date createdAt, renaming image to profileImg and dropping better-auth internals", () => {
     expect(toUser(row())).toEqual({
       id: "user-1",
       name: "Sourav Sanjay",
       email: "sourav@example.com",
       profileImg: "https://example.com/avatar.png",
       deletedAt: null,
-      createdAt: "2026-04-01T00:00:00.000Z",
+      createdAt: new Date("2026-04-01T00:00:00.000Z"),
     });
   });
 
-  it("converts a deleted User's deletedAt to an ISO string", () => {
+  it("maps a deleted User carrying its deletedAt as a date", () => {
     const user = toUser(row({ deletedAt: new Date("2026-05-10T12:30:00.000Z") }));
 
-    expect(user.deletedAt).toBe("2026-05-10T12:30:00.000Z");
+    expect(user.deletedAt).toEqual(new Date("2026-05-10T12:30:00.000Z"));
   });
 
   it("maps a User without a Google avatar to a null profileImg", () => {

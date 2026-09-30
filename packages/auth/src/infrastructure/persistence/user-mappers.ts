@@ -11,7 +11,7 @@ export function toUser(row: typeof users.$inferSelect): User {
     name: row.name,
     email: row.email,
     profileImg: row.image,
-    deletedAt: row.deletedAt?.toISOString() ?? null,
-    createdAt: row.createdAt.toISOString(),
+    deletedAt: row.deletedAt,
+    createdAt: row.createdAt,
   };
 }

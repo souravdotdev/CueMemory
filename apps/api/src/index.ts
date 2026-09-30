@@ -2,10 +2,11 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import { registerContracts } from "./contracts";
 import { env } from "./env";
 import { rateLimitRedis } from "./rate-limit-redis";
 
-const app = Fastify({ logger: true });
+const app = registerContracts(Fastify({ logger: true }));
 
 await app.register(cors, { origin: env.CORS_ORIGIN });
 await app.register(helmet, { contentSecurityPolicy: false });

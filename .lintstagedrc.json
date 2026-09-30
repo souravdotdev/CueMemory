@@ -7,6 +7,6 @@
   "packages/auth/**/*.{ts,js}": "eslint --fix --config packages/auth/eslint.config.js",
   "packages/shared-kernel/**/*.{ts,js}": "eslint --fix --config packages/shared-kernel/eslint.config.js",
   "packages/db/**/*.{ts,js}": "eslint --fix --config packages/db/eslint.config.js",
-  "packages/types/**/*.{ts,js}": "eslint --fix --config packages/types/eslint.config.js",
+  "packages/contracts/**/*.{ts,js}": "eslint --fix --config packages/contracts/eslint.config.js",
   "packages/ui/**/*.{ts,tsx,js}": "eslint --fix --config packages/ui/eslint.config.js"
 }

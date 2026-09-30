@@ -15,6 +15,13 @@
       "when": 1790761038909,
       "tag": "0001_create_items_table",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790766258334,
+      "tag": "0002_remove_failure_reason",
+      "breakpoints": true
     }
   ]
 }

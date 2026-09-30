@@ -1,11 +1,11 @@
 {
-  "name": "@cue-memory/items",
+  "name": "@cue-memory/contracts",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./schema": "./src/infrastructure/persistence/schema/index.ts"
+    "./common": "./src/common/index.ts",
+    "./items": "./src/items/index.ts"
   },
   "scripts": {
     "lint": "eslint .",
@@ -13,9 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cue-memory/auth": "workspace:*",
-    "@cue-memory/contracts": "workspace:*",
-    "drizzle-orm": "^0.45.2"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@cue-memory/eslint-config": "workspace:*",

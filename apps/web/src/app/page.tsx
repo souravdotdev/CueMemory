@@ -2,7 +2,7 @@ import { Card } from "@cue-memory/ui/card";
 import { fetchItems } from "@/lib/api";
 
 export default async function FeedPage() {
-  const items = await fetchItems();
+  const { items } = await fetchItems();
 
   if (items.length === 0) {
     return <p>Nothing saved yet — head to Save to paste your first link.</p>;

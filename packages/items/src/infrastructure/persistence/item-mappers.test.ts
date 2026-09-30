@@ -14,28 +14,29 @@ const row = (overrides: Partial<ItemRow> = {}): ItemRow => ({
   description: null,
   thumbnailKey: null,
   extractedText: null,
-  failureReason: null,
   createdAt: new Date("2026-04-01T00:00:00.000Z"),
   updatedAt: new Date("2026-04-02T00:00:00.000Z"),
   ...overrides,
 });
 
+// What a Processing row maps to; each test spreads it and overrides only what it's about.
+const processingItem = {
+  id: "item-1",
+  userId: "user-1",
+  sourceUrl: "https://example.com/post",
+  type: null,
+  status: "processing",
+  title: null,
+  description: null,
+  thumbnailKey: null,
+  extractedText: null,
+  createdAt: new Date("2026-04-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-04-02T00:00:00.000Z"),
+};
+
 describe("toItem", () => {
-  it("maps a Processing Item with every processing field null and ISO timestamps", () => {
-    expect(toItem(row())).toEqual({
-      id: "item-1",
-      userId: "user-1",
-      sourceUrl: "https://example.com/post",
-      type: null,
-      status: "processing",
-      title: null,
-      description: null,
-      thumbnailKey: null,
-      extractedText: null,
-      failureReason: null,
-      createdAt: "2026-04-01T00:00:00.000Z",
-      updatedAt: "2026-04-02T00:00:00.000Z",
-    });
+  it("maps a Processing Item with every processing field null and date timestamps", () => {
+    expect(toItem(row())).toEqual(processingItem);
   });
 
   it("maps a Ready Item with every field, passing the Thumbnail key through as-is", () => {
@@ -51,28 +52,19 @@ describe("toItem", () => {
     );
 
     expect(item).toEqual({
-      id: "item-1",
-      userId: "user-1",
-      sourceUrl: "https://example.com/post",
+      ...processingItem,
       type: "article",
       status: "ready",
       title: "How spaced repetition works",
       description: "A short primer on memory.",
       thumbnailKey: "thumbnails/user-1/item-1.jpg",
       extractedText: "Spaced repetition is a learning technique...",
-      failureReason: null,
-      createdAt: "2026-04-01T00:00:00.000Z",
-      updatedAt: "2026-04-02T00:00:00.000Z",
     });
   });
 
-  it("maps a Failed Item carrying its failure reason", () => {
-    const item = toItem(
-      row({ type: "link", status: "failed", failureReason: "Source URL returned 404" }),
-    );
+  it("maps a Failed Item", () => {
+    const item = toItem(row({ type: "link", status: "failed" }));
 
-    expect(item.status).toBe("failed");
-    expect(item.type).toBe("link");
-    expect(item.failureReason).toBe("Source URL returned 404");
+    expect(item).toEqual({ ...processingItem, type: "link", status: "failed" });
   });
 });

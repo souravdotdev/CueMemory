@@ -17,8 +17,6 @@ export interface Item {
   // Object-storage key, never a URL; the storage adapter resolves it.
   thumbnailKey: string | null;
   extractedText: string | null;
-  // Present exactly when the Item is Failed.
-  failureReason: string | null;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
 }

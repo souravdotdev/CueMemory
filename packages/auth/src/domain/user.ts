@@ -4,6 +4,6 @@ export interface User {
   email: string;
   profileImg: string | null;
   // Soft-delete marker; see the users schema and ADR 0001.
-  deletedAt: string | null;
-  createdAt: string;
+  deletedAt: Date | null;
+  createdAt: Date;
 }

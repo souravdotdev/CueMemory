@@ -27,9 +27,9 @@ pnpm test   # vitest run in every package, via Turborepo
 - `application/use-cases/save-item.test.ts` — creates with the right record shape, enqueues the right job, propagates a repository failure without enqueueing
 - `application/use-cases/list-items.test.ts` — delegates to the repository with the right arguments
 - `application/use-cases/process-item.test.ts` — success path (status → ready with title) and failure path (status → failed, error rethrown)
-- `infrastructure/persistence/item-mappers.test.ts` — `toItem` (the Drizzle-row-to-domain-`Item` conversion, including `Date` → ISO `string`) in isolation, with no database connection. It was deliberately extracted into its own `item-mappers.ts` file specifically so it could be imported without pulling in the Drizzle client (which opens a real Postgres connection and validates `DATABASE_URL` at module load — see [Environment Variables](./environment-variables.md)). `DrizzleItemRepository` itself isn't unit-tested; its actual query logic needs a real or containerized Postgres, which isn't set up yet.
-- `presentation/http/items.routes.test.ts` — tests the Fastify routes via `app.inject()`, calling `itemRoutes(fakeDependencies)` directly rather than importing the real `composition.ts`. This avoids needing a live database/Redis entirely, since the route factory takes its dependencies as a parameter rather than reaching for a module-level singleton.
-- `presentation/queue/process-item.processor.test.ts` — tests `createProcessItemHandler(fakeDependencies)` directly with a hand-built fake BullMQ `Job` (just an object with a `.data` field) — same reasoning as the routes test, no real queue needed.
+- `infrastructure/persistence/item-mappers.test.ts` — `toItem` (the Drizzle-row-to-domain-`Item` conversion, keeping dates as `Date`) in isolation, with no database connection. It was deliberately extracted into its own `item-mappers.ts` file specifically so it could be imported without pulling in the Drizzle client (which opens a real Postgres connection and validates `DATABASE_URL` at module load — see [Environment Variables](./environment-variables.md)). `DrizzleItemRepository` itself isn't unit-tested; its actual query logic needs a real or containerized Postgres, which isn't set up yet.
+- `presentation/queue/process-item.processor.test.ts` — tests `createProcessItemHandler(fakeDependencies)` directly with a hand-built fake BullMQ `Job` (just an object with a `.data` field) — no real queue needed.
+- `presentation/http/item-card-mapper.test.ts` — `toItemCardDto` with a hand-written fake `ThumbnailUrlResolver`: the generic failure message for Failed Items, a null Thumbnail URL for a null Thumbnail key, ISO created time, no internal fields, and every output parsing with `itemCardDtoSchema`.
 
 **`packages/auth`** — `user-mappers.test.ts` tests `toUser` the same way `packages/items`' mapper tests do: pure row→entity conversion, no database connection.
 
@@ -39,11 +39,11 @@ pnpm test   # vitest run in every package, via Turborepo
 
 **`apps/worker`** — no test files at all anymore (its only test, the job-processor test, moved to `packages/items` with the processor itself); its `vitest.config.ts` sets `passWithNoTests: true` for the same reason `packages/shared-kernel`'s does — `composition.ts`/`index.ts` are pure wiring, and the logic they wire together is tested where it now lives.
 
-**`apps/web`** — `save-form.test.tsx` tests the `SaveForm` client component with `@testing-library/react` + `@testing-library/user-event`, mocking `next/navigation`'s `useRouter` and the `@/lib/api` module (so no real `fetch` call or `NEXT_PUBLIC_API_URL` env var is needed).
+**`apps/web`** — `save-form.test.tsx` tests the `SaveForm` client component with `@testing-library/react` + `@testing-library/user-event`, mocking `next/navigation`'s `useRouter` and the `@/lib/api` module (so no real `fetch` call or `NEXT_PUBLIC_API_URL` env var is needed). `src/lib/api.test.ts` tests the API helpers themselves against a stubbed global `fetch` (`vi.stubGlobal`): a valid response returns the parsed DTO, a response that breaks the contract throws, and a failure throws the error envelope's `message`.
 
 **`packages/ui`** — `button.test.tsx` — a basic render/click/disabled-state test proving the `jsdom` + React preset works, independent of any app.
 
-**`packages/types`** — no tests, deliberately. It's pure type declarations with zero runtime code; there's nothing to execute.
+**`packages/contracts`** — pure schema tests next to each contract (`common/error.test.ts`, `common/pagination.test.ts`, `items/create-item.test.ts`, `items/create-item-response.test.ts`, `items/item-card.test.ts`, `items/list-items.test.ts`): what each schema accepts, rejects, defaults and strips.
 
 ## Fakes over mocking libraries
 

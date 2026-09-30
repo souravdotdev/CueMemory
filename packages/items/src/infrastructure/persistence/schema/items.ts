@@ -24,8 +24,6 @@ export const items = pgTable(
     thumbnailKey: text("thumbnail_key"),
     // Readable text used for keyword search; deliberately uncapped.
     extractedText: text("extracted_text"),
-    // Set when the Item becomes Failed, cleared on retry.
-    failureReason: text("failure_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -38,11 +36,6 @@ export const items = pgTable(
     check(
       "items_type_set_when_finished",
       sql`${table.status} = 'processing' OR ${table.type} IS NOT NULL`,
-    ),
-    // A failure reason is present exactly when the Item is Failed.
-    check(
-      "items_failure_reason_iff_failed",
-      sql`(${table.status} = 'failed') = (${table.failureReason} IS NOT NULL)`,
     ),
     // A Source URL is always http(s).
     check("items_source_url_http", sql`${table.sourceUrl} ~* '^https?://'`),
