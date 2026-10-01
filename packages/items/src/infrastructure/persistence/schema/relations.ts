@@ -1,2 +1,2 @@
-// No relations declared yet — the tags design (issue #11) adds them.
+// No Drizzle relations are declared because nothing queries relationally yet.
 export {};

@@ -11,6 +11,10 @@ const readyCard = {
   thumbnailUrl: "https://cdn.example.com/signed/thumb.jpg?sig=abc",
   failureMessage: null,
   createdAt: "2026-04-01T00:00:00.000Z",
+  tags: [
+    { id: "tag-1", name: "memory", source: "ai" },
+    { id: "tag-2", name: "learning", source: "user" },
+  ],
 };
 
 describe("itemCardDtoSchema", () => {
@@ -26,6 +30,7 @@ describe("itemCardDtoSchema", () => {
       title: null,
       description: null,
       thumbnailUrl: null,
+      tags: [],
     };
 
     expect(itemCardDtoSchema.parse(card)).toEqual(card);
@@ -53,6 +58,18 @@ describe("itemCardDtoSchema", () => {
     expect(itemCardDtoSchema.safeParse({ ...readyCard, createdAt: "April 1st" }).success).toBe(
       false,
     );
+  });
+
+  it("rejects a card without its tags list", () => {
+    const { tags: _tags, ...card } = readyCard;
+
+    expect(itemCardDtoSchema.safeParse(card).success).toBe(false);
+  });
+
+  it("rejects a Tag applied by anyone other than the AI or the User", () => {
+    const tags = [{ id: "tag-1", name: "memory", source: "import" }];
+
+    expect(itemCardDtoSchema.safeParse({ ...readyCard, tags }).success).toBe(false);
   });
 
   it("strips fields the card doesn't declare", () => {

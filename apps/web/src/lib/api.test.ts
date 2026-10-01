@@ -11,6 +11,18 @@ const card = {
   thumbnailUrl: null,
   failureMessage: null,
   createdAt: "2026-04-01T00:00:00.000Z",
+  tags: [],
+};
+
+const taggedCard = {
+  ...card,
+  type: "article",
+  status: "ready",
+  title: "How spaced repetition works",
+  tags: [
+    { id: "tag-1", name: "memory", source: "ai" },
+    { id: "tag-2", name: "learning", source: "user" },
+  ],
 };
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -37,6 +49,22 @@ describe("fetchItems", () => {
     respond(200, { items: [card], nextCursor: "eyJpZCI6Iml0ZW0tMSJ9" });
 
     expect(await fetchItems()).toEqual({ items: [card], nextCursor: "eyJpZCI6Iml0ZW0tMSJ9" });
+  });
+
+  it("returns each card's tags with who applied them", async () => {
+    respond(200, { items: [taggedCard], nextCursor: null });
+
+    expect((await fetchItems()).items[0]?.tags).toEqual([
+      { id: "tag-1", name: "memory", source: "ai" },
+      { id: "tag-2", name: "learning", source: "user" },
+    ]);
+  });
+
+  it("throws when a card's tag has an unknown source", async () => {
+    const tags = [{ id: "tag-1", name: "memory", source: "import" }];
+    respond(200, { items: [{ ...card, tags }], nextCursor: null });
+
+    await expect(fetchItems()).rejects.toThrow();
   });
 
   it("drops fields the card contract doesn't declare", async () => {

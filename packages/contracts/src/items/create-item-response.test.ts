@@ -13,6 +13,7 @@ describe("createItemResponseDtoSchema", () => {
       thumbnailUrl: null,
       failureMessage: null,
       createdAt: "2026-04-01T00:00:00.000Z",
+      tags: [],
     };
 
     expect(createItemResponseDtoSchema.parse(card)).toEqual(card);

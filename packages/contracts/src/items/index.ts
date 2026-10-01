@@ -7,11 +7,15 @@ export {
 } from "./create-item";
 export {
   itemCardDtoSchema,
+  itemCardTagDtoSchema,
   itemStatusDtoSchema,
   itemTypeDtoSchema,
+  tagSourceDtoSchema,
   type ItemCardDto,
+  type ItemCardTagDto,
   type ItemStatusDto,
   type ItemTypeDto,
+  type TagSourceDto,
 } from "./item-card";
 export {
   DEFAULT_LIST_LIMIT,

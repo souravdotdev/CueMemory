@@ -1,6 +1,6 @@
 import { itemCardDtoSchema } from "@cue-memory/contracts/items";
 import { describe, expect, it } from "vitest";
-import type { Item, ThumbnailUrlResolver } from "../../domain";
+import type { AppliedTag, Item, Tag, ThumbnailUrlResolver } from "../../domain";
 import { toItemCardDto } from "./item-card-mapper";
 
 // A fake resolver that makes it obvious which key each URL came from.
@@ -33,9 +33,22 @@ const readyItem = item({
   extractedText: "Spaced repetition is a learning technique...",
 });
 
+// One of the User's Tags; each test overrides only what it's about.
+const tag = (overrides: Partial<Tag> = {}): Tag => ({
+  id: "tag-1",
+  userId: "user-1",
+  name: "memory",
+  createdAt: new Date("2026-04-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-04-02T00:00:00.000Z"),
+  ...overrides,
+});
+
+const aiTag: AppliedTag = { tag: tag(), source: "ai" };
+const userTag: AppliedTag = { tag: tag({ id: "tag-2", name: "learning" }), source: "user" };
+
 describe("toItemCardDto", () => {
   it("maps a Ready Item to its card with a resolved Thumbnail URL and an ISO created time", async () => {
-    expect(await toItemCardDto(readyItem, resolver)).toEqual({
+    expect(await toItemCardDto(readyItem, [], resolver)).toEqual({
       id: "item-1",
       sourceUrl: "https://example.com/post",
       type: "article",
@@ -45,23 +58,39 @@ describe("toItemCardDto", () => {
       thumbnailUrl: "https://cdn.example.com/signed/thumbnails/user-1/item-1.jpg?sig=fake",
       failureMessage: null,
       createdAt: "2026-04-01T00:00:00.000Z",
+      tags: [],
     });
   });
 
+  it("gives an Item with no Tags an empty Tag list", async () => {
+    const card = await toItemCardDto(item(), [], resolver);
+
+    expect(card.tags).toEqual([]);
+  });
+
+  it("puts AI and User Tags on the card with who applied each", async () => {
+    const card = await toItemCardDto(readyItem, [aiTag, userTag], resolver);
+
+    expect(card.tags).toEqual([
+      { id: "tag-1", name: "memory", source: "ai" },
+      { id: "tag-2", name: "learning", source: "user" },
+    ]);
+  });
+
   it("gives a null Thumbnail URL when the Item has no Thumbnail key", async () => {
-    const card = await toItemCardDto(item(), resolver);
+    const card = await toItemCardDto(item(), [], resolver);
 
     expect(card.thumbnailUrl).toBeNull();
   });
 
   it("gives a Failed Item the generic failure message", async () => {
-    const card = await toItemCardDto(item({ type: "link", status: "failed" }), resolver);
+    const card = await toItemCardDto(item({ type: "link", status: "failed" }), [], resolver);
 
     expect(card.failureMessage).toBe("We couldn't process this link. Try again.");
   });
 
   it.each([item(), readyItem])("gives a null failure message to a $status Item", async (i) => {
-    const card = await toItemCardDto(i, resolver);
+    const card = await toItemCardDto(i, [], resolver);
 
     expect(card.failureMessage).toBeNull();
   });
@@ -70,20 +99,29 @@ describe("toItemCardDto", () => {
     const failed = item({ type: "link", status: "failed" });
 
     for (const card of [
-      await toItemCardDto(readyItem, resolver),
-      await toItemCardDto(failed, resolver),
+      await toItemCardDto(readyItem, [aiTag], resolver),
+      await toItemCardDto(failed, [], resolver),
     ]) {
       for (const field of ["userId", "extractedText", "thumbnailKey", "updatedAt"]) {
         expect(card).not.toHaveProperty(field);
+      }
+      for (const cardTag of card.tags) {
+        for (const field of ["userId", "createdAt", "updatedAt"]) {
+          expect(cardTag).not.toHaveProperty(field);
+        }
       }
     }
   });
 
   it("produces cards that parse with the card schema", async () => {
-    const items = [item(), readyItem, item({ type: "link", status: "failed" })];
+    const cases: [Item, AppliedTag[]][] = [
+      [item(), []],
+      [readyItem, [aiTag, userTag]],
+      [item({ type: "link", status: "failed" }), [userTag]],
+    ];
 
-    for (const i of items) {
-      const card = await toItemCardDto(i, resolver);
+    for (const [i, tags] of cases) {
+      const card = await toItemCardDto(i, tags, resolver);
 
       expect(itemCardDtoSchema.parse(card)).toEqual(card);
     }

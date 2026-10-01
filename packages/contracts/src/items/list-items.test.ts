@@ -45,6 +45,7 @@ describe("listItemsResponseDtoSchema", () => {
     thumbnailUrl: null,
     failureMessage: null,
     createdAt: "2026-04-01T00:00:00.000Z",
+    tags: [{ id: "tag-1", name: "memory", source: "ai" }],
   };
 
   it("accepts a page of Item cards with a next cursor", () => {

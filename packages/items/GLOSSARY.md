@@ -18,6 +18,16 @@ _Avoid_: Link, original URL
 The preview image CueMemory keeps for an Item.
 _Avoid_: Cover, preview image, OG image
 
+### Tags
+
+**Tag**:
+A short topic name a User organises their Items by. Every User has their own Tags, and one Tag can be on many Items.
+_Avoid_: Label, category, folder, collection
+
+**Tag source**:
+Who put a Tag on a particular Item: CueMemory's AI or the User. The same Tag can come from the AI on one Item and from the User on another.
+_Avoid_: AI-generated flag, origin
+
 ### Item types
 
 **Item type**:
