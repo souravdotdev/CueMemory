@@ -46,7 +46,7 @@ Package exports: `.` (the full barrel — domain + application + infrastructure 
 ## The `auth` feature — deliberately partial
 
 - **`domain/user.ts`** — the `User` entity.
-- **`infrastructure/persistence/`** — `schema/` (the better-auth-compatible `users`/`sessions`/`verifications` tables; see [Database](./database.md#schema)), `user-mappers.ts` (`toUser`).
+- **`infrastructure/persistence/`** — `schema/` (the better-auth-compatible `users`/`sessions`/`accounts`/`verifications` tables; see [Database](./database.md#schema)), `user-mappers.ts` (`toUser`).
 
 No `application/` or `presentation/` folder exists in this package. Don't create them speculatively — add them when a real auth port, use case, or route is actually being built, following the exact shape `items` already demonstrates.
 

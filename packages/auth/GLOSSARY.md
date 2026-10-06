@@ -8,6 +8,10 @@ Identity for CueMemory: who a User is, how they sign in, and what happens when t
 A person who has signed in to CueMemory and owns everything they save.
 _Avoid_: Account, member, customer
 
+**Sign-in identity**:
+A way a User proves who they are when signing in, such as their Google identity. One User can have several; each one belongs to exactly one User.
+_Avoid_: Account, login, credential
+
 **Display name**:
 The human-readable name shown for a User, taken from their sign-in provider. Not unique.
 _Avoid_: Username, handle

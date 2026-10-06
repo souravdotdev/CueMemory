@@ -29,6 +29,13 @@
       "when": 1790789024589,
       "tag": "0003_create_tags_and_item_tags",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791305223118,
+      "tag": "0004_create_accounts_table",
+      "breakpoints": true
     }
   ]
 }
