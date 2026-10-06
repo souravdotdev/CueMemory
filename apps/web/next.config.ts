@@ -10,7 +10,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@cue-memory/ui", "@cue-memory/types"],
+  transpilePackages: ["@cue-memory/ui", "@cue-memory/contracts"],
   async headers() {
     return [
       {

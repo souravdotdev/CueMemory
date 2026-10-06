@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@cue-memory/ui/button";
+import { createItemRequestDtoSchema } from "@cue-memory/contracts/items";
 import { createItem } from "@/lib/api";
 
 export function SaveForm() {
@@ -13,11 +14,20 @@ export function SaveForm() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+
+    // Same contract the API validates with, so the form and server never disagree.
+    const parsed = createItemRequestDtoSchema.safeParse({ url });
+    if (!parsed.success) {
+      setStatus("error");
+      setError(parsed.error.issues[0]?.message ?? "That link isn't valid");
+      return;
+    }
+
     setStatus("saving");
     setError(null);
 
     try {
-      await createItem(url);
+      await createItem(parsed.data.url);
       setUrl("");
       router.push("/");
       router.refresh();
@@ -31,10 +41,9 @@ export function SaveForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", gap: "0.5rem" }}>
+    <form onSubmit={handleSubmit} noValidate style={{ display: "flex", gap: "0.5rem" }}>
       <input
         type="url"
-        required
         placeholder="Paste a link…"
         value={url}
         onChange={(event) => setUrl(event.target.value)}

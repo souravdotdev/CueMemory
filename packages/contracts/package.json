@@ -1,0 +1,27 @@
+{
+  "name": "@cue-memory/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./common": "./src/common/index.ts",
+    "./items": "./src/items/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cue-memory/eslint-config": "workspace:*",
+    "@cue-memory/typescript-config": "workspace:*",
+    "@cue-memory/vitest-config": "workspace:*",
+    "@types/node": "^26.5.1",
+    "eslint": "^9.39.5",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
+  }
+}

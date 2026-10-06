@@ -1,11 +1,6 @@
 import { relations } from "drizzle-orm";
 import { accounts, sessions, users } from "./auth";
 
-// `users.items`/`users.collections` (the reverse side of the items feature's
-// FK) are intentionally not declared here — nothing in the codebase queries
-// them (grep-verified), and keeping them out is what makes this package have
-// zero dependency on @cue-memory/items. The FK columns themselves live
-// unaffected in @cue-memory/items' own schema.
 export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),

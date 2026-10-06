@@ -1,50 +1,70 @@
 import { describe, expect, it } from "vitest";
-import { toCollection, toItem, toTag } from "./item-mappers";
+import { toItem } from "./item-mappers";
+
+type ItemRow = Parameters<typeof toItem>[0];
+
+// A freshly saved Item that is still Processing; each test overrides only what it's about.
+const row = (overrides: Partial<ItemRow> = {}): ItemRow => ({
+  id: "item-1",
+  userId: "user-1",
+  sourceUrl: "https://example.com/post",
+  type: null,
+  status: "processing",
+  title: null,
+  description: null,
+  thumbnailKey: null,
+  extractedText: null,
+  createdAt: new Date("2026-04-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-04-02T00:00:00.000Z"),
+  ...overrides,
+});
+
+// What a Processing row maps to; each test spreads it and overrides only what it's about.
+const processingItem = {
+  id: "item-1",
+  userId: "user-1",
+  sourceUrl: "https://example.com/post",
+  type: null,
+  status: "processing",
+  title: null,
+  description: null,
+  thumbnailKey: null,
+  extractedText: null,
+  createdAt: new Date("2026-04-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-04-02T00:00:00.000Z"),
+};
 
 describe("toItem", () => {
-  it("converts the Drizzle Date createdAt into an ISO string", () => {
-    const createdAt = new Date("2026-01-15T12:30:00.000Z");
+  it("maps a Processing Item with every processing field null and date timestamps", () => {
+    expect(toItem(row())).toEqual(processingItem);
+  });
 
-    const item = toItem({
-      id: "item-1",
-      userId: "user-1",
+  it("maps a Ready Item with every field, passing the Thumbnail key through as-is", () => {
+    const item = toItem(
+      row({
+        type: "article",
+        status: "ready",
+        title: "How spaced repetition works",
+        description: "A short primer on memory.",
+        thumbnailKey: "thumbnails/user-1/item-1.jpg",
+        extractedText: "Spaced repetition is a learning technique...",
+      }),
+    );
+
+    expect(item).toEqual({
+      ...processingItem,
       type: "article",
-      sourceUrl: "https://example.com",
       status: "ready",
-      title: "Example",
-      thumbnailUrl: null,
-      author: null,
-      extractedText: null,
-      createdAt,
+      title: "How spaced repetition works",
+      description: "A short primer on memory.",
+      thumbnailKey: "thumbnails/user-1/item-1.jpg",
+      extractedText: "Spaced repetition is a learning technique...",
     });
-
-    expect(item.createdAt).toBe("2026-01-15T12:30:00.000Z");
-    expect(typeof item.createdAt).toBe("string");
   });
-});
 
-describe("toTag", () => {
-  it("converts the Drizzle Date createdAt into an ISO string", () => {
-    const tag = toTag({
-      id: "tag-1",
-      name: "reading",
-      isAiGenerated: true,
-      createdAt: new Date("2026-02-01T00:00:00.000Z"),
-    });
+  it("maps a Failed Item", () => {
+    const item = toItem(row({ type: "link", status: "failed" }));
 
-    expect(tag.createdAt).toBe("2026-02-01T00:00:00.000Z");
-  });
-});
-
-describe("toCollection", () => {
-  it("converts the Drizzle Date createdAt into an ISO string", () => {
-    const collection = toCollection({
-      id: "collection-1",
-      userId: "user-1",
-      name: "Reading list",
-      createdAt: new Date("2026-03-01T00:00:00.000Z"),
-    });
-
-    expect(collection.createdAt).toBe("2026-03-01T00:00:00.000Z");
+    expect(item).toEqual({ ...processingItem, type: "link", status: "failed" });
   });
 });

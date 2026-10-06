@@ -27,26 +27,26 @@ This repo currently has two feature packages:
 - **`packages/items`** — the paste-a-link save/list/process flow. Has real code in all four layers.
 - **`packages/auth`** — currently just a `User` entity and the better-auth-compatible DB schema. No port, use case, or route exists for auth yet (the API fakes it with an `x-user-id` dev header — see [API](./api.md#auth-placeholder)), so `application/`/`presentation/` folders don't exist in this package. **They appear only once real auth behavior is built, not before** — this is a deliberate application of the project's "no scaffolding for hypothetical requirements" rule, not an oversight.
 
-`tags`, `collections`, and `reminders` do **not** have their own feature packages: they have DB schema but zero independent ports/use-cases/routes anywhere — they're read purely as nested data inside `items`' `ItemWithRelations` query. They live inside `packages/items` as item-aggregate data. If one of them grows independent behavior (its own CRUD, its own route), it becomes its own feature package at that point, following the same pattern `items`/`auth` already establish.
+`tags`, `collections`, and `reminders` do **not** have their own feature packages: they have no independent ports, use cases or routes. Their tables live inside `packages/items` as item-aggregate data (the `tags` and `item_tags` tables already do, from the tags design, #11). If one of them grows independent behavior (its own CRUD, its own route), it becomes its own feature package at that point, following the same pattern `items`/`auth` already establish.
 
 ## The `items` feature, layer by layer
 
-- **`domain/`** — `ports/` (`ItemRepository`, `ItemQueue`, `MetadataFetcher` — interfaces infrastructure must implement), `detect-item-type.ts` (a pure business rule: inferring item type from a URL), `tokens.ts` (DI symbols for this package's ports).
+- **`domain/`** — `ports/` (`ItemRepository`, `ItemQueue`, `MetadataFetcher` — interfaces infrastructure must implement), `detect-item-type.ts` (a pure business rule: inferring item type from a URL), `tag.ts` (the `Tag` and `TagLink` entities, `TAG_SOURCES`, and `AppliedTag`: a Tag with the source it was applied with), `tag-name.ts` (`slugifyTagName`, the pure rule that turns a Tag name into its canonical slug, plus `TAG_NAME_PATTERN`/`MAX_TAG_NAME_LENGTH`), `tokens.ts` (DI symbols for this package's ports).
 - **`application/use-cases/`** — the actual interactors: `saveItem`, `listItems`, `processItem`. Each takes a `deps` object typed against the port interfaces, plus a plain input object, and returns a plain result. No HTTP, no SQL, no queue library — fully unit-testable by passing hand-written fake implementations of the ports.
 - **`infrastructure/`**:
-  - `persistence/` — `schema/` (Drizzle tables for `items`, `tags`, `collections`, `reminders`, and their join tables; imports `users` from `@cue-memory/auth/schema` only for the FK column type), `drizzle-item-repository.ts` (`DrizzleItemRepository implements ItemRepository`), `item-mappers.ts` (`toItem`/`toTag`/`toCollection` — translates Drizzle's raw row shapes into domain entities, e.g. `Date` → `string`).
+  - `persistence/` — `schema/` (the Drizzle `items` table, with its generated keyword-search `search_vector` column, and its `item_type`/`item_status` enums, built from the domain's `ITEM_TYPES`/`ITEM_STATUSES`; imports `users` from `@cue-memory/auth/schema` only for the FK column type; `tags.ts` holds the `tags` and `item_tags` tables and the `tag_source` enum, built from `TAG_SOURCES`, `TAG_NAME_PATTERN` and `MAX_TAG_NAME_LENGTH`), `drizzle-item-repository.ts` (`DrizzleItemRepository implements ItemRepository`), `item-mappers.ts` (`toItem` — translates Drizzle's raw `items` row, minus `search_vector`, into the domain `Item`, keeping dates as `Date`), `tag-mappers.ts` (`toTag` and `toTagLink` — the `tags` and `item_tags` rows into the domain `Tag` and `TagLink`, dropping the link's denormalized `user_id`).
   - `queue/` — `queues.ts` (the BullMQ `Queue` instance + queue name constants), `bullmq-item-queue.ts` (`BullMqItemQueue implements ItemQueue`).
   - `metadata/` — `stub-metadata-fetcher.ts` (`StubMetadataFetcher implements MetadataFetcher`, currently a placeholder — the seam where real extraction gets plugged in later).
 - **`presentation/`**:
-  - `http/` — `item.dto.ts` (Zod request/response schemas for the HTTP boundary), `items.routes.ts` (the Fastify controller — validates via DTO, calls a use case, formats the response).
+  - `http/` — `item-card-mapper.ts` (`toItemCardDto(item, tags, thumbnails)`: the explicit Item → `ItemCardDto` mapping against `@cue-memory/contracts/items`, taking the Item's Tags as the domain's `AppliedTag` `{ tag, source }` pairs (a `Tag` joined with its `TagLink`'s source) and a `ThumbnailUrlResolver` port from `domain/ports`; it also holds the compile-time check that the domain's `ITEM_TYPES`/`ITEM_STATUSES`/`TAG_SOURCES` match the contract's enums). No Items route exists yet; when one does, it lives here as a Fastify controller that declares its contracts, calls a use case and returns the mapper's output.
   - `queue/` — `process-item.processor.ts` (`createProcessItemHandler` — the BullMQ delivery-mechanism equivalent of a route controller: unwraps a `Job`, calls the `processItem` use case).
 
 Package exports: `.` (the full barrel — domain + application + infrastructure + presentation) and `./schema` (schema-only, so `packages/db`'s migration runner can read table definitions without pulling in Fastify/BullMQ).
 
 ## The `auth` feature — deliberately partial
 
-- **`domain/user.ts`** — the `User` entity (relocated here from `packages/types`, since it's the one type actually owned by this feature).
-- **`infrastructure/persistence/`** — `schema/` (the better-auth-compatible `users`/`sessions`/`accounts`/`verifications` tables), `user-mappers.ts` (`toUser`).
+- **`domain/user.ts`** — the `User` entity.
+- **`infrastructure/persistence/`** — `schema/` (the better-auth-compatible `users`/`sessions`/`accounts`/`verifications` tables; see [Database](./database.md#schema)), `user-mappers.ts` (`toUser`).
 
 No `application/` or `presentation/` folder exists in this package. Don't create them speculatively — add them when a real auth port, use case, or route is actually being built, following the exact shape `items` already demonstrates.
 
@@ -59,7 +59,7 @@ Two things are genuinely cross-feature and don't belong inside any one feature p
 
 Each feature package wraps the shared raw `pgClient` in its **own** local `drizzle(pgClient, { schema })` call (e.g. `packages/items/src/infrastructure/persistence/drizzle-item-repository.ts`) — safe because the connection pool lives in the raw postgres client, not the Drizzle wrapper, so multiple independent `drizzle()` instances coexist over it without conflict.
 
-Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (schema-only, for the `users` FK column type), `items → shared-kernel`, `auth →` nothing. `auth` never depends on `items`, and neither depends back on `db`.
+Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (schema-only, for the `users` FK column type), `items → shared-kernel`, `items → contracts`, `api → contracts`, `web → contracts`, `contracts →` nothing (only zod), `auth →` nothing. `auth` never depends on `items`, and neither depends back on `db`.
 
 ## The composition roots
 

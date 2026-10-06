@@ -3,9 +3,8 @@ import { nodeConfig } from "@cue-memory/vitest-config/node";
 
 export default mergeConfig(nodeConfig, {
   test: {
-    // No pure/isolable logic here — composition.ts and index.ts are just
-    // wiring; the actual job-processing logic they wire together is tested
-    // in @cue-memory/items. See docs/testing.md.
+    // No logic here yet — index.ts is a placeholder pending the schema
+    // redesign. See docs/testing.md.
     passWithNoTests: true,
   },
 });

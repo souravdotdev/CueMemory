@@ -1,55 +1,53 @@
 # Feature Roadmap
 
-Feature list derived from a competitive analysis of [mymind.com](https://mymind.com), ordered by priority and grouped by target version.
+Versions match the [product plan](../product-plan.md). CueMemory is a mymind-style "save anything, never organise" library whose differentiator is **Resurfacing**: bringing forgotten saves back when they're relevant.
 
-## V1 — MVP (core value prop must work before anything else)
+## V1 — Launch (web app)
 
-1. **Save/capture items** — URL, text note, image, document (single unified "item" model)
-2. **Note taking** — plain text/rich text notes
-3. **Basic keyword search**
-4. **Manual tagging** — simplest organization primitive
-5. **AI auto-tagging** — automatic organization alongside manual tags, the "no folders needed" pitch
-6. **Sync across devices** — cloud backend, not local-only (table stakes for a "second brain")
-7. **Accounts/auth**
-8. **Grid/masonry view UI**
+1. **Accounts** — Google sign-in
+2. **Link capture** — paste any URL (article, X post, Instagram post, YouTube video, PDF link, any page); every Item starts from a URL
+3. **Async processing** — Item type, title, description, Thumbnail, readable text
+4. **AI tags + manual tags** — no folders, no Collections
+5. **Embeddings** for every Item
+6. **Semantic search** — find by meaning, including related-but-not-matching Items
+7. **Related Items** — similar saves shown on every Item and right after saving
+8. **Rediscover digest** — weekly email of forgotten Items
+9. **Grid view UI**, filterable by tag
 
-## V1.x — Fast follow (rounds out capture, still no AI)
+## V1.x — Cues (the differentiator)
 
-9. **Chrome extension** — quick save without opening the app
-10. **Save entire articles** (reader-mode archive, not just a link)
-11. **Full-page screenshot capture**
-12. **PDF/document upload & storage**
-13. **Full-text search** across saved article/document content
-14. **Saving highlighted text** — capture a highlight + backlink to source
+10. **Chrome extension** — one-click save from any page
+11. **Cues** — the extension notices your search queries and page titles and surfaces matching saved Items (badge + rate-limited corner card)
+12. **Cue feedback** — "not useful" to tune matching
+13. **Reminders** — pick a moment for an Item to come back
+14. **Uploads** — images, PDFs, documents
+15. **Text notes** — Items with no Source URL
+16. **Saving highlighted text** — capture a highlight + backlink to its source
 
-## V2 — Smart/differentiating features
+## V2 — Knowledge graph
 
-15. **AI summaries (TLDR)**
-16. **Text recognition from images (OCR)**
-17. **Smart spaces** — auto-grouped collections
-18. **Pins / Top of mind**
-19. **Search by date/brand/multi-attribute**
-20. **Search by color** — needs image color indexing, build after OCR/tagging infra exists
-21. **Focus mode**
-22. **Duplicate detection**
+17. **Topic clustering** across the library
+18. **Graph view** of how Items connect
+19. **Smart spaces** — auto-grouped topics, never folders you maintain
+20. **Bidirectional links** between Items
+21. **Duplicate detection**
 
-## V3 — Platform expansion & long-tail
+## V3 — Capture everywhere
 
-23. **Bidirectional linking**
-24. **Rediscover/resurface** ("on this day" style nudges)
-25. **Shareable spaces** (public read-only links)
-26. **Offline access**
-27. **Recipe recognition**
-28. **Product/shopping recognition** (price + image extraction)
-29. **Handwriting recognition**
-30. **Apple ecosystem** — Shortcuts, widgets, Share Sheet, native macOS app
-31. **Import tools** — Pinterest, Instagram, Are.na
+22. **Mobile apps** (iOS, Android) with **share sheet** capture
+23. **Safari and Firefox extensions**
+24. **AI summaries (TL;DR)**
+25. **Text recognition from images (OCR)**
+26. **Import tools** — browser bookmarks, Pocket export, Pinterest, Instagram
+27. **Save entire articles** (reader-mode archive) and full-page screenshots
 
-## V4 — Mobile apps
+## Later — long tail
 
-32. **iOS app**
-33. **Android app**
+- Search by date/brand/colour, pins / top of mind, focus mode
+- Recipe, product and handwriting recognition
+- Shareable spaces (public read-only links)
+- Offline access, Apple Shortcuts and widgets
 
-## Not a version — a day-one architecture decision
+## Not a version — day-one principles
 
-**Privacy-first / no-ads / no-feed positioning** (and, if used as a differentiator, encryption-at-rest). This isn't a feature bolted on later — it shapes the data model and business model (e.g. paid-only, no ad SDKs) starting in V1; retrofitting it afterward is painful.
+**Privacy-first, no ads, no tracking.** It shapes the data model and business model from V1: private storage with expiring links, data scoped to each User, real account deletion, and an extension that sends only search queries and page titles ([ADR 0002](./adr/0002-cues-send-only-search-queries-and-page-titles.md)).

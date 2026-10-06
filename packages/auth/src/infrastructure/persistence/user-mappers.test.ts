@@ -1,27 +1,42 @@
 import { describe, expect, it } from "vitest";
 import { toUser } from "./user-mappers";
 
-describe("toUser", () => {
-  it("converts createdAt to an ISO string and renames image to profileImg, dropping better-auth internals", () => {
-    const user = toUser({
-      id: "user-1",
-      email: "sourav@example.com",
-      emailVerified: true,
-      name: "Sourav Sanjay",
-      firstName: "Sourav",
-      lastName: "Sanjay",
-      image: "https://example.com/avatar.png",
-      createdAt: new Date("2026-04-01T00:00:00.000Z"),
-      updatedAt: new Date("2026-04-01T00:00:00.000Z"),
-    });
+type UserRow = Parameters<typeof toUser>[0];
 
-    expect(user).toEqual({
+// An active User row with a Google avatar; each test overrides only what it's about.
+const row = (overrides: Partial<UserRow> = {}): UserRow => ({
+  id: "user-1",
+  name: "Sourav Sanjay",
+  email: "sourav@example.com",
+  emailVerified: true,
+  image: "https://example.com/avatar.png",
+  createdAt: new Date("2026-04-01T00:00:00.000Z"),
+  updatedAt: new Date("2026-04-02T00:00:00.000Z"),
+  deletedAt: null,
+  ...overrides,
+});
+
+describe("toUser", () => {
+  it("maps an active User with a null deletedAt and a date createdAt, renaming image to profileImg and dropping better-auth internals", () => {
+    expect(toUser(row())).toEqual({
       id: "user-1",
+      name: "Sourav Sanjay",
       email: "sourav@example.com",
-      firstName: "Sourav",
-      lastName: "Sanjay",
       profileImg: "https://example.com/avatar.png",
-      createdAt: "2026-04-01T00:00:00.000Z",
+      deletedAt: null,
+      createdAt: new Date("2026-04-01T00:00:00.000Z"),
     });
+  });
+
+  it("maps a deleted User carrying its deletedAt as a date", () => {
+    const user = toUser(row({ deletedAt: new Date("2026-05-10T12:30:00.000Z") }));
+
+    expect(user.deletedAt).toEqual(new Date("2026-05-10T12:30:00.000Z"));
+  });
+
+  it("maps a User without a Google avatar to a null profileImg", () => {
+    const user = toUser(row({ image: null }));
+
+    expect(user.profileImg).toBeNull();
   });
 });

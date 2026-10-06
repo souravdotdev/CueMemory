@@ -18,7 +18,8 @@ packages/
   shared-kernel/      Raw cross-feature infra: Postgres client, Redis connection
   db/                 Centralized Drizzle-kit migration runner (schema.ts re-exports
                       items'/auth's schemas; no runtime code of its own)
-  types/              Shared domain entities (Item, Tag, Collection, Reminder, ...)
+  contracts/          Shared zod request/response contracts (DTOs) for web ↔ api;
+                      depends only on zod (subpaths ./common, ./items)
   ui/                 Shared React components
   eslint-config/      Shared flat ESLint configs
   typescript-config/  Shared tsconfig bases
@@ -35,7 +36,7 @@ That's fine for anything bundler-based — but plain `node` cannot execute raw T
 
 ## Why this split
 
-- **`packages/types`** has zero dependencies and is imported by both the frontend and backend, so request/response shapes for the paste-a-link flow can't drift out of sync between `apps/web` and `apps/api`.
+- **`packages/contracts`** defines every request and response between `apps/web` and `apps/api` once, as zod schemas, so the two can't drift apart (see [ADR 0001](./adr/0001-shared-zod-contracts-package.md)). Its only dependency is `zod`, and it never imports domain, persistence or framework code, so the web app never pulls in server packages. It's organised by context with one entry point each: `@cue-memory/contracts/common` (the error envelope and the `paginated(schema)` helper) and `@cue-memory/contracts/items` (the Item card with its Tags and who applied each, the list query and paginated list response, and the create-Item request/response). Schemas end in `DtoSchema` and their inferred types in `Dto` (`itemCardDtoSchema` / `ItemCardDto`); a plain `Item` is always the domain entity. The API validates what it receives and filters what it sends through these schemas, and the web app's API helpers (`apps/web/src/lib/api.ts`) parse every response with them and throw on a mismatch. Each feature's presentation layer owns the explicit mapper from its entities to these DTOs (for Items, `toItemCardDto` in `packages/items/src/presentation/http`).
 - **`packages/items`** is a feature package — it holds the actual business logic (use cases), the port interfaces infrastructure must implement, and the concrete adapters (Drizzle repository, BullMQ queue, metadata fetcher) and delivery mechanisms (HTTP routes, job processor) that implement/expose them. See [Clean Architecture](./clean-architecture.md) for the full per-feature layering.
 - **`packages/auth`** is a feature package too, currently minimal — just the `User` entity and its DB schema, since no auth port/use-case/route exists yet.
 - **`packages/shared-kernel`** exists so the raw Postgres/Redis connections are built once and shared by whichever feature packages need them, rather than each feature opening its own pool against the same database/Redis instance.

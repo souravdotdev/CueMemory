@@ -3,6 +3,6 @@
   "compilerOptions": {
     "outDir": "dist"
   },
-  "include": ["schema.ts", "drizzle.config.ts"],
+  "include": ["schema.ts", "drizzle.config.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cue-memory/types": "workspace:*",
+    "@cue-memory/contracts": "workspace:*",
     "@cue-memory/ui": "workspace:*",
     "next": "^16.3.5",
     "react": "^19.3.0",

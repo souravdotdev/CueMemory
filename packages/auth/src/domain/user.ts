@@ -1,8 +1,9 @@
 export interface User {
   id: string;
+  name: string;
   email: string;
-  firstName: string | null;
-  lastName: string | null;
   profileImg: string | null;
-  createdAt: string;
+  // Soft-delete marker; see the users schema and ADR 0001.
+  deletedAt: Date | null;
+  createdAt: Date;
 }

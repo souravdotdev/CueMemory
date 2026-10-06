@@ -8,12 +8,14 @@
     "check-types": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:reset": "tsx --env-file=.env scripts/reset.ts"
   },
   "dependencies": {
     "@cue-memory/auth": "workspace:*",
     "@cue-memory/items": "workspace:*",
     "@cue-memory/shared-kernel": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.9"
   },
   "devDependencies": {
@@ -22,6 +24,7 @@
     "@types/node": "^26.5.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.5",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.3"
   }
 }

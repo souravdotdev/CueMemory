@@ -11,17 +11,7 @@
     "check-types": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@cue-memory/items": "workspace:*",
-    "@cue-memory/shared-kernel": "workspace:*",
-    "bullmq": "^6.3.6",
-    "drizzle-orm": "^0.45.2",
-    "inversify": "^8.2.3",
-    "ioredis": "^6.0.0",
-    "postgres": "^3.4.9",
-    "reflect-metadata": "^0.2.2",
-    "zod": "^4.6.5"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@cue-memory/eslint-config": "workspace:*",
     "@cue-memory/typescript-config": "workspace:*",

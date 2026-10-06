@@ -5,8 +5,43 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1790701368569,
-      "tag": "0000_milky_old_lace",
+      "when": 1790759691007,
+      "tag": "0000_create_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790761038909,
+      "tag": "0001_create_items_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790766258334,
+      "tag": "0002_remove_failure_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790789024589,
+      "tag": "0003_create_tags_and_item_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791305223118,
+      "tag": "0004_create_accounts_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791305759143,
+      "tag": "0005_add_items_search_vector",
       "breakpoints": true
     }
   ]
