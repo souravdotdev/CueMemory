@@ -36,6 +36,13 @@
       "when": 1791305223118,
       "tag": "0004_create_accounts_table",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791305759143,
+      "tag": "0005_add_items_search_vector",
+      "breakpoints": true
     }
   ]
 }
