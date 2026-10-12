@@ -12,4 +12,4 @@ Cues surface saved Items while the User browses. To do that, the browser extensi
 
 - Cue quality is capped by how much a title or query says. Vague titles will produce fewer Cues. That's an acceptable trade-off, because false positives cost more than misses (Cue fatigue).
 - Any future change that sends more than queries and titles is a change to this promise. It needs a new ADR and explicit User opt-in, not a silent upgrade.
-- Stored Cue records keep only the minimal trigger text needed for feedback and metrics, and are subject to the same account-deletion purge as everything else.
+- Stored Cue records keep only the minimal trigger text needed for feedback and metrics, and are subject to the same User deletion purge as everything else.

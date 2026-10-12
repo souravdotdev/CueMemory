@@ -25,7 +25,7 @@ Each **feature** is its own pnpm workspace package with all four layers nested i
 This repo currently has two feature packages:
 
 - **`packages/items`** — the paste-a-link save/list/process flow. Has real code in all four layers.
-- **`packages/auth`** — currently just a `User` entity and the better-auth-compatible DB schema. No port, use case, or route exists for auth yet (the API fakes it with an `x-user-id` dev header — see [API](./api.md#auth-placeholder)), so `application/`/`presentation/` folders don't exist in this package. **They appear only once real auth behavior is built, not before** — this is a deliberate application of the project's "no scaffolding for hypothetical requirements" rule, not an oversight.
+- **`packages/auth`** — the `User` entity, the Better Auth-compatible DB schema, Google sign-in (the Better Auth instance and the Fastify plugin that mounts it), and knowing who's calling: the `SessionResolver` port, the `resolveSignedInUser` use case, the `requireUser` guard and `GET /me`. All four layers have real code.
 
 `tags`, `collections`, and `reminders` do **not** have their own feature packages: they have no independent ports, use cases or routes. Their tables live inside `packages/items` as item-aggregate data (the `tags` and `item_tags` tables already do, from the tags design, #11). If one of them grows independent behavior (its own CRUD, its own route), it becomes its own feature package at that point, following the same pattern `items`/`auth` already establish.
 
@@ -43,12 +43,27 @@ This repo currently has two feature packages:
 
 Package exports: `.` (the full barrel — domain + application + infrastructure + presentation) and `./schema` (schema-only, so `packages/db`'s migration runner can read table definitions without pulling in Fastify/BullMQ).
 
-## The `auth` feature — deliberately partial
+## The `auth` feature, layer by layer
 
-- **`domain/user.ts`** — the `User` entity.
-- **`infrastructure/persistence/`** — `schema/` (the better-auth-compatible `users`/`sessions`/`accounts`/`verifications` tables; see [Database](./database.md#schema)), `user-mappers.ts` (`toUser`).
+Better Auth runs inside the API and owns the sign-in flow ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md)). Every Better Auth detail stays in this package's `infrastructure/`; the rest of the code only ever sees the domain `User`.
 
-No `application/` or `presentation/` folder exists in this package. Don't create them speculatively — add them when a real auth port, use case, or route is actually being built, following the exact shape `items` already demonstrates.
+- **`domain/`** — `user.ts` (the `User` entity; `isDeleted`, the rule that a User with a deletion time is deleted; and `SignInProfile`, what the sign-in provider says about the User right now, with a null name when it sends none), `sign-in-decision.ts` (`decideSignIn(deletedAt, now)`, the pure rule that a sign-in is `allow`, `restore` or `refuse`; `GRACE_PERIOD_DAYS` = 30, with a User deleted exactly 30 days ago still restorable; and `UserPermanentlyDeletedError`), `ports/session-resolver.ts` (`SessionResolver`: takes a request's web `Headers` and returns the User of its valid Session, or null), `ports/user-repository.ts` (`UserRepository`: `findById` and `recordSignIn` with `UserSignInChanges` — Display name, avatar and deletion time only, so no code path can change the email).
+- **`application/use-cases/`**:
+  - `admitSignIn({ users }, { userId, profile, now })` — the sign-in rules (Auth ADR 0001, spec #12): loads the User, applies `decideSignIn`, throws `UserPermanentlyDeletedError` on refuse, clears the deletion time on restore, and refreshes the avatar and (when the provider sends one) the Display name on every allowed sign-in. The email is never touched.
+  - `resolveSignedInUser({ sessions }, { headers })` — the User of the request's Session, or null when there's no valid Session or the User `isDeleted`, so a deleted User's old Sessions are refused everywhere (Auth ADR 0001).
+- **`infrastructure/`**:
+  - `better-auth/sign-in-hook.ts` — `createSignInHook(users)`, Better Auth's `databaseHooks.session.create.before`: just before a Session is created it reads the User's Google ID token from their Sign-in identity (Better Auth has just stored the fresh one), runs `admitSignIn`, and turns a refusal into a coded `APIError` (`USER_PERMANENTLY_DELETED`), which ends the OAuth flow at the error URL with that code and a readable `error_description`. A missing Google ID token ends it the same way, coded `GOOGLE_PROFILE_UNAVAILABLE`. `createAuth` pins `account.updateAccountOnSignIn: true` (Better Auth's default) because the hook relies on the ID token being fresh. Better Auth's `overrideUserInfoOnSignIn` is deliberately not used: it would also overwrite the email.
+  - `better-auth/google-profile.ts` — `googleProfileFromIdToken`: the Display name and avatar from the ID token's `name`/`picture` claims, the same profile Better Auth's Google provider reads (no photo → null avatar, no name → null).
+  - `better-auth/better-auth-session-resolver.ts` — `BetterAuthSessionResolver implements SessionResolver`: wraps Better Auth's server-side `getSession` (passed in as the one-method `SessionApi`, so its tests use a fake) and maps its User to the domain `User` through `toUser`.
+  - `better-auth/create-auth.ts` — `createAuth(db, config, { users })`, the factory that builds the Better Auth instance from a database handle, an `AuthConfig` (secret, base URL, web origin, Google credentials, optional cookie domain) and the `UserRepository` its sign-in hook uses. It holds every Better Auth decision: the Drizzle adapter with Better Auth's model names mapped explicitly to the plural tables, the database generating uuid ids (`generateId: "uuid"`), Google as the only provider with identity scopes only (`openid email profile`, and a `before` hook that refuses any `scopes` a caller adds to the request), OAuth tokens encrypted at rest, the default 7-day Session with no cookie cache (every request checks the `sessions` table, so revocation is immediate), cross-subdomain cookies only when a cookie domain is configured, the web origin as the only trusted origin, the sign-in hook, and `deletedAt` declared as an additional User field (never settable through Better Auth's API) so every Session lookup returns it. Better Auth's `image` field needs no mapping: the `users` table's Drizzle key is `image`, stored in the `profile_img` column, and `toUser` renames it to `profileImg`.
+  - `persistence/` — `schema/` (the Better Auth-compatible `users`/`sessions`/`accounts`/`verifications` tables; see [Database](./database.md#schema)), `user-mappers.ts` (`toUser`), `auth-database.ts` (the `AuthDatabase` handle type), `drizzle-user-repository.ts` (`DrizzleUserRepository implements UserRepository`), and `database.ts` (`db`: this package's own `drizzle(pgClient, { schema })`, the first runtime Drizzle instance; see [Shared infrastructure](#shared-infrastructure)).
+- **`presentation/http/`**:
+  - `require-user.ts` — `requireUser({ sessions })`, the guard every protected route runs as its `preHandler`: it calls `resolveSignedInUser` and throws a 401, which the shared error handler sends as the `unauthorized` envelope, or attaches the domain User to the request. Routes read it with `signedInUser(request)`; no route parses identity headers itself.
+  - `me-routes.ts` + `me-mapper.ts` — `meRoutes`, the `GET /me` route behind the guard, and `toMeResponseDto`, the explicit User → `MeResponseDto` mapping against `@cue-memory/contracts/auth` (display name, email, avatar URL, ISO created time; never the deletion time).
+  - `web-headers.ts` — `toWebHeaders`, Node's request headers as web `Headers`, shared by the guard and `authRoutes`.
+  - `auth-routes.ts` — `authRoutes`, a Fastify plugin that mounts Better Auth's handler under `/api/auth/*` (GET and POST): it turns Fastify's request into a web `Request` (the body passed through as raw bytes, whatever its content type), and sends Better Auth's `Response` back unchanged, every `set-cookie` included. It takes the handler as a one-method `AuthRequestHandler`, so its tests use a fake, and a per-route rate limit that `apps/api` sets stricter than the global one (see [Security](./security.md#rate-limiting)).
+
+Package exports: `.` (the barrel — domain, application, infrastructure, presentation, but not the runtime `db`), `./database` (`db`, kept off the barrel because importing it validates `DATABASE_URL`, which tests and the barrel's other consumers shouldn't need — the same reason `shared-kernel`'s `./db` and `./redis` are separate subpaths), and `./schema` (schema-only, for `packages/db` and `packages/items`).
 
 ## Shared infrastructure
 
@@ -59,7 +74,7 @@ Two things are genuinely cross-feature and don't belong inside any one feature p
 
 Each feature package wraps the shared raw `pgClient` in its **own** local `drizzle(pgClient, { schema })` call (e.g. `packages/items/src/infrastructure/persistence/drizzle-item-repository.ts`) — safe because the connection pool lives in the raw postgres client, not the Drizzle wrapper, so multiple independent `drizzle()` instances coexist over it without conflict.
 
-Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (schema-only, for the `users` FK column type), `items → shared-kernel`, `items → contracts`, `api → contracts`, `web → contracts`, `contracts →` nothing (only zod), `auth →` nothing. `auth` never depends on `items`, and neither depends back on `db`.
+Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (schema-only, for the `users` FK column type), `items → shared-kernel`, `items → contracts`, `auth → shared-kernel` (for the runtime `db`), `auth → contracts`, `api → auth`, `api → contracts`, `web → contracts`, `contracts →` nothing (only zod). `auth` never depends on `items`, and neither depends back on `db`.
 
 ## The composition roots
 
@@ -79,7 +94,7 @@ Both `apps/api/src/index.ts` and `apps/worker/src/index.ts` import the resolved 
 
 ## DI tokens
 
-Each feature package owns its own token registry, colocated with the ports it defines — `packages/items/src/domain/tokens.ts` exports `TYPES` (a plain `Symbol.for(...)` registry, deliberately not importing `inversify` itself, so the domain/application layers stay framework-free). `packages/auth` has no ports yet, so it has no tokens file at all. This keeps a feature's ports and their runtime identifiers as one unit that moves together, rather than a shared registry every feature reaches into.
+Each feature package owns its own token registry, colocated with the ports it defines — `packages/items/src/domain/tokens.ts` exports `TYPES` (a plain `Symbol.for(...)` registry, deliberately not importing `inversify` itself, so the domain/application layers stay framework-free). `packages/auth` has ports (`SessionResolver`, `UserRepository`) but no tokens file: no DI container is in use today, so `apps/api/src/auth.ts` is the composition root for auth. It constructs `DrizzleUserRepository` and passes it to `createAuth`, and constructs `BetterAuthSessionResolver` and passes it to `meRoutes`. This keeps a feature's ports and their runtime identifiers as one unit that moves together, rather than a shared registry every feature reaches into.
 
 ## Where new code goes
 

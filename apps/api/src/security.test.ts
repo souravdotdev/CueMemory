@@ -10,7 +10,7 @@ import rateLimit from "@fastify/rate-limit";
 // (see src/rate-limit-redis.ts).
 async function buildApp() {
   const app = Fastify();
-  await app.register(cors, { origin: "https://allowed.example.com" });
+  await app.register(cors, { origin: "https://allowed.example.com", credentials: true });
   await app.register(helmet, { contentSecurityPolicy: false });
   await app.register(rateLimit, { max: 2, timeWindow: "1 minute" });
   app.get("/ping", async () => ({ ok: true }));
@@ -45,6 +45,22 @@ describe("security middleware", () => {
 
     expect(res.headers["access-control-allow-origin"]).toBe("https://allowed.example.com");
     expect(res.headers["access-control-allow-origin"]).not.toBe("https://evil.example.com");
+  });
+
+  it("lets the web origin send and receive the Session cookie", async () => {
+    const app = await buildApp();
+
+    const res = await app.inject({
+      method: "OPTIONS",
+      url: "/ping",
+      headers: {
+        origin: "https://allowed.example.com",
+        "access-control-request-method": "POST",
+      },
+    });
+
+    expect(res.headers["access-control-allow-origin"]).toBe("https://allowed.example.com");
+    expect(res.headers["access-control-allow-credentials"]).toBe("true");
   });
 
   it("rate-limits after the configured max requests", async () => {

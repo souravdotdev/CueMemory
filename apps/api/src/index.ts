@@ -2,13 +2,16 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
+import { authRoutes, meRoutes } from "@cue-memory/auth";
+import { auth, sessions } from "./auth";
 import { registerContracts } from "./contracts";
 import { env } from "./env";
 import { rateLimitRedis } from "./rate-limit-redis";
 
 const app = registerContracts(Fastify({ logger: true }));
 
-await app.register(cors, { origin: env.CORS_ORIGIN });
+// Credentials, so the browser sends and accepts the Session cookie cross-origin (ADR 0003).
+await app.register(cors, { origin: env.WEB_ORIGIN, credentials: true });
 await app.register(helmet, { contentSecurityPolicy: false });
 await app.register(rateLimit, {
   max: 100,
@@ -17,7 +20,12 @@ await app.register(rateLimit, {
   nameSpace: "cue-memory-api-rate-limit-",
 });
 
+// Before every other route, and stricter than the global limit above.
+await app.register(authRoutes, { auth, rateLimit: { max: 30, timeWindow: "1 minute" } });
+
 app.get("/health", async () => ({ status: "ok" }));
+// Protected routes: each one runs requireUser before its handler.
+await app.register(meRoutes, { sessions });
 
 app.listen({ port: env.PORT, host: "0.0.0.0" }).catch((err) => {
   app.log.error(err);

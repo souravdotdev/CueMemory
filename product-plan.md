@@ -135,7 +135,7 @@ A product that watches what you browse only works if it earns trust:
 - No ads, no tracking SDKs, no selling data.
 - The extension sends **only search queries and page titles**, never page content. It's off in incognito, with a site blocklist and a one-click pause (ADR 0002).
 - Your library is private: private storage, signed links that expire, and data scoped to each User.
-- Account deletion is real: 30-day grace period, then permanent purge.
+- User deletion is real: 30-day grace period, then permanent purge.
 
 ## 13. Business Model — Freemium
 

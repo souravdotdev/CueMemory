@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./auth": "./src/auth/index.ts",
     "./common": "./src/common/index.ts",
     "./items": "./src/items/index.ts"
   },
