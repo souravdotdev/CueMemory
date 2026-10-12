@@ -50,4 +50,4 @@ Versions match the [product plan](../product-plan.md). CueMemory is a mymind-sty
 
 ## Not a version — day-one principles
 
-**Privacy-first, no ads, no tracking.** It shapes the data model and business model from V1: private storage with expiring links, data scoped to each User, real account deletion, and an extension that sends only search queries and page titles ([ADR 0002](./adr/0002-cues-send-only-search-queries-and-page-titles.md)).
+**Privacy-first, no ads, no tracking.** It shapes the data model and business model from V1: private storage with expiring links, data scoped to each User, real User deletion, and an extension that sends only search queries and page titles ([ADR 0002](./adr/0002-cues-send-only-search-queries-and-page-titles.md)).
