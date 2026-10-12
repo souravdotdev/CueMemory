@@ -7,8 +7,8 @@ export const users = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     // Display name — better-auth's required `name`, mirrored from Google on every sign-in.
     name: text("name").notNull(),
-    // Where CueMemory emails the User. Intended to be captured once at sign-up and never
-    // overwritten; enforced once better-auth sign-in is wired up (spec #12).
+    // Where CueMemory emails the User. Captured once at sign-up and never overwritten
+    // (spec #12): the sign-in hook refreshes only the name and avatar.
     email: text("email").notNull().unique(),
     // Required by better-auth's user model but not surfaced in @cue-memory/auth's User type.
     emailVerified: boolean("email_verified").notNull().default(false),
@@ -17,7 +17,7 @@ export const users = pgTable(
     image: text("profile_img"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-    // Set on Account deletion; null = active. See ADR 0001 (30-day grace period, then purge).
+    // Set on User deletion; null = active. See ADR 0001 (30-day grace period, then purge).
     deletedAt: timestamp("deleted_at", { withTimezone: true }),
   },
   // Partial index so the purge job finds deleted Users cheaply without indexing active ones.

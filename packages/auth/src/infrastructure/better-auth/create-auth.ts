@@ -1,11 +1,12 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import type * as schema from "../persistence/schema";
+import type { UserRepository } from "../../domain";
+import type { AuthDatabase } from "../persistence/auth-database";
 import { accounts, sessions, users, verifications } from "../persistence/schema";
+import { createSignInHook } from "./sign-in-hook";
 
-export type AuthDatabase = PostgresJsDatabase<typeof schema>;
+export type { AuthDatabase } from "../persistence/auth-database";
 
 // The endpoints that start a Google authorization, where a caller could otherwise
 // append its own `scopes` to the ones configured below.
@@ -23,12 +24,17 @@ export interface AuthConfig {
   cookieDomain?: string;
 }
 
+export interface AuthDeps {
+  /** Where the sign-in hook reads Users and records sign-ins. */
+  users: UserRepository;
+}
+
 /**
  * Builds the Better Auth instance: Google sign-in only, over the Auth tables.
  * Every Better Auth detail (model names, the avatar column, id generation,
- * cookies) stays in here; the rest of the code sees the domain User.
+ * cookies, the sign-in hook) stays in here; the rest of the code sees the domain User.
  */
-export function createAuth(db: AuthDatabase, config: AuthConfig) {
+export function createAuth(db: AuthDatabase, config: AuthConfig, deps: AuthDeps) {
   return betterAuth({
     appName: "CueMemory",
     secret: config.secret,
@@ -54,6 +60,8 @@ export function createAuth(db: AuthDatabase, config: AuthConfig) {
         // Identity only: never Gmail, Drive or Calendar.
         disableDefaultScope: true,
         scope: ["openid", "email", "profile"],
+        // Not `overrideUserInfoOnSignIn`: it would also overwrite the email (spec #12).
+        // The sign-in hook below refreshes only the Display name and avatar.
       },
     },
     hooks: {
@@ -65,9 +73,17 @@ export function createAuth(db: AuthDatabase, config: AuthConfig) {
         }
       }),
     },
+    databaseHooks: {
+      // The sign-in rules: refuse, restore, and refresh the profile (Auth ADR 0001).
+      session: { create: { before: createSignInHook(deps.users) } },
+    },
     account: {
       // Sign-in identities' Google tokens are encrypted at rest.
       encryptOAuthTokens: true,
+      // Better Auth's default, pinned: each sign-in stores Google's fresh ID token on
+      // the Sign-in identity before the Session is created, and the sign-in hook reads
+      // the profile from it. Turning this off would refresh from a stale token.
+      updateAccountOnSignIn: true,
     },
     session: {
       // Default 7-day lifetime. No cookie cache: every request checks the

@@ -84,7 +84,13 @@ Three pieces, all from `@cue-memory/auth`: Better Auth's own routes under `/api/
 [Better Auth](https://better-auth.com) runs inside the API and serves every route under `/api/auth/*` (GET and POST), mounted by `authRoutes` from `@cue-memory/auth` before any other route ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md), [Clean Architecture](./clean-architecture.md#the-auth-feature-layer-by-layer)). These routes answer in Better Auth's own shapes, not the contracts' error envelope. The ones that matter today:
 
 - `POST /api/auth/sign-in/social` with `{ "provider": "google", "callbackURL": "<web origin>/..." }` starts a Google sign-in and returns the Google URL to send the browser to. Any other provider gets `404 PROVIDER_NOT_FOUND`, a `scopes` field asking Google for more gets a 400, and a `callbackURL` outside the web origin is refused.
-- `GET /api/auth/callback/google` is where Google sends the browser back. It creates the User, their Sign-in identity and a Session, sets the Session cookie, and redirects to the `callbackURL`.
+- `GET /api/auth/callback/google` is where Google sends the browser back. On the first sign-in it creates the User and their Sign-in identity. Then, before creating the Session, it applies the sign-in rules (Auth ADR 0001):
+  - an active User signs in, and their Display name and avatar are refreshed from Google (a missing Google name keeps the current one; the email captured at sign-up never changes);
+  - a User deleted within the 30-day Grace period is restored (the deletion time is cleared), and signs in;
+  - a User deleted longer ago is refused: no Session is created, and the browser is sent to the error URL (the sign-in's `errorCallbackURL`, or Better Auth's `/api/auth/error`) with `?error=USER_PERMANENTLY_DELETED&error_description=This account was permanently deleted…`.
+
+  On success it sets the Session cookie and redirects to the `callbackURL`.
+
 - `GET /api/auth/get-session` and `POST /api/auth/sign-out` read and end the current Session.
 - `GET /api/auth/ok` is a liveness check: `{ "ok": true }`.
 

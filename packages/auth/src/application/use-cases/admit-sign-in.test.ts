@@ -1,0 +1,97 @@
+import { describe, expect, it, vi } from "vitest";
+import { UserPermanentlyDeletedError, type User, type UserRepository } from "../../domain";
+import { admitSignIn } from "./admit-sign-in";
+
+const DAY = 24 * 60 * 60 * 1000;
+const now = new Date("2026-06-01T12:00:00.000Z");
+
+// An active User as stored; each test overrides only what it's about.
+const user = (overrides: Partial<User> = {}): User => ({
+  id: "user-1",
+  name: "Old Name",
+  email: "signed-up@example.com",
+  profileImg: "https://lh3.googleusercontent.com/a/old",
+  deletedAt: null,
+  createdAt: new Date("2026-04-01T00:00:00.000Z"),
+  ...overrides,
+});
+
+const usersHolding = (stored: User | null): UserRepository => ({
+  findById: vi.fn(async () => stored),
+  recordSignIn: vi.fn(async () => {}),
+});
+
+// What Google says about the User right now.
+const profile = { name: "New Name", profileImg: "https://lh3.googleusercontent.com/a/new" };
+
+describe("admitSignIn", () => {
+  it("refreshes an active User's Display name and avatar from Google", async () => {
+    const users = usersHolding(user());
+
+    await admitSignIn({ users }, { userId: "user-1", profile, now });
+
+    expect(users.recordSignIn).toHaveBeenCalledWith("user-1", {
+      name: "New Name",
+      profileImg: "https://lh3.googleusercontent.com/a/new",
+    });
+  });
+
+  it("restores a User deleted within the Grace period, refreshing their profile too", async () => {
+    const users = usersHolding(user({ deletedAt: new Date(now.getTime() - DAY) }));
+
+    await admitSignIn({ users }, { userId: "user-1", profile, now });
+
+    expect(users.recordSignIn).toHaveBeenCalledWith("user-1", {
+      name: "New Name",
+      profileImg: "https://lh3.googleusercontent.com/a/new",
+      deletedAt: null,
+    });
+  });
+
+  it("refuses a User deleted longer ago than the Grace period, changing nothing", async () => {
+    const users = usersHolding(user({ deletedAt: new Date(now.getTime() - 31 * DAY) }));
+
+    await expect(admitSignIn({ users }, { userId: "user-1", profile, now })).rejects.toBeInstanceOf(
+      UserPermanentlyDeletedError,
+    );
+    expect(users.recordSignIn).not.toHaveBeenCalled();
+  });
+
+  it("clears the avatar when the User no longer has a Google photo", async () => {
+    const users = usersHolding(user());
+
+    await admitSignIn(
+      { users },
+      { userId: "user-1", profile: { ...profile, profileImg: null }, now },
+    );
+
+    expect(users.recordSignIn).toHaveBeenCalledWith(
+      "user-1",
+      expect.objectContaining({ profileImg: null }),
+    );
+  });
+
+  it("keeps the current Display name when Google sends none", async () => {
+    const users = usersHolding(user());
+
+    await admitSignIn({ users }, { userId: "user-1", profile: { ...profile, name: null }, now });
+
+    expect(users.recordSignIn).toHaveBeenCalledWith("user-1", {
+      profileImg: "https://lh3.googleusercontent.com/a/new",
+    });
+  });
+
+  it("never changes the email captured at sign-up", async () => {
+    const users = usersHolding(user());
+
+    await admitSignIn({ users }, { userId: "user-1", profile, now });
+
+    expect(vi.mocked(users.recordSignIn).mock.calls[0]![1]).not.toHaveProperty("email");
+  });
+
+  it("fails when the signing-in User doesn't exist", async () => {
+    await expect(
+      admitSignIn({ users: usersHolding(null) }, { userId: "user-1", profile, now }),
+    ).rejects.toThrow("user-1");
+  });
+});
