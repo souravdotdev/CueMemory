@@ -1,6 +1,6 @@
-import type { IncomingHttpHeaders } from "node:http";
 import type { FastifyPluginAsync } from "fastify";
 import type { RateLimitOptions } from "@fastify/rate-limit";
+import { toWebHeaders } from "./web-headers";
 
 /** The one thing these routes need from Better Auth: its web-standard request handler. */
 export interface AuthRequestHandler {
@@ -53,13 +53,3 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, opt
     },
   });
 };
-
-function toWebHeaders(headers: IncomingHttpHeaders): Headers {
-  const webHeaders = new Headers();
-  for (const [name, value] of Object.entries(headers)) {
-    for (const item of Array.isArray(value) ? value : [value]) {
-      if (item !== undefined) webHeaders.append(name, item);
-    }
-  }
-  return webHeaders;
-}

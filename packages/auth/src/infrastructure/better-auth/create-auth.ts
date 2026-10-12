@@ -40,6 +40,13 @@ export function createAuth(db: AuthDatabase, config: AuthConfig) {
       // is the `users` table's `image` key, stored in the `profile_img` column.
       schema: { user: users, session: sessions, account: accounts, verification: verifications },
     }),
+    user: {
+      additionalFields: {
+        // The soft-delete marker (Auth ADR 0001), read with every Session so a deleted
+        // User's Sessions can be refused. Never set through Better Auth's API.
+        deletedAt: { type: "date", required: false, input: false },
+      },
+    },
     socialProviders: {
       google: {
         clientId: config.google.clientId,

@@ -1,4 +1,4 @@
-import { createAuth } from "@cue-memory/auth";
+import { BetterAuthSessionResolver, createAuth } from "@cue-memory/auth";
 import { db } from "@cue-memory/auth/database";
 import { env } from "./env";
 
@@ -9,3 +9,5 @@ export const auth = createAuth(db, {
   google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET },
   cookieDomain: env.AUTH_COOKIE_DOMAIN,
 });
+
+export const sessions = new BetterAuthSessionResolver(auth.api);
