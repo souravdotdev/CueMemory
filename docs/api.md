@@ -4,7 +4,7 @@ Fastify server in `apps/api`. Entry point `src/index.ts`.
 
 Base URL locally: `http://localhost:4000` (from `PORT` in `apps/api/.env`).
 
-Today the API serves only `GET /health`. The Item endpoints (save, list, search, retry, delete) come in a later spec. They will be built on the contract wiring described below.
+Today the API serves `GET /health` and Better Auth's routes under `/api/auth/*`. The Item endpoints (save, list, search, retry, delete) come in a later spec. They will be built on the contract wiring described below.
 
 ## Contracts: one shared definition of every request and response
 
@@ -74,9 +74,16 @@ Example validation failure:
 }
 ```
 
-## Auth (placeholder)
+## Auth: `/api/auth/*`
 
-There's no real authentication yet. See [Clean Architecture](./clean-architecture.md#the-auth-feature--deliberately-partial) for why `packages/auth` has no application or presentation layer yet. Until better-auth sign-in is wired up, the web app sends a fixed dev user id in an `x-user-id` header.
+[Better Auth](https://better-auth.com) runs inside the API and serves every route under `/api/auth/*` (GET and POST), mounted by `authRoutes` from `@cue-memory/auth` before any other route ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md), [Clean Architecture](./clean-architecture.md#the-auth-feature-layer-by-layer)). These routes answer in Better Auth's own shapes, not the contracts' error envelope. The ones that matter today:
+
+- `POST /api/auth/sign-in/social` with `{ "provider": "google", "callbackURL": "<web origin>/..." }` starts a Google sign-in and returns the Google URL to send the browser to. Any other provider gets `404 PROVIDER_NOT_FOUND`, a `scopes` field asking Google for more gets a 400, and a `callbackURL` outside the web origin is refused.
+- `GET /api/auth/callback/google` is where Google sends the browser back. It creates the User, their Sign-in identity and a Session, sets the Session cookie, and redirects to the `callbackURL`.
+- `GET /api/auth/get-session` and `POST /api/auth/sign-out` read and end the current Session.
+- `GET /api/auth/ok` is a liveness check: `{ "ok": true }`.
+
+They're rate-limited more strictly than the rest of the API (see [Security](./security.md#rate-limiting)). No route requires a Session yet. Until one does, the web app still sends a fixed dev user id in an `x-user-id` header.
 
 ## `GET /health`
 

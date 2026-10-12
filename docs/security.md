@@ -4,7 +4,7 @@
 
 ## CORS
 
-Previously registered with `{ origin: true }`, which reflects _any_ requesting origin back — effectively CORS disabled. Now `{ origin: env.CORS_ORIGIN }`, a new env var (see [Environment Variables](./environment-variables.md)) pointing at the web app's actual origin, defaulting to `http://localhost:3000` for local dev.
+Previously registered with `{ origin: true }`, which reflects _any_ requesting origin back — effectively CORS disabled. Now `{ origin: env.WEB_ORIGIN, credentials: true }`: `WEB_ORIGIN` (see [Environment Variables](./environment-variables.md)) is the web app's actual origin, required and never a wildcard, and `credentials: true` lets the browser send and accept the Session cookie on its cross-origin calls to the API ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md)). The same origin is Better Auth's only trusted origin, so a sign-in can only send the browser back to the web app.
 
 **Important nuance, verified directly rather than assumed**: with a static string `origin`, `@fastify/cors` always sets `Access-Control-Allow-Origin` to that configured value on every response — it does not conditionally omit the header based on what `Origin` the request actually sent. The protection isn't "the server hides the header from bad origins" — it's that the _browser_ refuses to let a page at a different origin read a response whose `Access-Control-Allow-Origin` doesn't match its own origin. The property that actually matters (and what `src/security.test.ts` asserts) is that the header is locked to the one configured origin and never reflects an arbitrary origin back — which is exactly what `origin: true` used to do.
 
@@ -16,7 +16,7 @@ Registered with `{ contentSecurityPolicy: false }`. This sets the standard helme
 
 ## Rate limiting
 
-`{ max: 100, timeWindow: "1 minute", redis: rateLimitRedis }`, global (applies to every route). The `429` response and `x-ratelimit-*` headers were confirmed both via a real Redis-backed request against a live server and via `src/security.test.ts` (using an in-memory store with `max: 2` for a fast, deterministic test).
+`{ max: 100, timeWindow: "1 minute", redis: rateLimitRedis }`, global (applies to every route). The auth routes under `/api/auth/*` get a stricter per-route limit instead, 30 a minute, passed to `authRoutes` from `src/index.ts` and applied through the route's `config.rateLimit` (tested in `packages/auth`'s `auth-routes.test.ts`). Better Auth's own built-in rate limiter (in-memory, production only) stays at its defaults behind it. The `429` response and `x-ratelimit-*` headers were confirmed both via a real Redis-backed request against a live server and via `src/security.test.ts` (using an in-memory store with `max: 2` for a fast, deterministic test).
 
 **Why a dedicated Redis connection** (`src/rate-limit-redis.ts`), not the existing BullMQ connection from `@cue-memory/shared-kernel/redis`: BullMQ requires `maxRetriesPerRequest: null` so its blocking commands retry forever — necessary for a job queue, but the opposite of what a rate-limit check wants. Reusing that connection directly risks every API request hanging (not just erroring) during a Redis outage, waiting on a rate-limit check that never resolves. `rate-limit-redis.ts` instead does:
 

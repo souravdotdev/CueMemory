@@ -25,7 +25,7 @@ Each **feature** is its own pnpm workspace package with all four layers nested i
 This repo currently has two feature packages:
 
 - **`packages/items`** — the paste-a-link save/list/process flow. Has real code in all four layers.
-- **`packages/auth`** — currently just a `User` entity and the better-auth-compatible DB schema. No port, use case, or route exists for auth yet (the API fakes it with an `x-user-id` dev header — see [API](./api.md#auth-placeholder)), so `application/`/`presentation/` folders don't exist in this package. **They appear only once real auth behavior is built, not before** — this is a deliberate application of the project's "no scaffolding for hypothetical requirements" rule, not an oversight.
+- **`packages/auth`** — the `User` entity, the Better Auth-compatible DB schema, and Google sign-in: the Better Auth instance (infrastructure) and the Fastify plugin that mounts it (presentation). It has no `application/` folder yet, because no auth use case exists: Better Auth itself runs the sign-in flow. **That folder appears once a real use case is built, not before** — a deliberate application of the project's "no scaffolding for hypothetical requirements" rule, not an oversight.
 
 `tags`, `collections`, and `reminders` do **not** have their own feature packages: they have no independent ports, use cases or routes. Their tables live inside `packages/items` as item-aggregate data (the `tags` and `item_tags` tables already do, from the tags design, #11). If one of them grows independent behavior (its own CRUD, its own route), it becomes its own feature package at that point, following the same pattern `items`/`auth` already establish.
 
@@ -43,12 +43,19 @@ This repo currently has two feature packages:
 
 Package exports: `.` (the full barrel — domain + application + infrastructure + presentation) and `./schema` (schema-only, so `packages/db`'s migration runner can read table definitions without pulling in Fastify/BullMQ).
 
-## The `auth` feature — deliberately partial
+## The `auth` feature, layer by layer
+
+Better Auth runs inside the API and owns the sign-in flow ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md)). Every Better Auth detail stays in this package's `infrastructure/`; the rest of the code only ever sees the domain `User`.
 
 - **`domain/user.ts`** — the `User` entity.
-- **`infrastructure/persistence/`** — `schema/` (the better-auth-compatible `users`/`sessions`/`accounts`/`verifications` tables; see [Database](./database.md#schema)), `user-mappers.ts` (`toUser`).
+- **`infrastructure/`**:
+  - `better-auth/create-auth.ts` — `createAuth(db, config)`, the factory that builds the Better Auth instance from a database handle and an `AuthConfig` (secret, base URL, web origin, Google credentials, optional cookie domain). It holds every Better Auth decision: the Drizzle adapter with Better Auth's model names mapped explicitly to the plural tables, the database generating uuid ids (`generateId: "uuid"`), Google as the only provider with identity scopes only (`openid email profile`, and a `before` hook that refuses any `scopes` a caller adds to the request), OAuth tokens encrypted at rest, the default 7-day Session with no cookie cache (every request checks the `sessions` table, so revocation is immediate), cross-subdomain cookies only when a cookie domain is configured, and the web origin as the only trusted origin. Better Auth's `image` field needs no mapping: the `users` table's Drizzle key is `image`, stored in the `profile_img` column, and `toUser` renames it to `profileImg`.
+  - `persistence/` — `schema/` (the Better Auth-compatible `users`/`sessions`/`accounts`/`verifications` tables; see [Database](./database.md#schema)), `user-mappers.ts` (`toUser`), and `database.ts` (`db`: this package's own `drizzle(pgClient, { schema })`, the first runtime Drizzle instance; see [Shared infrastructure](#shared-infrastructure)).
+- **`presentation/http/auth-routes.ts`** — `authRoutes`, a Fastify plugin that mounts Better Auth's handler under `/api/auth/*` (GET and POST): it turns Fastify's request into a web `Request` (the body passed through as raw bytes, whatever its content type), and sends Better Auth's `Response` back unchanged, every `set-cookie` included. It takes the handler as a one-method `AuthRequestHandler`, so its tests use a fake, and a per-route rate limit that `apps/api` sets stricter than the global one (see [Security](./security.md#rate-limiting)).
 
-No `application/` or `presentation/` folder exists in this package. Don't create them speculatively — add them when a real auth port, use case, or route is actually being built, following the exact shape `items` already demonstrates.
+No `application/` folder or `domain/ports/` exists in this package yet: there's no auth use case, because Better Auth runs the flow. Add them when one is built, following the exact shape `items` already demonstrates.
+
+Package exports: `.` (the barrel — domain, infrastructure, presentation, but not the runtime `db`), `./database` (`db`, kept off the barrel because importing it validates `DATABASE_URL`, which tests and the barrel's other consumers shouldn't need — the same reason `shared-kernel`'s `./db` and `./redis` are separate subpaths), and `./schema` (schema-only, for `packages/db` and `packages/items`).
 
 ## Shared infrastructure
 
@@ -59,7 +66,7 @@ Two things are genuinely cross-feature and don't belong inside any one feature p
 
 Each feature package wraps the shared raw `pgClient` in its **own** local `drizzle(pgClient, { schema })` call (e.g. `packages/items/src/infrastructure/persistence/drizzle-item-repository.ts`) — safe because the connection pool lives in the raw postgres client, not the Drizzle wrapper, so multiple independent `drizzle()` instances coexist over it without conflict.
 
-Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (schema-only, for the `users` FK column type), `items → shared-kernel`, `items → contracts`, `api → contracts`, `web → contracts`, `contracts →` nothing (only zod), `auth →` nothing. `auth` never depends on `items`, and neither depends back on `db`.
+Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (schema-only, for the `users` FK column type), `items → shared-kernel`, `items → contracts`, `auth → shared-kernel` (for the runtime `db`), `api → auth`, `api → contracts`, `web → contracts`, `contracts →` nothing (only zod). `auth` never depends on `items`, and neither depends back on `db`.
 
 ## The composition roots
 

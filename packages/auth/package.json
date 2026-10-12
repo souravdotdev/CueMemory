@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./database": "./src/infrastructure/persistence/database.ts",
     "./schema": "./src/infrastructure/persistence/schema/index.ts"
   },
   "scripts": {
@@ -13,7 +14,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.2"
+    "@cue-memory/shared-kernel": "workspace:*",
+    "@fastify/rate-limit": "^11.2.0",
+    "better-auth": "^1.7.7",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.12.4"
   },
   "devDependencies": {
     "@cue-memory/eslint-config": "workspace:*",
