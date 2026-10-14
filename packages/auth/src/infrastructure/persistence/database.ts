@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/postgres-js";
-import { pgClient } from "@cue-memory/shared-kernel/db";
+import { pgClient } from "@cue-memory/db/client";
 import * as schema from "./schema";
 
 /**

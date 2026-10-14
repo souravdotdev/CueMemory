@@ -15,9 +15,8 @@ packages/
                       domain/application/infrastructure/presentation all nested inside
   auth/               Feature package: User entity, auth DB schema, the Better Auth
                       instance and the Fastify plugin that mounts it under /api/auth
-  shared-kernel/      Raw cross-feature infra: Postgres client, Redis connection
-  db/                 Centralized Drizzle-kit migration runner (schema.ts re-exports
-                      items'/auth's schemas; no runtime code of its own)
+  db/                 Postgres client (./client) and Redis connection (./redis), plus the
+                      centralized Drizzle-kit migration runner over items'/auth's schemas
   contracts/          Shared zod request/response contracts (DTOs) for web ↔ api;
                       depends only on zod (subpaths ./common, ./items, ./auth)
   ui/                 Shared React components
@@ -39,8 +38,7 @@ That's fine for anything bundler-based — but plain `node` cannot execute raw T
 - **`packages/contracts`** defines every request and response between `apps/web` and `apps/api` once, as zod schemas, so the two can't drift apart (see [ADR 0001](./adr/0001-shared-zod-contracts-package.md)). Its only dependency is `zod`, and it never imports domain, persistence or framework code, so the web app never pulls in server packages. It's organised by context with one entry point each: `@cue-memory/contracts/common` (the error envelope and the `paginated(schema)` helper), `@cue-memory/contracts/auth` (the signed-in User returned by `GET /me`), and `@cue-memory/contracts/items` (the Item card with its Tags and who applied each, the list query and paginated list response, and the create-Item request/response). Schemas end in `DtoSchema` and their inferred types in `Dto` (`itemCardDtoSchema` / `ItemCardDto`); a plain `Item` is always the domain entity. The API validates what it receives and filters what it sends through these schemas, and the web app's API helpers (`apps/web/src/lib/api.ts`) parse every response with them and throw on a mismatch. Each feature's presentation layer owns the explicit mapper from its entities to these DTOs (for Items, `toItemCardDto` in `packages/items/src/presentation/http`).
 - **`packages/items`** is a feature package — it holds the actual business logic (use cases), the port interfaces infrastructure must implement, and the concrete adapters (Drizzle repository, BullMQ queue, metadata fetcher) and delivery mechanisms (HTTP routes, job processor) that implement/expose them. See [Clean Architecture](./clean-architecture.md) for the full per-feature layering.
 - **`packages/auth`** is a feature package too: the `User` entity, its DB schema, and Google sign-in through [Better Auth](https://better-auth.com), which runs in the API ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md)).
-- **`packages/shared-kernel`** exists so the raw Postgres/Redis connections are built once and shared by whichever feature packages need them, rather than each feature opening its own pool against the same database/Redis instance.
-- **`packages/db`** is not a feature package — it's the single centralized Drizzle-kit migration runner, since one Postgres database has one migration history spanning every feature's tables.
+- **`packages/db`** is not a feature package. It builds the raw Postgres/Redis connections once, shared by whichever packages need them, rather than each feature opening its own pool against the same database/Redis instance; and it's the single centralized Drizzle-kit migration runner, since one Postgres database has one migration history spanning every feature's tables.
 
 ## Tech stack
 

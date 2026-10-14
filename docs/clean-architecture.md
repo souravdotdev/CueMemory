@@ -63,18 +63,18 @@ Better Auth runs inside the API and owns the sign-in flow ([ADR 0003](./adr/0003
   - `web-headers.ts` — `toWebHeaders`, Node's request headers as web `Headers`, shared by the guard and `authRoutes`.
   - `auth-routes.ts` — `authRoutes`, a Fastify plugin that mounts Better Auth's handler under `/api/auth/*` (GET and POST): it turns Fastify's request into a web `Request` (the body passed through as raw bytes, whatever its content type), and sends Better Auth's `Response` back unchanged, every `set-cookie` included. It takes the handler as a one-method `AuthRequestHandler`, so its tests use a fake, and a per-route rate limit that `apps/api` sets stricter than the global one (see [Security](./security.md#rate-limiting)).
 
-Package exports: `.` (the barrel — domain, application, infrastructure, presentation, but not the runtime `db`), `./database` (`db`, kept off the barrel because importing it validates `DATABASE_URL`, which tests and the barrel's other consumers shouldn't need — the same reason `shared-kernel`'s `./db` and `./redis` are separate subpaths), and `./schema` (schema-only, for `packages/db` and `packages/items`).
+Package exports: `.` (the barrel — domain, application, infrastructure, presentation, but not the runtime `db`), `./database` (`db`, kept off the barrel because importing it validates `DATABASE_URL`, which tests and the barrel's other consumers shouldn't need — the same reason `@cue-memory/db`'s `./client` and `./redis` are separate subpaths), and `./schema` (schema-only, for `packages/items`).
 
 ## Shared infrastructure
 
-Two things are genuinely cross-feature and don't belong inside any one feature package:
+**`packages/db`** is not a feature package. It holds what is genuinely cross-feature:
 
-- **`packages/shared-kernel`** — raw connection primitives only: `db/client.ts` (a raw `postgres()` client, **not** wrapped in `drizzle()` — no schema bound here) and `redis/connection.ts` (a raw `ioredis` instance). Exported as two independent subpaths, `./db` and `./redis`, specifically so importing one doesn't eagerly validate the other's env vars (e.g. `packages/db`'s migration runner only needs `DATABASE_URL`, not `REDIS_URL`). No `@cue-memory/*` dependencies — a true leaf package.
-- **`packages/db`** — not a feature package. It's the single centralized Drizzle-kit migration runner: `schema.ts` re-exports `@cue-memory/items/schema` + `@cue-memory/auth/schema`, and `drizzle.config.ts` points at that shim. One Postgres database has one migration history spanning every feature's tables, so this can't be split per feature the way application code can.
+- The raw connection primitives: `src/postgres/client.ts` (a raw `postgres()` client, **not** wrapped in `drizzle()` — no schema bound here) and `src/redis/connection.ts` (a raw `ioredis` instance). Exported as two independent subpaths, `./client` and `./redis`, specifically so importing one doesn't eagerly validate the other's env vars (e.g. the migration runner only needs `DATABASE_URL`, not `REDIS_URL`); `src/entry-points.test.ts` holds that line.
+- The single centralized Drizzle-kit migration runner: `drizzle.config.ts` points at the feature packages' schema barrels by path (it can't import them, since they depend on this package for the Postgres client). One Postgres database has one migration history spanning every feature's tables, so this can't be split per feature the way application code can.
 
 Each feature package wraps the shared raw `pgClient` in its **own** local `drizzle(pgClient, { schema })` call (e.g. `packages/items/src/infrastructure/persistence/drizzle-item-repository.ts`) — safe because the connection pool lives in the raw postgres client, not the Drizzle wrapper, so multiple independent `drizzle()` instances coexist over it without conflict.
 
-Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (schema-only, for the `users` FK column type), `items → shared-kernel`, `items → contracts`, `auth → shared-kernel` (for the runtime `db`), `auth → contracts`, `api → auth`, `api → contracts`, `web → contracts`, `contracts →` nothing (only zod). `auth` never depends on `items`, and neither depends back on `db`.
+Dependency graph is acyclic: `items → auth` (schema-only, for the `users` FK column type), `items → contracts`, `auth → db` (for the runtime `db`), `auth → contracts`, `api → auth`, `api → db` (the Redis connection), `api → contracts`, `web → contracts`, `contracts →` nothing (only zod), `db →` no `@cue-memory/*` runtime package. `auth` never depends on `items`.
 
 ## The composition roots
 

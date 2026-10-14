@@ -1,6 +1,6 @@
 # Database
 
-Postgres, accessed through [Drizzle ORM](https://orm.drizzle.team) via the `postgres` (postgres.js) driver. Schema is owned by each feature package (`packages/items/src/infrastructure/persistence/schema`, `packages/auth/src/infrastructure/persistence/schema`); `packages/db/schema.ts` re-exports both as the single input drizzle-kit generates migrations from. The raw connection (`pgClient`) lives in `packages/shared-kernel/src/db/client.ts`; each feature package wraps it in its own local `drizzle(pgClient, { schema })` call.
+Postgres, accessed through [Drizzle ORM](https://orm.drizzle.team) via the `postgres` (postgres.js) driver. Schema is owned by each feature package (`packages/items/src/infrastructure/persistence/schema`, `packages/auth/src/infrastructure/persistence/schema`); `packages/db/drizzle.config.ts` points drizzle-kit at both, by path, as the single input it generates migrations from. The raw connection (`pgClient`) lives in `packages/db/src/postgres/client.ts`; each feature package wraps it in its own local `drizzle(pgClient, { schema })` call.
 
 ## Schema
 
@@ -43,9 +43,9 @@ Conventions for new tables: `uuid` primary keys with `defaultRandom()`, snake_ca
 
 ## Migration workflow
 
-Drizzle Kit is configured in `packages/db/drizzle.config.ts`, pointed at `packages/db/schema.ts` (a thin re-export shim over `@cue-memory/items/schema` + `@cue-memory/auth/schema`) and outputting to `./migrations`.
+Drizzle Kit is configured in `packages/db/drizzle.config.ts`, pointed at the Items and Auth schema barrels by path (`../items/src/infrastructure/persistence/schema/index.ts`, `../auth/src/infrastructure/persistence/schema/index.ts` — not imported, since `packages/auth` depends on `packages/db` for the Postgres client) and outputting to `./migrations`.
 
-`packages/db` has no `src/` directory — it's not a feature package, just the migration runner. `migrations/` stays a top-level directory (a sibling of `schema.ts`) since generated SQL files aren't TypeScript source. **Unlike most generated output in this repo (`dist/`, `.next/`), migrations are tracked in git** — they're history, not a build artifact; losing them means losing the ability to reproduce the schema from scratch on a new environment. `.prettierignore` still excludes `packages/db/migrations/` so Prettier doesn't reformat drizzle-kit's own generated `meta/*.json` bookkeeping on every `pnpm format`, but that's a formatting exclusion, not a git one.
+`packages/db` is not a feature package: `src/` holds only the raw Postgres client and Redis connection, and the package is otherwise the migration runner. `migrations/` stays a top-level directory (outside `src/`) since generated SQL files aren't TypeScript source. **Unlike most generated output in this repo (`dist/`, `.next/`), migrations are tracked in git** — they're history, not a build artifact; losing them means losing the ability to reproduce the schema from scratch on a new environment. `.prettierignore` still excludes `packages/db/migrations/` so Prettier doesn't reformat drizzle-kit's own generated `meta/*.json` bookkeeping on every `pnpm format`, but that's a formatting exclusion, not a git one.
 
 ```bash
 pnpm db:generate   # diff the schema against the last migration, write a new SQL migration file
@@ -69,7 +69,7 @@ Per [Clean Architecture](./clean-architecture.md), `apps/api` and `apps/worker` 
 ```ts
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { pgClient } from "@cue-memory/shared-kernel/db";
+import { pgClient } from "@cue-memory/db/client";
 import type { ItemRepository } from "../../domain/ports/item-repository";
 import * as schema from "./schema";
 import { items } from "./schema/items";
