@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createItemResponseDtoSchema } from "./index";
+import { CreateItemResponseSchema } from "./index";
 
-describe("createItemResponseDtoSchema", () => {
+describe("CreateItemResponseSchema", () => {
   it("is the new Item's card, still Processing", () => {
     const card = {
       id: "item-1",
@@ -16,10 +16,10 @@ describe("createItemResponseDtoSchema", () => {
       tags: [],
     };
 
-    expect(createItemResponseDtoSchema.parse(card)).toEqual(card);
+    expect(CreateItemResponseSchema.parse(card)).toEqual(card);
   });
 
   it("rejects a body that isn't an Item card", () => {
-    expect(createItemResponseDtoSchema.safeParse({ id: "item-1" }).success).toBe(false);
+    expect(CreateItemResponseSchema.safeParse({ id: "item-1" }).success).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** The signed-in User, as `GET /me` returns them. Never carries the deletion time or Better Auth internals. */
-export const meResponseDtoSchema = z.object({
+export const MeResponseSchema = z.object({
   id: z.string(),
   displayName: z.string(),
   // The email captured at sign-up.
@@ -11,4 +11,4 @@ export const meResponseDtoSchema = z.object({
   createdAt: z.iso.datetime(),
 });
 
-export type MeResponseDto = z.infer<typeof meResponseDtoSchema>;
+export type MeResponse = z.infer<typeof MeResponseSchema>;

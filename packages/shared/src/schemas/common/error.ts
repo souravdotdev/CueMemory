@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const errorCodeDtoSchema = z.enum([
+export const ErrorCodeSchema = z.enum([
   "validation_failed",
   "not_found",
   "unauthorized",
@@ -8,15 +8,15 @@ export const errorCodeDtoSchema = z.enum([
   "internal",
 ]);
 
-export type ErrorCodeDto = z.infer<typeof errorCodeDtoSchema>;
+export type ErrorCode = z.infer<typeof ErrorCodeSchema>;
 
 /** The one envelope every API error is sent in. */
-export const errorDtoSchema = z.object({
+export const ErrorResponseSchema = z.object({
   error: z.object({
-    code: errorCodeDtoSchema,
+    code: ErrorCodeSchema,
     message: z.string(),
     details: z.unknown().optional(),
   }),
 });
 
-export type ErrorDto = z.infer<typeof errorDtoSchema>;
+export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;

@@ -1,4 +1,4 @@
-import { itemCardDtoSchema } from "@cue-memory/shared/items";
+import { ItemCardSchema } from "@cue-memory/shared/schemas/items";
 import { describe, expect, it } from "vitest";
 import type { AppliedTag, Item, Tag, ThumbnailUrlResolver } from "../../domain";
 import { toItemCardDto } from "./item-card-mapper";
@@ -123,7 +123,7 @@ describe("toItemCardDto", () => {
     for (const [i, tags] of cases) {
       const card = await toItemCardDto(i, tags, resolver);
 
-      expect(itemCardDtoSchema.parse(card)).toEqual(card);
+      expect(ItemCardSchema.parse(card)).toEqual(card);
     }
   });
 });

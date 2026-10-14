@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { listItemsQueryDtoSchema, listItemsResponseDtoSchema } from "./index";
+import { ListItemsQuerySchema, ListItemsResponseSchema } from "./index";
 
-describe("listItemsQueryDtoSchema", () => {
+describe("ListItemsQuerySchema", () => {
   it("defaults the limit to 30 when nothing is given", () => {
-    expect(listItemsQueryDtoSchema.parse({})).toEqual({ limit: 30 });
+    expect(ListItemsQuerySchema.parse({})).toEqual({ limit: 30 });
   });
 
   it("accepts a keyword, tag id, cursor and limit together", () => {
@@ -14,27 +14,27 @@ describe("listItemsQueryDtoSchema", () => {
       limit: 50,
     };
 
-    expect(listItemsQueryDtoSchema.parse(query)).toEqual(query);
+    expect(ListItemsQuerySchema.parse(query)).toEqual(query);
   });
 
   it("reads a limit sent as a query-string value", () => {
-    expect(listItemsQueryDtoSchema.parse({ limit: "10" })).toEqual({ limit: 10 });
+    expect(ListItemsQuerySchema.parse({ limit: "10" })).toEqual({ limit: 10 });
   });
 
   it.each([1, 100])("accepts the boundary limit %d", (limit) => {
-    expect(listItemsQueryDtoSchema.parse({ limit })).toEqual({ limit });
+    expect(ListItemsQuerySchema.parse({ limit })).toEqual({ limit });
   });
 
   it.each([0, 101, -5, 2.5])("rejects the limit %d", (limit) => {
-    expect(listItemsQueryDtoSchema.safeParse({ limit }).success).toBe(false);
+    expect(ListItemsQuerySchema.safeParse({ limit }).success).toBe(false);
   });
 
   it("rejects a tag id that isn't a uuid", () => {
-    expect(listItemsQueryDtoSchema.safeParse({ tagId: "tag-1" }).success).toBe(false);
+    expect(ListItemsQuerySchema.safeParse({ tagId: "tag-1" }).success).toBe(false);
   });
 });
 
-describe("listItemsResponseDtoSchema", () => {
+describe("ListItemsResponseSchema", () => {
   const card = {
     id: "item-1",
     sourceUrl: "https://example.com/article",
@@ -51,12 +51,12 @@ describe("listItemsResponseDtoSchema", () => {
   it("accepts a page of Item cards with a next cursor", () => {
     const page = { items: [card], nextCursor: "eyJpZCI6Iml0ZW0tMSJ9" };
 
-    expect(listItemsResponseDtoSchema.parse(page)).toEqual(page);
+    expect(ListItemsResponseSchema.parse(page)).toEqual(page);
   });
 
   it("rejects a page containing something that isn't an Item card", () => {
     expect(
-      listItemsResponseDtoSchema.safeParse({ items: [{ id: "item-1" }], nextCursor: null }).success,
+      ListItemsResponseSchema.safeParse({ items: [{ id: "item-1" }], nextCursor: null }).success,
     ).toBe(false);
   });
 });

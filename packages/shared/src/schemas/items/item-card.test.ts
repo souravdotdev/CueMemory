@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { itemCardDtoSchema } from "./index";
+import { ItemCardSchema } from "./index";
 
 const readyCard = {
   id: "7f1c2b9e-1a2b-4c3d-8e9f-0a1b2c3d4e5f",
@@ -17,9 +17,9 @@ const readyCard = {
   ],
 };
 
-describe("itemCardDtoSchema", () => {
+describe("ItemCardSchema", () => {
   it("accepts a Ready Item's card", () => {
-    expect(itemCardDtoSchema.parse(readyCard)).toEqual(readyCard);
+    expect(ItemCardSchema.parse(readyCard)).toEqual(readyCard);
   });
 
   it("accepts a Processing Item's card, with no type, title or Thumbnail yet", () => {
@@ -33,47 +33,45 @@ describe("itemCardDtoSchema", () => {
       tags: [],
     };
 
-    expect(itemCardDtoSchema.parse(card)).toEqual(card);
+    expect(ItemCardSchema.parse(card)).toEqual(card);
   });
 
   it("accepts a Failed Item's card with its failure message", () => {
     const card = { ...readyCard, status: "failed", failureMessage: "We couldn't find that page." };
 
-    expect(itemCardDtoSchema.parse(card)).toEqual(card);
+    expect(ItemCardSchema.parse(card)).toEqual(card);
   });
 
   it.each(["tweet", "video", "image", "pdf", "link"])("accepts the %s Item type", (type) => {
-    expect(itemCardDtoSchema.safeParse({ ...readyCard, type }).success).toBe(true);
+    expect(ItemCardSchema.safeParse({ ...readyCard, type }).success).toBe(true);
   });
 
   it("rejects an unknown Item type", () => {
-    expect(itemCardDtoSchema.safeParse({ ...readyCard, type: "podcast" }).success).toBe(false);
+    expect(ItemCardSchema.safeParse({ ...readyCard, type: "podcast" }).success).toBe(false);
   });
 
   it("rejects an unknown status", () => {
-    expect(itemCardDtoSchema.safeParse({ ...readyCard, status: "archived" }).success).toBe(false);
+    expect(ItemCardSchema.safeParse({ ...readyCard, status: "archived" }).success).toBe(false);
   });
 
   it("rejects a created time that isn't an ISO-8601 string", () => {
-    expect(itemCardDtoSchema.safeParse({ ...readyCard, createdAt: "April 1st" }).success).toBe(
-      false,
-    );
+    expect(ItemCardSchema.safeParse({ ...readyCard, createdAt: "April 1st" }).success).toBe(false);
   });
 
   it("rejects a card without its tags list", () => {
     const { tags: _tags, ...card } = readyCard;
 
-    expect(itemCardDtoSchema.safeParse(card).success).toBe(false);
+    expect(ItemCardSchema.safeParse(card).success).toBe(false);
   });
 
   it("rejects a Tag applied by anyone other than the AI or the User", () => {
     const tags = [{ id: "tag-1", name: "memory", source: "import" }];
 
-    expect(itemCardDtoSchema.safeParse({ ...readyCard, tags }).success).toBe(false);
+    expect(ItemCardSchema.safeParse({ ...readyCard, tags }).success).toBe(false);
   });
 
   it("strips fields the card doesn't declare", () => {
-    const parsed = itemCardDtoSchema.parse({
+    const parsed = ItemCardSchema.parse({
       ...readyCard,
       userId: "user-1",
       extractedText: "Spaced repetition is...",

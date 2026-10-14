@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { itemCardDtoSchema } from "./item-card";
+import { ItemCardSchema } from "./item-card";
 
 export const MAX_URL_LENGTH = 2048;
 
 /** The link a User pastes to save an Item. Shared by the web save form and the API. */
-export const createItemRequestDtoSchema = z.object({
+export const CreateItemSchema = z.object({
   url: z
     .string()
     .trim()
@@ -12,9 +12,9 @@ export const createItemRequestDtoSchema = z.object({
     .pipe(z.url({ protocol: /^https?$/, error: "Enter a valid http(s) link" })),
 });
 
-export type CreateItemRequestDto = z.infer<typeof createItemRequestDtoSchema>;
+export type CreateItemInput = z.infer<typeof CreateItemSchema>;
 
 /** A saved Item comes back as its card (201), still Processing. */
-export const createItemResponseDtoSchema = itemCardDtoSchema;
+export const CreateItemResponseSchema = ItemCardSchema;
 
-export type CreateItemResponseDto = z.infer<typeof createItemResponseDtoSchema>;
+export type CreateItemResponse = z.infer<typeof CreateItemResponseSchema>;

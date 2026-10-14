@@ -1,4 +1,4 @@
-import { meResponseDtoSchema } from "@cue-memory/shared/auth";
+import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
 import { describe, expect, it } from "vitest";
 import type { User } from "../../domain";
 import { toMeResponseDto } from "./me-mapper";
@@ -33,6 +33,6 @@ describe("toMeResponseDto", () => {
     const dto = toMeResponseDto(user({ deletedAt: new Date("2026-05-01T00:00:00.000Z") }));
 
     expect(dto).not.toHaveProperty("deletedAt");
-    expect(meResponseDtoSchema.parse(dto)).toEqual(dto);
+    expect(MeResponseSchema.parse(dto)).toEqual(dto);
   });
 });

@@ -5,22 +5,22 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import type { ErrorCodeDto, ErrorDto } from "@cue-memory/shared/common";
+import type { ErrorCode, ErrorResponse } from "@cue-memory/shared/schemas/common";
 
-type ErrorResponse = { code: ErrorCodeDto; message: string };
+type SafeError = { code: ErrorCode; message: string };
 
 // Every status maps to a fixed, safe message: Fastify's own error messages
 // (and anything thrown with a statusCode) never reach the client.
-const clientErrors: Partial<Record<number, ErrorResponse>> = {
+const clientErrors: Partial<Record<number, SafeError>> = {
   401: { code: "unauthorized", message: "You need to sign in to do that" },
   404: { code: "not_found", message: "That resource doesn't exist" },
   429: { code: "rate_limited", message: "Too many requests, please try again later" },
 };
-const otherClientError: ErrorResponse = {
+const otherClientError: SafeError = {
   code: "validation_failed",
   message: "The request could not be processed",
 };
-const serverError: ErrorResponse = {
+const serverError: SafeError = {
   code: "internal",
   message: "Something went wrong on our side",
 };
@@ -28,11 +28,11 @@ const serverError: ErrorResponse = {
 function sendError(
   reply: FastifyReply,
   status: number,
-  code: ErrorCodeDto,
+  code: ErrorCode,
   message: string,
   details?: unknown,
 ) {
-  const body: ErrorDto = { error: { code, message, details } };
+  const body: ErrorResponse = { error: { code, message, details } };
   return reply.code(status).send(body);
 }
 

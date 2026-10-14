@@ -7,8 +7,8 @@ import {
   type SessionResolver,
   type User,
 } from "@cue-memory/auth";
-import { meResponseDtoSchema } from "@cue-memory/shared/auth";
-import { errorDtoSchema } from "@cue-memory/shared/common";
+import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
+import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
 import { registerContracts } from "./contracts";
 
 // An active User with a Google avatar; each test overrides only what it's about.
@@ -46,7 +46,7 @@ describe("requireUser", () => {
     const res = await app.inject({ method: "GET", url: "/protected" });
 
     expect(res.statusCode).toBe(401);
-    expect(errorDtoSchema.parse(res.json()).error.code).toBe("unauthorized");
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("unauthorized");
   });
 
   it("refuses a deleted User's Session with 401 unauthorized", async () => {
@@ -56,7 +56,7 @@ describe("requireUser", () => {
     const res = await app.inject({ method: "GET", url: "/protected", headers: withSessionCookie });
 
     expect(res.statusCode).toBe(401);
-    expect(errorDtoSchema.parse(res.json()).error.code).toBe("unauthorized");
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("unauthorized");
   });
 
   it("lets a valid Session through, and the route sees its User", async () => {
@@ -93,7 +93,7 @@ describe("GET /me", () => {
       avatarUrl: "https://lh3.googleusercontent.com/a/avatar",
       createdAt: "2026-04-01T00:00:00.000Z",
     });
-    expect(meResponseDtoSchema.safeParse(res.json()).success).toBe(true);
+    expect(MeResponseSchema.safeParse(res.json()).success).toBe(true);
   });
 
   it("returns a null avatar for a User without a Google photo", async () => {

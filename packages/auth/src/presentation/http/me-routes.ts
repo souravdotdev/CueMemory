@@ -1,5 +1,5 @@
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { meResponseDtoSchema } from "@cue-memory/shared/auth";
+import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
 import type { ResolveSignedInUserDeps } from "../../application";
 import { toMeResponseDto } from "./me-mapper";
 import { requireUser, signedInUser } from "./require-user";
@@ -12,7 +12,7 @@ export const meRoutes: FastifyPluginAsyncZod<MeRoutesOptions> = async (app, deps
     "/me",
     {
       preHandler: requireUser(deps),
-      schema: { response: { 200: meResponseDtoSchema } },
+      schema: { response: { 200: MeResponseSchema } },
     },
     async (request) => toMeResponseDto(signedInUser(request)),
   );

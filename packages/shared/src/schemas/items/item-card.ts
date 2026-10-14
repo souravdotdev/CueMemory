@@ -2,34 +2,34 @@ import { z } from "zod";
 
 // Mirrors the domain's ITEM_TYPES / ITEM_STATUSES / TAG_SOURCES. The contract can't import
 // the domain, so packages/items' presentation layer asserts at compile time that the lists match.
-export const itemTypeDtoSchema = z.enum(["article", "tweet", "video", "image", "pdf", "link"]);
-export type ItemTypeDto = z.infer<typeof itemTypeDtoSchema>;
+export const ItemTypeSchema = z.enum(["article", "tweet", "video", "image", "pdf", "link"]);
+export type ItemType = z.infer<typeof ItemTypeSchema>;
 
-export const itemStatusDtoSchema = z.enum(["processing", "ready", "failed"]);
-export type ItemStatusDto = z.infer<typeof itemStatusDtoSchema>;
+export const ItemStatusSchema = z.enum(["processing", "ready", "failed"]);
+export type ItemStatus = z.infer<typeof ItemStatusSchema>;
 
 // Who applied a Tag to the Item.
-export const tagSourceDtoSchema = z.enum(["ai", "user"]);
-export type TagSourceDto = z.infer<typeof tagSourceDtoSchema>;
+export const TagSourceSchema = z.enum(["ai", "user"]);
+export type TagSource = z.infer<typeof TagSourceSchema>;
 
 /** A Tag as it appears on an Item card, with who applied it so the UI can mark AI suggestions. */
-export const itemCardTagDtoSchema = z.object({
+export const ItemCardTagSchema = z.object({
   id: z.string(),
   name: z.string(),
-  source: tagSourceDtoSchema,
+  source: TagSourceSchema,
 });
-export type ItemCardTagDto = z.infer<typeof itemCardTagDtoSchema>;
+export type ItemCardTag = z.infer<typeof ItemCardTagSchema>;
 
 /**
  * The one V1 view of an Item: serves the feed, search results and the save response.
  * Never carries internals (User id, extracted text, Thumbnail key, updated time, why an Item failed).
  */
-export const itemCardDtoSchema = z.object({
+export const ItemCardSchema = z.object({
   id: z.string(),
   sourceUrl: z.string(),
   // Null only while the Item is Processing.
-  type: itemTypeDtoSchema.nullable(),
-  status: itemStatusDtoSchema,
+  type: ItemTypeSchema.nullable(),
+  status: ItemStatusSchema,
   title: z.string().nullable(),
   description: z.string().nullable(),
   // A short-lived signed link, never the storage key.
@@ -38,7 +38,7 @@ export const itemCardDtoSchema = z.object({
   failureMessage: z.string().nullable(),
   createdAt: z.iso.datetime(),
   // Empty when the Item has no Tags yet.
-  tags: z.array(itemCardTagDtoSchema),
+  tags: z.array(ItemCardTagSchema),
 });
 
-export type ItemCardDto = z.infer<typeof itemCardDtoSchema>;
+export type ItemCard = z.infer<typeof ItemCardSchema>;

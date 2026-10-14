@@ -1,9 +1,9 @@
 import type {
-  ItemCardDto,
-  ItemStatusDto,
-  ItemTypeDto,
-  TagSourceDto,
-} from "@cue-memory/shared/items";
+  ItemCard,
+  ItemStatus as SharedItemStatus,
+  ItemType as SharedItemType,
+  TagSource as SharedTagSource,
+} from "@cue-memory/shared/schemas/items";
 import type {
   AppliedTag,
   Item,
@@ -16,9 +16,9 @@ import type {
 // The contract can't import the domain, so both keep their own Item type, status and
 // Tag source lists. These fail the build if either side gains or loses a value the other lacks.
 type Equals<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-const itemTypesMatch: Equals<ItemType, ItemTypeDto> = true;
-const itemStatusesMatch: Equals<ItemStatus, ItemStatusDto> = true;
-const tagSourcesMatch: Equals<TagSource, TagSourceDto> = true;
+const itemTypesMatch: Equals<ItemType, SharedItemType> = true;
+const itemStatusesMatch: Equals<ItemStatus, SharedItemStatus> = true;
+const tagSourcesMatch: Equals<TagSource, SharedTagSource> = true;
 void itemTypesMatch;
 void itemStatusesMatch;
 void tagSourcesMatch;
@@ -31,7 +31,7 @@ export async function toItemCardDto(
   item: Item,
   tags: readonly AppliedTag[],
   thumbnails: ThumbnailUrlResolver,
-): Promise<ItemCardDto> {
+): Promise<ItemCard> {
   return {
     id: item.id,
     sourceUrl: item.sourceUrl,

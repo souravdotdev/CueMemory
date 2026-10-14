@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import Fastify from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { z } from "zod";
-import { errorDtoSchema } from "@cue-memory/shared/common";
+import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
 import { registerContracts } from "./contracts";
 
 // A test-only route that declares a body and a response contract, so the
@@ -54,7 +54,7 @@ describe("API contract wiring", () => {
     const res = await app.inject({ method: "POST", url: "/echo", payload: { name: "" } });
 
     expect(res.statusCode).toBe(400);
-    const body = errorDtoSchema.parse(res.json());
+    const body = ErrorResponseSchema.parse(res.json());
     expect(body.error.code).toBe("validation_failed");
     expect(body.error.details).toEqual([{ path: "/name", message: expect.any(String) }]);
   });
@@ -65,7 +65,7 @@ describe("API contract wiring", () => {
     const res = await app.inject({ method: "GET", url: "/boom" });
 
     expect(res.statusCode).toBe(500);
-    expect(errorDtoSchema.parse(res.json()).error.code).toBe("internal");
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("internal");
     expect(res.body).not.toContain("ECONNREFUSED");
     expect(res.body).not.toContain("db.internal");
   });
@@ -77,7 +77,7 @@ describe("API contract wiring", () => {
     const res = await app.inject({ method: "GET", url: "/boom" });
 
     expect(res.statusCode).toBe(429);
-    expect(errorDtoSchema.parse(res.json()).error.code).toBe("rate_limited");
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("rate_limited");
   });
 
   it("sends an unmapped client error as validation_failed with a generic message, not Fastify's", async () => {
@@ -91,7 +91,7 @@ describe("API contract wiring", () => {
     });
 
     expect(res.statusCode).toBe(415);
-    const body = errorDtoSchema.parse(res.json());
+    const body = ErrorResponseSchema.parse(res.json());
     expect(body.error.code).toBe("validation_failed");
     expect(body.error.message).toBe("The request could not be processed");
     expect(res.body).not.toContain("x-secret-format");
@@ -103,6 +103,6 @@ describe("API contract wiring", () => {
     const res = await app.inject({ method: "GET", url: "/nope" });
 
     expect(res.statusCode).toBe(404);
-    expect(errorDtoSchema.parse(res.json()).error.code).toBe("not_found");
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("not_found");
   });
 });

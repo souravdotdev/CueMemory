@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./auth": "./src/auth/index.ts",
-    "./common": "./src/common/index.ts",
-    "./items": "./src/items/index.ts"
+    "./schemas/auth": "./src/schemas/auth/index.ts",
+    "./schemas/common": "./src/schemas/common/index.ts",
+    "./schemas/items": "./src/schemas/items/index.ts"
   },
   "scripts": {
     "lint": "eslint .",
