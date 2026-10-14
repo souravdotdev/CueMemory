@@ -17,6 +17,7 @@ import {
 import type { ISessionProvider } from "@/domain/providers/ISessionProvider";
 import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";
+import { IN_MEMORY_RATE_LIMITS, type RateLimitRedis } from "@/rate-limit-store";
 import { MeController } from "@/interface/controllers/MeController";
 import { authMiddleware, signedInUser } from "@/interface/middleware/auth.middleware";
 import type { AuthRequestHandler } from "@/interface/routes/auth.routes";
@@ -48,10 +49,11 @@ const sessionsReturning = (found: User | null): ISessionProvider => ({
 
 // A test container: the real app, use cases and controllers, with fakes for
 // Better Auth and the Session lookup (by default no request has a valid Session).
-// No rate-limit Redis is bound, so the limits run on the in-memory store.
+// The rate-limit store is explicitly in-memory (no Redis).
 function testContainer(sessions: ISessionProvider = sessionsReturning(null)) {
   const container = new Container();
   container.bind(TOKENS.Env).toConstantValue(env);
+  container.bind<RateLimitRedis>(TOKENS.RateLimitRedis).toConstantValue(IN_MEMORY_RATE_LIMITS);
   container.bind<AuthRequestHandler>(TOKENS.Auth).toConstantValue({
     handler: async () => Response.json({ ok: true }),
   });
@@ -122,6 +124,13 @@ describe("the API app", () => {
     const res = await app.inject({ method: "GET", url: "/health" });
 
     expect(res.headers["x-ratelimit-limit"]).toBe("100");
+  });
+
+  it("refuses to build without a rate-limit store bound, rather than quietly counting in memory", async () => {
+    const container = testContainer();
+    container.unbind(TOKENS.RateLimitRedis);
+
+    await expect(buildApp(container)).rejects.toThrow();
   });
 
   it("sends unknown routes as 404 not_found in the error envelope", async () => {

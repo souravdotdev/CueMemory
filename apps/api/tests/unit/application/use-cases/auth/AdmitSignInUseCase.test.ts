@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
 import { AdmitSignInUseCase } from "@/application/use-cases/auth/AdmitSignInUseCase";
 import type { User } from "@/domain/entities/User";
-import { UserPermanentlyDeletedError } from "@/domain/errors";
+import { NotFoundError, UserPermanentlyDeletedError } from "@/domain/errors";
 import type { IUserRepository } from "@/domain/repositories/IUserRepository";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -97,9 +97,14 @@ describe("AdmitSignInUseCase", () => {
     expect(vi.mocked(users.recordSignIn).mock.calls[0]![1]).not.toHaveProperty("email");
   });
 
-  it("fails when the signing-in User doesn't exist", async () => {
-    await expect(
-      new AdmitSignInUseCase(usersHolding(null)).execute({ userId: "user-1", profile, now }),
-    ).rejects.toThrow("user-1");
+  it("fails with NotFoundError when the signing-in User doesn't exist", async () => {
+    const admitting = new AdmitSignInUseCase(usersHolding(null)).execute({
+      userId: "user-1",
+      profile,
+      now,
+    });
+
+    await expect(admitting).rejects.toBeInstanceOf(NotFoundError);
+    await expect(admitting).rejects.toThrow("user-1");
   });
 });

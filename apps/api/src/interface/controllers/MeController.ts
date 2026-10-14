@@ -1,4 +1,4 @@
-import type { FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyRequest } from "fastify";
 import { inject, injectable } from "inversify";
 import type { MeOutput } from "@/application/dto/auth/MeOutput";
 import type { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
@@ -10,6 +10,6 @@ import { signedInUser } from "@/interface/middleware/auth.middleware";
 export class MeController {
   constructor(@inject(TOKENS.GetMeUseCase) private readonly getMeUseCase: GetMeUseCase) {}
 
-  getMe = async (request: FastifyRequest, _reply: FastifyReply): Promise<MeOutput> =>
+  getMe = async (request: FastifyRequest): Promise<MeOutput> =>
     this.getMeUseCase.execute(signedInUser(request));
 }

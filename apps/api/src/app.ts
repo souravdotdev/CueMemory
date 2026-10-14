@@ -3,7 +3,6 @@ import Fastify, { type FastifyServerOptions } from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import type { Redis } from "ioredis";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -14,6 +13,7 @@ import type { Env } from "@/env";
 import { registerErrorMiddleware } from "@/interface/middleware/error.middleware";
 import { authRoutes } from "@/interface/routes/auth.routes";
 import { meRoutes } from "@/interface/routes/me.routes";
+import type { RateLimitRedis } from "@/rate-limit-store";
 
 /**
  * Builds the API from a container: plugins, the error envelope and routes.
@@ -36,8 +36,9 @@ export async function buildApp(container: Container, options: FastifyServerOptio
   await app.register(rateLimit, {
     max: 100,
     timeWindow: "1 minute",
-    // Without a bound Redis (tests), the limits count in memory.
-    redis: container.get<Redis>(TOKENS.RateLimitRedis, { optional: true }),
+    // Required: production binds the shared Redis; only a container that explicitly
+    // binds IN_MEMORY_RATE_LIMITS (tests) counts in memory.
+    redis: container.get<RateLimitRedis>(TOKENS.RateLimitRedis) ?? undefined,
     nameSpace: "cue-memory-api-rate-limit-",
   });
 

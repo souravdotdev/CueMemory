@@ -21,6 +21,6 @@ export const TOKENS = {
   GetMeUseCase: Symbol("GetMeUseCase"),
   /** Serves `GET /me` (`MeController`). */
   MeController: Symbol("MeController"),
-  /** The fail-fast Redis for @fastify/rate-limit's store; unbound means in-memory. */
+  /** Where @fastify/rate-limit counts (`RateLimitRedis`): the fail-fast Redis, or explicitly in memory in tests. */
   RateLimitRedis: Symbol("RateLimitRedis"),
 } as const;

@@ -1,7 +1,7 @@
 import { inject, injectable } from "inversify";
 import { TOKENS } from "@/di/tokens";
 import type { SignInProfile } from "@/domain/entities/User";
-import { UserPermanentlyDeletedError } from "@/domain/errors";
+import { NotFoundError, UserPermanentlyDeletedError } from "@/domain/errors";
 import type { IUserRepository, UserSignInChanges } from "@/domain/repositories/IUserRepository";
 import { decideSignIn } from "@/domain/rules/signInDecision";
 
@@ -23,7 +23,7 @@ export class AdmitSignInUseCase {
 
   async execute(input: AdmitSignInInput): Promise<void> {
     const user = await this.users.findById(input.userId);
-    if (user === null) throw new Error(`Signing-in User ${input.userId} doesn't exist`);
+    if (user === null) throw new NotFoundError(`Signing-in User ${input.userId} doesn't exist`);
 
     const decision = decideSignIn(user.deletedAt, input.now);
     if (decision === "refuse") throw new UserPermanentlyDeletedError(user.id);

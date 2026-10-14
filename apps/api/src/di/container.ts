@@ -1,6 +1,5 @@
 import "reflect-metadata";
 import { Container } from "inversify";
-import type { Redis } from "ioredis";
 import { AdmitSignInUseCase } from "@/application/use-cases/auth/AdmitSignInUseCase";
 import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
 import { ResolveSignedInUserUseCase } from "@/application/use-cases/auth/ResolveSignedInUserUseCase";
@@ -18,6 +17,7 @@ import { db } from "@/infrastructure/database/db";
 import { DrizzleUserRepository } from "@/infrastructure/repositories/DrizzleUserRepository";
 import { MeController } from "@/interface/controllers/MeController";
 import { rateLimitRedis } from "@/rate-limit-redis";
+import type { RateLimitRedis } from "@/rate-limit-store";
 
 /**
  * The production container: the only place concrete classes are built and
@@ -29,34 +29,37 @@ export function createContainer(): Container {
 
   container.bind<Env>(TOKENS.Env).toConstantValue(env);
   container.bind<Database>(TOKENS.Database).toConstantValue(db);
-  container.bind<Redis>(TOKENS.RateLimitRedis).toConstantValue(rateLimitRedis);
+  container.bind<RateLimitRedis>(TOKENS.RateLimitRedis).toConstantValue(rateLimitRedis);
 
   container
     .bind<IUserRepository>(TOKENS.UserRepository)
     .to(DrizzleUserRepository)
     .inSingletonScope();
 
-  container.bind<Auth>(TOKENS.Auth).toDynamicValue((context) => {
-    const config = context.get<Env>(TOKENS.Env);
-    return createAuth(
-      context.get(TOKENS.Database),
-      {
-        secret: config.BETTER_AUTH_SECRET,
-        baseURL: config.BETTER_AUTH_URL,
-        webOrigin: config.WEB_ORIGIN,
-        google: { clientId: config.GOOGLE_CLIENT_ID, clientSecret: config.GOOGLE_CLIENT_SECRET },
-        cookieDomain: config.AUTH_COOKIE_DOMAIN,
-      },
-      {
-        // The session-create hook runs a fresh AdmitSignInUseCase for every sign-in.
-        admitSignIn: {
-          execute: (input) =>
-            container.get<AdmitSignInUseCase>(TOKENS.AdmitSignInUseCase).execute(input),
+  container
+    .bind<Auth>(TOKENS.Auth)
+    .toDynamicValue((context) => {
+      const config = context.get<Env>(TOKENS.Env);
+      return createAuth(
+        context.get<Database>(TOKENS.Database),
+        {
+          secret: config.BETTER_AUTH_SECRET,
+          baseURL: config.BETTER_AUTH_URL,
+          webOrigin: config.WEB_ORIGIN,
+          google: { clientId: config.GOOGLE_CLIENT_ID, clientSecret: config.GOOGLE_CLIENT_SECRET },
+          cookieDomain: config.AUTH_COOKIE_DOMAIN,
         },
-      },
-      // BetterAuthSessionProvider takes this instance for its get-session.
-    ) satisfies { api: SessionApi };
-  });
+        {
+          // The session-create hook runs a fresh AdmitSignInUseCase for every sign-in.
+          admitSignIn: {
+            execute: (input) =>
+              container.get<AdmitSignInUseCase>(TOKENS.AdmitSignInUseCase).execute(input),
+          },
+        },
+        // BetterAuthSessionProvider takes this instance for its get-session.
+      ) satisfies { api: SessionApi };
+    })
+    .inSingletonScope();
 
   container
     .bind<ISessionProvider>(TOKENS.SessionProvider)

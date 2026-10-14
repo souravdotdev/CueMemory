@@ -5,6 +5,7 @@ import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
 import { buildApp } from "@/app";
 import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";
+import { IN_MEMORY_RATE_LIMITS, type RateLimitRedis } from "@/rate-limit-store";
 import type { AuthRequestHandler } from "@/interface/routes/auth.routes";
 
 const env: Env = {
@@ -29,11 +30,12 @@ function fakeAuth(response = () => Response.json({ ok: true })) {
   return { auth, requests };
 }
 
-// The real app with a fake Better Auth. No rate-limit Redis is bound, so the
-// limits count in memory.
+// The real app with a fake Better Auth. The rate-limit store is explicitly
+// in-memory (no Redis).
 function appWith(auth: AuthRequestHandler) {
   const container = new Container();
   container.bind(TOKENS.Env).toConstantValue(env);
+  container.bind<RateLimitRedis>(TOKENS.RateLimitRedis).toConstantValue(IN_MEMORY_RATE_LIMITS);
   container.bind<AuthRequestHandler>(TOKENS.Auth).toConstantValue(auth);
   return buildApp(container);
 }

@@ -43,7 +43,7 @@ app.post(
     },
   },
   // request.body is CreateItemInput, already trimmed and validated
-  (request, reply) => ctrl().create(request, reply),
+  (request, reply) => itemsController().create(request, reply),
 );
 ```
 

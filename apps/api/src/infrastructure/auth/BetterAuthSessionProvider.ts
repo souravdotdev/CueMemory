@@ -2,6 +2,7 @@ import { inject, injectable } from "inversify";
 import { TOKENS } from "@/di/tokens";
 import type { User } from "@/domain/entities/User";
 import type { ISessionProvider } from "@/domain/providers/ISessionProvider";
+import { toUser } from "@/infrastructure/mappers/userMapper";
 
 /** The User Better Auth's get-session returns: the `users` row, with optional fields possibly missing. */
 export type SessionUser = {
@@ -30,16 +31,8 @@ export class BetterAuthSessionProvider implements ISessionProvider {
     const session = await this.auth.api.getSession({ headers });
     if (session === null) return null;
 
-    // `emailVerified`/`updatedAt` are Better Auth internals with no use case, and
-    // `image` (the column Better Auth's adapter expects) is the domain's `profileImg`.
+    // Better Auth may leave the nullable columns out; as a row they're null.
     const { user } = session;
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      profileImg: user.image ?? null,
-      deletedAt: user.deletedAt ?? null,
-      createdAt: user.createdAt,
-    };
+    return toUser({ ...user, image: user.image ?? null, deletedAt: user.deletedAt ?? null });
   }
 }

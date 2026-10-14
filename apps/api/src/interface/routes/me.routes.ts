@@ -12,7 +12,7 @@ export interface MeRoutesOptions {
 /** `GET /me`: who the signed-in User is. The web app uses it for the header and server-side checks. */
 export const meRoutes: FastifyPluginAsyncZod<MeRoutesOptions> = async (app, { container }) => {
   // The container builds the controller; the route file never does.
-  const ctrl = () => container.get<MeController>(TOKENS.MeController);
+  const meController = () => container.get<MeController>(TOKENS.MeController);
 
   app.get(
     "/me",
@@ -20,6 +20,6 @@ export const meRoutes: FastifyPluginAsyncZod<MeRoutesOptions> = async (app, { co
       preHandler: authMiddleware(container),
       schema: { response: { 200: MeResponseSchema } },
     },
-    (request, reply) => ctrl().getMe(request, reply),
+    (request) => meController().getMe(request),
   );
 };
