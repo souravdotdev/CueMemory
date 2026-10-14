@@ -1,18 +1,25 @@
 import "reflect-metadata";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Container } from "inversify";
 import { z } from "zod";
-import type { AuthRequestHandler, SessionResolver } from "@cue-memory/auth";
+import type { AuthRequestHandler } from "@cue-memory/auth";
+import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
 import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
 import { buildApp } from "@/app";
+import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
+import { ResolveSignedInUserUseCase } from "@/application/use-cases/auth/ResolveSignedInUserUseCase";
+import type { User } from "@/domain/entities/User";
 import {
   NotFoundError,
   RepositoryError,
   UnauthorizedError,
   UserPermanentlyDeletedError,
 } from "@/domain/errors";
+import type { ISessionProvider } from "@/domain/providers/ISessionProvider";
 import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";
+import { MeController } from "@/interface/controllers/MeController";
+import { authMiddleware, signedInUser } from "@/interface/middleware/auth.middleware";
 
 const env: Env = {
   PORT: 4000,
@@ -23,20 +30,39 @@ const env: Env = {
   WEB_ORIGIN: "https://allowed.example.com",
 };
 
-// A test container: the real app, with fakes for Better Auth and the Session lookup.
+// An active User with a Google avatar; each test overrides only what it's about.
+const user = (overrides: Partial<User> = {}): User => ({
+  id: "user-1",
+  name: "Sourav Sanjay",
+  email: "sourav@example.com",
+  profileImg: "https://lh3.googleusercontent.com/a/avatar",
+  deletedAt: null,
+  createdAt: new Date("2026-04-01T00:00:00.000Z"),
+  ...overrides,
+});
+
+// A hand-written fake: the request's Session belongs to `found`, or there's none.
+const sessionsReturning = (found: User | null): ISessionProvider => ({
+  resolve: vi.fn(async () => found),
+});
+
+// A test container: the real app, use cases and controllers, with fakes for
+// Better Auth and the Session lookup (by default no request has a valid Session).
 // No rate-limit Redis is bound, so the limits run on the in-memory store.
-function testContainer() {
+function testContainer(sessions: ISessionProvider = sessionsReturning(null)) {
   const container = new Container();
   container.bind(TOKENS.Env).toConstantValue(env);
   container.bind<AuthRequestHandler>(TOKENS.Auth).toConstantValue({
     handler: async () => Response.json({ ok: true }),
   });
-  // No request has a valid Session.
-  container.bind<SessionResolver>(TOKENS.SessionResolver).toConstantValue({
-    resolve: async () => null,
-  });
+  container.bind<ISessionProvider>(TOKENS.SessionProvider).toConstantValue(sessions);
+  container.bind(TOKENS.ResolveSignedInUserUseCase).to(ResolveSignedInUserUseCase);
+  container.bind(TOKENS.GetMeUseCase).to(GetMeUseCase);
+  container.bind(TOKENS.MeController).to(MeController);
   return container;
 }
+
+const withSessionCookie = { cookie: "better-auth.session_token=abc" };
 
 describe("the API app", () => {
   it("answers GET /health", async () => {
@@ -126,14 +152,101 @@ describe("the API app", () => {
     expect(res.statusCode).toBe(404);
     expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("not_found");
   });
+});
 
-  it("serves GET /me behind the Session guard", async () => {
-    const app = await buildApp(testContainer());
+describe("GET /me", () => {
+  it("is 401 unauthorized without a valid Session", async () => {
+    const app = await buildApp(testContainer(sessionsReturning(null)));
 
     const res = await app.inject({ method: "GET", url: "/me" });
 
     expect(res.statusCode).toBe(401);
     expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("unauthorized");
+  });
+
+  it("is 401 unauthorized for a deleted User's Session", async () => {
+    const deleted = user({ deletedAt: new Date("2026-05-01T00:00:00.000Z") });
+    const app = await buildApp(testContainer(sessionsReturning(deleted)));
+
+    const res = await app.inject({ method: "GET", url: "/me", headers: withSessionCookie });
+
+    expect(res.statusCode).toBe(401);
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("unauthorized");
+  });
+
+  it("returns the signed-in User in the me contract, without internals", async () => {
+    const app = await buildApp(testContainer(sessionsReturning(user())));
+
+    const res = await app.inject({ method: "GET", url: "/me", headers: withSessionCookie });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      id: "user-1",
+      displayName: "Sourav Sanjay",
+      email: "sourav@example.com",
+      avatarUrl: "https://lh3.googleusercontent.com/a/avatar",
+      createdAt: "2026-04-01T00:00:00.000Z",
+    });
+    expect(MeResponseSchema.safeParse(res.json()).success).toBe(true);
+  });
+
+  it("returns a null avatar for a User without a Google photo", async () => {
+    const app = await buildApp(testContainer(sessionsReturning(user({ profileImg: null }))));
+
+    const res = await app.inject({ method: "GET", url: "/me", headers: withSessionCookie });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json().avatarUrl).toBeNull();
+  });
+});
+
+// The real app plus a test-only protected route that echoes who it sees.
+async function appWithProtectedRoute(sessions: ISessionProvider) {
+  const container = testContainer(sessions);
+  const app = await buildApp(container);
+  app.get("/protected", { preHandler: authMiddleware(container) }, async (request) => ({
+    userId: signedInUser(request).id,
+  }));
+  return app;
+}
+
+describe("the auth middleware", () => {
+  it("refuses a request with no valid Session with 401 unauthorized", async () => {
+    const app = await appWithProtectedRoute(sessionsReturning(null));
+
+    const res = await app.inject({ method: "GET", url: "/protected" });
+
+    expect(res.statusCode).toBe(401);
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("unauthorized");
+  });
+
+  it("refuses a deleted User's Session with 401 unauthorized", async () => {
+    const deleted = user({ deletedAt: new Date("2026-05-01T00:00:00.000Z") });
+    const app = await appWithProtectedRoute(sessionsReturning(deleted));
+
+    const res = await app.inject({ method: "GET", url: "/protected", headers: withSessionCookie });
+
+    expect(res.statusCode).toBe(401);
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("unauthorized");
+  });
+
+  it("lets a valid Session through, and the route sees its User", async () => {
+    const app = await appWithProtectedRoute(sessionsReturning(user({ id: "user-42" })));
+
+    const res = await app.inject({ method: "GET", url: "/protected", headers: withSessionCookie });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ userId: "user-42" });
+  });
+
+  it("hands the request's headers to the session provider", async () => {
+    const sessions = sessionsReturning(user());
+    const app = await appWithProtectedRoute(sessions);
+
+    await app.inject({ method: "GET", url: "/protected", headers: withSessionCookie });
+
+    const headers = vi.mocked(sessions.resolve).mock.calls[0]![0];
+    expect(headers.get("cookie")).toBe("better-auth.session_token=abc");
   });
 });
 

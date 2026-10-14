@@ -1,7 +1,8 @@
+import "reflect-metadata";
 import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
 import { describe, expect, it } from "vitest";
-import type { User } from "../../domain";
-import { toMeResponseDto } from "./me-mapper";
+import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
+import type { User } from "@/domain/entities/User";
 
 // An active User with a Google avatar; each test overrides only what it's about.
 const user = (overrides: Partial<User> = {}): User => ({
@@ -14,9 +15,9 @@ const user = (overrides: Partial<User> = {}): User => ({
   ...overrides,
 });
 
-describe("toMeResponseDto", () => {
-  it("maps the User's display name, avatar and ISO created time", () => {
-    expect(toMeResponseDto(user())).toEqual({
+describe("GetMeUseCase", () => {
+  it("is the User's display name, avatar and ISO created time", () => {
+    expect(new GetMeUseCase().execute(user())).toEqual({
       id: "user-1",
       displayName: "Sourav Sanjay",
       email: "sourav@example.com",
@@ -25,14 +26,16 @@ describe("toMeResponseDto", () => {
     });
   });
 
-  it("maps a User without a Google avatar to a null avatar URL", () => {
-    expect(toMeResponseDto(user({ profileImg: null })).avatarUrl).toBeNull();
+  it("gives a User without a Google avatar a null avatar URL", () => {
+    expect(new GetMeUseCase().execute(user({ profileImg: null })).avatarUrl).toBeNull();
   });
 
   it("never exposes the deletion time, and fits the me contract", () => {
-    const dto = toMeResponseDto(user({ deletedAt: new Date("2026-05-01T00:00:00.000Z") }));
+    const me = new GetMeUseCase().execute(
+      user({ deletedAt: new Date("2026-05-01T00:00:00.000Z") }),
+    );
 
-    expect(dto).not.toHaveProperty("deletedAt");
-    expect(MeResponseSchema.parse(dto)).toEqual(dto);
+    expect(me).not.toHaveProperty("deletedAt");
+    expect(MeResponseSchema.parse(me)).toEqual(me);
   });
 });

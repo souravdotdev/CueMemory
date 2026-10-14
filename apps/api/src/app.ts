@@ -4,12 +4,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import type { Redis } from "ioredis";
-import {
-  authRoutes,
-  meRoutes,
-  type AuthRequestHandler,
-  type SessionResolver,
-} from "@cue-memory/auth";
+import { authRoutes, type AuthRequestHandler } from "@cue-memory/auth";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -18,6 +13,7 @@ import {
 import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";
 import { registerErrorMiddleware } from "@/interface/middleware/error.middleware";
+import { meRoutes } from "@/interface/routes/me.routes";
 
 /**
  * Builds the API from a container: plugins, the error envelope and routes.
@@ -52,10 +48,8 @@ export async function buildApp(container: Container, options: FastifyServerOptio
   });
 
   app.get("/health", async () => ({ status: "ok" }));
-  // Protected routes: each one runs requireUser before its handler.
-  await app.register(meRoutes, {
-    sessions: container.get<SessionResolver>(TOKENS.SessionResolver),
-  });
+  // Protected routes: each one runs authMiddleware before its handler.
+  await app.register(meRoutes, { container });
 
   return app;
 }

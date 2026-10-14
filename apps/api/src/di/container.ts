@@ -2,23 +2,30 @@ import "reflect-metadata";
 import { Container } from "inversify";
 import type { Redis } from "ioredis";
 import {
-  BetterAuthSessionResolver,
   createAuth,
   DrizzleUserRepository,
   type AuthDatabase,
-  type SessionResolver,
   type UserRepository,
 } from "@cue-memory/auth";
 import { db } from "@cue-memory/auth/database";
+import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
+import { ResolveSignedInUserUseCase } from "@/application/use-cases/auth/ResolveSignedInUserUseCase";
 import { TOKENS } from "@/di/tokens";
+import type { ISessionProvider } from "@/domain/providers/ISessionProvider";
 import { env, type Env } from "@/env";
+import {
+  BetterAuthSessionProvider,
+  type SessionApi,
+} from "@/infrastructure/auth/BetterAuthSessionProvider";
+import { MeController } from "@/interface/controllers/MeController";
 import { rateLimitRedis } from "@/rate-limit-redis";
 
 type Auth = ReturnType<typeof createAuth>;
 
 /**
  * The production container: the only place concrete classes are built and
- * bound to their tokens. Everything is a singleton for the process's life.
+ * bound to their tokens. Infrastructure and controllers are singletons for the
+ * process's life; use cases are built fresh each time they're asked for.
  */
 export function createContainer(): Container {
   const container = new Container({ defaultScope: "Singleton" });
@@ -43,12 +50,22 @@ export function createContainer(): Container {
         cookieDomain: config.AUTH_COOKIE_DOMAIN,
       },
       { users: context.get(TOKENS.UserRepository) },
-    );
+      // BetterAuthSessionProvider takes this instance for its get-session.
+    ) satisfies { api: SessionApi };
   });
 
   container
-    .bind<SessionResolver>(TOKENS.SessionResolver)
-    .toDynamicValue((context) => new BetterAuthSessionResolver(context.get<Auth>(TOKENS.Auth).api));
+    .bind<ISessionProvider>(TOKENS.SessionProvider)
+    .to(BetterAuthSessionProvider)
+    .inSingletonScope();
+
+  container
+    .bind(TOKENS.ResolveSignedInUserUseCase)
+    .to(ResolveSignedInUserUseCase)
+    .inTransientScope();
+  container.bind(TOKENS.GetMeUseCase).to(GetMeUseCase).inTransientScope();
+
+  container.bind(TOKENS.MeController).to(MeController).inSingletonScope();
 
   return container;
 }
