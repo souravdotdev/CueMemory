@@ -1,0 +1,17 @@
+# Apps are layer-first, with use-case classes wired by a DI container
+
+Each app is organised by layer, not by feature: `apps/api/src/{domain,application,interface,infrastructure,di}`, following the Creeto clean-architecture guide. `domain/` holds entities, ports, errors and pure rules, and imports nothing outside itself. `application/` holds the use cases and their input and output DTOs. `interface/` holds the Fastify routes, controllers and middleware. `infrastructure/` holds the adapters: Better Auth, Drizzle repositories and storage providers. Every use case is an `@injectable()` class with a single `execute()` method, named `XUseCase`, that receives its ports through `@inject(TOKENS.X)` constructor parameters. Ports are interfaces with an `I` prefix (`IUserRepository`, `ISessionProvider`), and each one has a token in `di/tokens.ts`. An InversifyJS container in `di/container.ts` is the only place in application code that creates an application class: it binds each port to its adapter, binds repositories, providers and controllers as singletons, and binds use cases as transient. Tests are the exception, and construct a use case directly with fakes (`new XUseCase(fakeRepository)`). The feature packages `packages/auth` and `packages/items` are dissolved into the app's layers, and shared infrastructure (Drizzle schema, migrations, Postgres and Redis connections) moves to one `packages/db`.
+
+## Considered Options
+
+- **Feature packages** (the previous design: `packages/auth`, `packages/items`, each with its own domain, application and presentation): keeps a feature's code together, but every package repeats the same layers with slightly different shapes, wiring is spread across packages, and the Drizzle schema and connections end up split or duplicated between them. It also diverges from the shape the rest of the team uses, so code and reviewers can't move between projects.
+- **Plain-function use cases** (`admitSignIn(deps, input)`): less ceremony and no decorators, but each caller has to collect and pass the dependencies itself, so wiring leaks into routes and hooks, and there's no single place that shows which adapter backs which port.
+- **Use-case classes without a container** (classes built by hand in a composition root): gives the class shape and constructor injection, but the hand-written composition root grows with every use case and has to get scopes right by hand. The container makes the bindings and their lifetimes declarative, and is what the guide prescribes.
+
+## Consequences
+
+- `reflect-metadata` must be imported first in `index.ts`, `di/container.ts` and every test that resolves from the container, and the TypeScript config needs decorator metadata enabled.
+- Adding a use case is always three edits: the class, its token, and its binding in the container. Forgetting the binding fails at resolve time, not at compile time, so a route test that resolves through the real container is needed to catch it.
+- The domain layer must stay free of HTTP: errors carry a code, not a status, and `interface/middleware/error.middleware.ts` is the one place that maps a code to an HTTP status and the shared error envelope.
+- Use cases return output DTOs, and controllers send them through the shared response schemas (see ADR 0001), so the mapping from entity to wire shape lives in `application/`, not in the controller.
+- The worker app follows the same shape, with its own tokens and container, once its first queue lands.
