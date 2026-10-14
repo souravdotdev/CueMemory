@@ -18,6 +18,19 @@ domain             (entities, port interfaces, pure business rules)
 
 An inner layer never imports from an outer one. A feature's `domain`/`application` code never imports `drizzle-orm`, `bullmq`, or `fastify` — it only knows about the **port interfaces** it defines itself.
 
+### Lint guard
+
+In the API, lint enforces this rule. `apps/api/eslint.config.js` sets `no-restricted-imports` on `src/domain/**` and `src/application/**`. It blocks these imports: `drizzle-orm`, `fastify` (and `@fastify/*`, `fastify-*`), `better-auth`, `postgres`, `ioredis` and `@cue-memory/db`. Subpaths and `import type` are blocked too. If a domain or application file imports one of them, `pnpm lint` fails:
+
+```
+src/domain/zz-demo/bad.ts
+  1:1  error  'drizzle-orm' import is restricted from being used by a pattern. Domain and application never import tools. Drizzle belongs in infrastructure. Depend on a port instead  no-restricted-imports
+src/application/zz-demo/bad.ts
+  1:1  error  'ioredis' import is restricted from being used by a pattern. Domain and application never import tools. Redis belongs in infrastructure. Depend on a port instead  no-restricted-imports
+```
+
+To fix it, define a port in the domain and put the tool code in an infrastructure adapter. If you add a new tool library to the API, add it to the list. The guard runs in `pnpm lint` and in the pre-commit hook.
+
 ## Feature-first packages, not layer-first packages
 
 Each **feature** is its own pnpm workspace package with all four layers nested inside it (`domain/`, `application/`, `infrastructure/`, `presentation/`), rather than one package per technical layer shared across every feature. A feature is a self-contained vertical slice — everything needed to build, persist, and expose it lives in one place, and the dependency rule is enforced _within_ that package by which subfolder imports which.
