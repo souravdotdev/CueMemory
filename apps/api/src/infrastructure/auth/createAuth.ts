@@ -1,11 +1,9 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import type { AuthDatabase } from "../persistence/auth-database";
 import { accounts, sessions, users, verifications } from "@cue-memory/db/schema";
-import { createSignInHook, type SignInHookDeps } from "./sign-in-hook";
-
-export type { AuthDatabase } from "../persistence/auth-database";
+import type { Database } from "@/infrastructure/database/Database";
+import { createSignInHook, type AdmitSignIn } from "./signInHook";
 
 // The endpoints that start a Google authorization, where a caller could otherwise
 // append its own `scopes` to the ones configured below.
@@ -23,15 +21,17 @@ export interface AuthConfig {
   cookieDomain?: string;
 }
 
-/** What the sign-in hook runs: the API's sign-in rules, resolved from its container. */
-export type AuthDeps = SignInHookDeps;
+export interface AuthDeps {
+  /** What the sign-in hook runs: the API's sign-in rules (`AdmitSignInUseCase`). */
+  admitSignIn: AdmitSignIn;
+}
 
 /**
  * Builds the Better Auth instance: Google sign-in only, over the Auth tables.
  * Every Better Auth detail (model names, the avatar column, id generation,
  * cookies, the sign-in hook) stays in here; the rest of the code sees the domain User.
  */
-export function createAuth(db: AuthDatabase, config: AuthConfig, deps: AuthDeps) {
+export function createAuth(db: Database, config: AuthConfig, deps: AuthDeps) {
   return betterAuth({
     appName: "CueMemory",
     secret: config.secret,
@@ -72,7 +72,7 @@ export function createAuth(db: AuthDatabase, config: AuthConfig, deps: AuthDeps)
     },
     databaseHooks: {
       // The sign-in rules: refuse, restore, and refresh the profile (Auth ADR 0001).
-      session: { create: { before: createSignInHook(deps) } },
+      session: { create: { before: createSignInHook(deps.admitSignIn) } },
     },
     account: {
       // Sign-in identities' Google tokens are encrypted at rest.
@@ -97,3 +97,6 @@ export function createAuth(db: AuthDatabase, config: AuthConfig, deps: AuthDeps)
     },
   });
 }
+
+/** The Better Auth instance the container binds to `TOKENS.Auth`. */
+export type Auth = ReturnType<typeof createAuth>;

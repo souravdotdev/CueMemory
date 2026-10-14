@@ -12,7 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cue-memory/auth": "workspace:*",
     "@cue-memory/db": "workspace:*",
     "@cue-memory/shared": "workspace:*",
     "@fastify/cors": "^11.3.0",

@@ -2,7 +2,6 @@ import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
 import { Container } from "inversify";
 import { z } from "zod";
-import type { AuthRequestHandler } from "@cue-memory/auth";
 import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
 import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
 import { buildApp } from "@/app";
@@ -20,6 +19,7 @@ import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";
 import { MeController } from "@/interface/controllers/MeController";
 import { authMiddleware, signedInUser } from "@/interface/middleware/auth.middleware";
+import type { AuthRequestHandler } from "@/interface/routes/auth.routes";
 
 const env: Env = {
   PORT: 4000,
@@ -122,26 +122,6 @@ describe("the API app", () => {
     const res = await app.inject({ method: "GET", url: "/health" });
 
     expect(res.headers["x-ratelimit-limit"]).toBe("100");
-  });
-
-  it("mounts Better Auth under /api/auth/* with a stricter 30 a minute", async () => {
-    const app = await buildApp(testContainer());
-
-    const res = await app.inject({ method: "GET", url: "/api/auth/ok" });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ ok: true });
-    expect(res.headers["x-ratelimit-limit"]).toBe("30");
-  });
-
-  it("refuses the 31st auth request in a minute with 429 rate_limited", async () => {
-    const app = await buildApp(testContainer());
-
-    for (let i = 0; i < 30; i++) await app.inject({ method: "GET", url: "/api/auth/ok" });
-    const res = await app.inject({ method: "GET", url: "/api/auth/ok" });
-
-    expect(res.statusCode).toBe(429);
-    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("rate_limited");
   });
 
   it("sends unknown routes as 404 not_found in the error envelope", async () => {

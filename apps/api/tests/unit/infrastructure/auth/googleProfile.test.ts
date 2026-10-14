@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { googleProfileFromIdToken } from "./google-profile";
+import { googleProfileFromIdToken } from "@/infrastructure/auth/googleProfile";
 
 // An unsigned JWT with the given claims: the profile is read, not verified, because
 // Better Auth received this token from Google itself moments earlier.

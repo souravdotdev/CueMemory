@@ -10,7 +10,7 @@ export const users = pgTable(
     // Where CueMemory emails the User. Captured once at sign-up and never overwritten
     // (spec #12): the sign-in hook refreshes only the name and avatar.
     email: text("email").notNull().unique(),
-    // Required by better-auth's user model but not surfaced in @cue-memory/auth's User type.
+    // Required by better-auth's user model but not surfaced in the API's User entity.
     emailVerified: boolean("email_verified").notNull().default(false),
     // Drizzle key stays `image` to match better-auth's Drizzle adapter contract;
     // the actual column is named `profile_img` to match the app-facing field name.

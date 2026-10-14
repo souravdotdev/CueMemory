@@ -1,19 +1,13 @@
-/**
- * What Google says about a User right now: the API's sign-in profile. `name` is
- * null when Google sends none, so an existing Display name is kept rather than blanked.
- */
-export interface GoogleProfile {
-  name: string | null;
-  profileImg: string | null;
-}
+import type { SignInProfile } from "@/domain/entities/User";
 
 /**
  * The Display name and avatar from a Google ID token's claims: the same profile
  * Better Auth's Google provider reads at sign-in. Decoded without verifying the
  * signature, because Better Auth stored this token straight from Google's token
- * endpoint during the sign-in now under way.
+ * endpoint during the sign-in now under way. `name` is null when Google sends
+ * none, so an existing Display name is kept rather than blanked.
  */
-export function googleProfileFromIdToken(idToken: string): GoogleProfile {
+export function googleProfileFromIdToken(idToken: string): SignInProfile {
   const payload = idToken.split(".")[1];
   if (payload === undefined) throw new Error("Google ID token isn't a JWT");
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "@cue-memory/db/schema";
-import { createAuth, type AuthConfig, type AuthDeps } from "./create-auth";
+import { createAuth, type AuthConfig, type AuthDeps } from "@/infrastructure/auth/createAuth";
 
 const config: AuthConfig = {
   secret: "a-test-secret-that-is-at-least-32-chars",
@@ -13,7 +13,7 @@ const config: AuthConfig = {
 // No database behind it: these tests only reach code paths that fail or
 // answer before Better Auth touches a table.
 // Never reached: no test here gets as far as creating a Session.
-const deps: AuthDeps = { admitSignIn: async () => {}, gracePeriodDays: 30 };
+const deps: AuthDeps = { admitSignIn: { execute: async () => {} } };
 
 const buildAuth = (overrides: Partial<AuthConfig> = {}) =>
   createAuth(drizzle.mock({ schema }), { ...config, ...overrides }, deps);

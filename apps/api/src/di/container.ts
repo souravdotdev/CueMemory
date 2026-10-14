@@ -1,26 +1,23 @@
 import "reflect-metadata";
 import { Container } from "inversify";
 import type { Redis } from "ioredis";
-import { createAuth } from "@cue-memory/auth";
-import { db } from "@cue-memory/auth/database";
 import { AdmitSignInUseCase } from "@/application/use-cases/auth/AdmitSignInUseCase";
 import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
 import { ResolveSignedInUserUseCase } from "@/application/use-cases/auth/ResolveSignedInUserUseCase";
 import { TOKENS } from "@/di/tokens";
 import type { ISessionProvider } from "@/domain/providers/ISessionProvider";
 import type { IUserRepository } from "@/domain/repositories/IUserRepository";
-import { GRACE_PERIOD_DAYS } from "@/domain/rules/signInDecision";
 import { env, type Env } from "@/env";
 import {
   BetterAuthSessionProvider,
   type SessionApi,
 } from "@/infrastructure/auth/BetterAuthSessionProvider";
+import { createAuth, type Auth } from "@/infrastructure/auth/createAuth";
 import type { Database } from "@/infrastructure/database/Database";
+import { db } from "@/infrastructure/database/db";
 import { DrizzleUserRepository } from "@/infrastructure/repositories/DrizzleUserRepository";
 import { MeController } from "@/interface/controllers/MeController";
 import { rateLimitRedis } from "@/rate-limit-redis";
-
-type Auth = ReturnType<typeof createAuth>;
 
 /**
  * The production container: the only place concrete classes are built and
@@ -52,9 +49,10 @@ export function createContainer(): Container {
       },
       {
         // The session-create hook runs a fresh AdmitSignInUseCase for every sign-in.
-        admitSignIn: (input) =>
-          container.get<AdmitSignInUseCase>(TOKENS.AdmitSignInUseCase).execute(input),
-        gracePeriodDays: GRACE_PERIOD_DAYS,
+        admitSignIn: {
+          execute: (input) =>
+            container.get<AdmitSignInUseCase>(TOKENS.AdmitSignInUseCase).execute(input),
+        },
       },
       // BetterAuthSessionProvider takes this instance for its get-session.
     ) satisfies { api: SessionApi };

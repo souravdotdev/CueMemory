@@ -1,11 +1,24 @@
+import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
-import Fastify from "fastify";
-import rateLimit from "@fastify/rate-limit";
-import { authRoutes, type AuthRequestHandler } from "./auth-routes";
+import { Container } from "inversify";
+import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
+import { buildApp } from "@/app";
+import { TOKENS } from "@/di/tokens";
+import type { Env } from "@/env";
+import type { AuthRequestHandler } from "@/interface/routes/auth.routes";
+
+const env: Env = {
+  PORT: 4000,
+  BETTER_AUTH_SECRET: "a".repeat(32),
+  BETTER_AUTH_URL: "http://localhost:4000",
+  GOOGLE_CLIENT_ID: "google-client-id",
+  GOOGLE_CLIENT_SECRET: "google-client-secret",
+  WEB_ORIGIN: "https://allowed.example.com",
+};
 
 // A stand-in for Better Auth: records the web Request it's given and answers
 // with whatever Response the test hands it.
-function fakeAuth(response = () => new Response(JSON.stringify({ ok: true }), { status: 200 })) {
+function fakeAuth(response = () => Response.json({ ok: true })) {
   const requests: Request[] = [];
   const auth: AuthRequestHandler = {
     handler: vi.fn(async (request: Request) => {
@@ -16,19 +29,19 @@ function fakeAuth(response = () => new Response(JSON.stringify({ ok: true }), { 
   return { auth, requests };
 }
 
-// Rate limits run against the in-memory store; production wires Redis.
-async function buildApp(auth: AuthRequestHandler) {
-  const app = Fastify();
-  await app.register(rateLimit, { max: 5, timeWindow: "1 minute" });
-  await app.register(authRoutes, { auth, rateLimit: { max: 2, timeWindow: "1 minute" } });
-  app.get("/health", async () => ({ status: "ok" }));
-  return app;
+// The real app with a fake Better Auth. No rate-limit Redis is bound, so the
+// limits count in memory.
+function appWith(auth: AuthRequestHandler) {
+  const container = new Container();
+  container.bind(TOKENS.Env).toConstantValue(env);
+  container.bind<AuthRequestHandler>(TOKENS.Auth).toConstantValue(auth);
+  return buildApp(container);
 }
 
-describe("authRoutes", () => {
-  it("hands a GET under /api/auth to Better Auth with its full URL and headers", async () => {
+describe("the /api/auth/* routes", () => {
+  it("hand a GET to Better Auth with its full URL and headers", async () => {
     const { auth, requests } = fakeAuth();
-    const app = await buildApp(auth);
+    const app = await appWith(auth);
 
     await app.inject({
       method: "GET",
@@ -44,9 +57,9 @@ describe("authRoutes", () => {
     expect(requests[0]!.headers.get("cookie")).toBe("state=xyz");
   });
 
-  it("hands a POST's JSON body to Better Auth", async () => {
+  it("hand a POST's JSON body to Better Auth", async () => {
     const { auth, requests } = fakeAuth();
-    const app = await buildApp(auth);
+    const app = await appWith(auth);
 
     await app.inject({
       method: "POST",
@@ -61,9 +74,9 @@ describe("authRoutes", () => {
     });
   });
 
-  it("hands a non-JSON body to Better Auth byte for byte", async () => {
+  it("hand a form-encoded body to Better Auth byte for byte", async () => {
     const { auth, requests } = fakeAuth();
-    const app = await buildApp(auth);
+    const app = await appWith(auth);
 
     await app.inject({
       method: "POST",
@@ -76,9 +89,9 @@ describe("authRoutes", () => {
     expect(await requests[0]!.text()).toBe("code=abc&state=xyz");
   });
 
-  it("hands an empty JSON POST, such as a sign-out, to Better Auth", async () => {
+  it("hand an empty JSON POST, such as a sign-out, to Better Auth", async () => {
     const { auth, requests } = fakeAuth();
-    const app = await buildApp(auth);
+    const app = await appWith(auth);
 
     const res = await app.inject({
       method: "POST",
@@ -90,7 +103,7 @@ describe("authRoutes", () => {
     expect(await requests[0]!.text()).toBe("");
   });
 
-  it("sends back Better Auth's status, headers and body", async () => {
+  it("send back Better Auth's status, headers and body", async () => {
     const { auth } = fakeAuth(
       () =>
         new Response(null, {
@@ -98,7 +111,7 @@ describe("authRoutes", () => {
           headers: { location: "https://accounts.google.com/o/oauth2/v2/auth" },
         }),
     );
-    const app = await buildApp(auth);
+    const app = await appWith(auth);
 
     const res = await app.inject({ method: "GET", url: "/api/auth/callback/google" });
 
@@ -107,14 +120,14 @@ describe("authRoutes", () => {
     expect(res.body).toBe("");
   });
 
-  it("sends back every cookie Better Auth sets, not just the last one", async () => {
+  it("send back every cookie Better Auth sets, not just the last one", async () => {
     const { auth } = fakeAuth(() => {
       const headers = new Headers({ "content-type": "application/json" });
       headers.append("set-cookie", "better-auth.session_token=abc; HttpOnly");
       headers.append("set-cookie", "better-auth.state=; Max-Age=0");
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers });
     });
-    const app = await buildApp(auth);
+    const app = await appWith(auth);
 
     const res = await app.inject({ method: "GET", url: "/api/auth/get-session" });
 
@@ -125,16 +138,26 @@ describe("authRoutes", () => {
     ]);
   });
 
-  it("rate-limits auth routes more strictly than the rest of the API", async () => {
-    const { auth } = fakeAuth();
-    const app = await buildApp(auth);
+  it("limit each client to 30 requests a minute, while other routes keep 100", async () => {
+    const app = await appWith(fakeAuth().auth);
 
-    await app.inject({ method: "GET", url: "/api/auth/ok" });
-    await app.inject({ method: "GET", url: "/api/auth/ok" });
+    const auth = await app.inject({ method: "GET", url: "/api/auth/ok" });
+    const elsewhere = await app.inject({ method: "GET", url: "/health" });
+
+    expect(auth.statusCode).toBe(200);
+    expect(auth.headers["x-ratelimit-limit"]).toBe("30");
+    expect(elsewhere.headers["x-ratelimit-limit"]).toBe("100");
+  });
+
+  it("refuse the 31st request in a minute with 429 rate_limited, and other routes still answer", async () => {
+    const app = await appWith(fakeAuth().auth);
+
+    for (let i = 0; i < 30; i++) await app.inject({ method: "GET", url: "/api/auth/ok" });
     const limited = await app.inject({ method: "GET", url: "/api/auth/ok" });
     const elsewhere = await app.inject({ method: "GET", url: "/health" });
 
     expect(limited.statusCode).toBe(429);
+    expect(ErrorResponseSchema.parse(limited.json()).error.code).toBe("rate_limited");
     expect(elsewhere.statusCode).toBe(200);
   });
 });

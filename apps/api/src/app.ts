@@ -4,7 +4,6 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import type { Redis } from "ioredis";
-import { authRoutes, type AuthRequestHandler } from "@cue-memory/auth";
 import {
   serializerCompiler,
   validatorCompiler,
@@ -13,6 +12,7 @@ import {
 import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";
 import { registerErrorMiddleware } from "@/interface/middleware/error.middleware";
+import { authRoutes } from "@/interface/routes/auth.routes";
 import { meRoutes } from "@/interface/routes/me.routes";
 
 /**
@@ -42,10 +42,7 @@ export async function buildApp(container: Container, options: FastifyServerOptio
   });
 
   // Before every other route, and stricter than the global limit above.
-  await app.register(authRoutes, {
-    auth: container.get<AuthRequestHandler>(TOKENS.Auth),
-    rateLimit: { max: 30, timeWindow: "1 minute" },
-  });
+  await app.register(authRoutes, { container });
 
   app.get("/health", async () => ({ status: "ok" }));
   // Protected routes: each one runs authMiddleware before its handler.

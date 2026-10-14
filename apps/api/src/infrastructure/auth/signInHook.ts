@@ -1,5 +1,8 @@
 import { APIError } from "better-auth/api";
-import { googleProfileFromIdToken, type GoogleProfile } from "./google-profile";
+import type { AdmitSignInUseCase } from "@/application/use-cases/auth/AdmitSignInUseCase";
+import { UserPermanentlyDeletedError } from "@/domain/errors";
+import { GRACE_PERIOD_DAYS } from "@/domain/rules/signInDecision";
+import { googleProfileFromIdToken } from "./googleProfile";
 
 /** The part of Better Auth's endpoint context the hook reads: the User's Sign-in identities. */
 export interface SignInHookContext {
@@ -10,25 +13,8 @@ export interface SignInHookContext {
   };
 }
 
-/**
- * The sign-in rules (the API's `AdmitSignInUseCase`): refuse, restore, refresh the
- * profile. Rejects with an error whose `code` is `USER_PERMANENTLY_DELETED` to refuse.
- */
-export type AdmitSignIn = (input: {
-  userId: string;
-  profile: GoogleProfile;
-  now: Date;
-}) => Promise<void>;
-
-export interface SignInHookDeps {
-  admitSignIn: AdmitSignIn;
-  /** The Grace period (Auth ADR 0001), named in the refusal's message. */
-  gracePeriodDays: number;
-}
-
-const isPermanentlyDeleted = (error: unknown) =>
-  error instanceof Error &&
-  (error as Error & { code?: unknown }).code === "USER_PERMANENTLY_DELETED";
+/** The sign-in rules the hook runs: `AdmitSignInUseCase`. */
+export type AdmitSignIn = Pick<AdmitSignInUseCase, "execute">;
 
 /**
  * Better Auth's `session.create.before` hook: runs the sign-in rules just before a
@@ -37,7 +23,7 @@ const isPermanentlyDeleted = (error: unknown) =>
  * which ends the OAuth flow with `?error=USER_PERMANENTLY_DELETED` and its message
  * instead of a silent failure.
  */
-export function createSignInHook({ admitSignIn, gracePeriodDays }: SignInHookDeps) {
+export function createSignInHook(admitSignIn: AdmitSignIn) {
   return async (session: { userId: string }, ctx: SignInHookContext | null): Promise<void> => {
     const identities = (await ctx?.context.internalAdapter.findAccounts(session.userId)) ?? [];
     const idToken = identities.find((identity) => identity.providerId === "google")?.idToken;
@@ -50,16 +36,16 @@ export function createSignInHook({ admitSignIn, gracePeriodDays }: SignInHookDep
     }
 
     try {
-      await admitSignIn({
+      await admitSignIn.execute({
         userId: session.userId,
         profile: googleProfileFromIdToken(idToken),
         now: new Date(),
       });
     } catch (error) {
-      if (!isPermanentlyDeleted(error)) throw error;
+      if (!(error instanceof UserPermanentlyDeletedError)) throw error;
       throw new APIError("FORBIDDEN", {
         code: "USER_PERMANENTLY_DELETED",
-        message: `This account was permanently deleted more than ${gracePeriodDays} days ago, so it can't be restored.`,
+        message: `This account was permanently deleted more than ${GRACE_PERIOD_DAYS} days ago, so it can't be restored.`,
       });
     }
   };

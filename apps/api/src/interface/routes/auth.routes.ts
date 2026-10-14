@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
-import type { RateLimitOptions } from "@fastify/rate-limit";
-import { toWebHeaders } from "./web-headers";
+import type { Container } from "inversify";
+import { TOKENS } from "@/di/tokens";
+import { toWebHeaders } from "@/interface/http/toWebHeaders";
 
 /** The one thing these routes need from Better Auth: its web-standard request handler. */
 export interface AuthRequestHandler {
@@ -8,9 +9,7 @@ export interface AuthRequestHandler {
 }
 
 export interface AuthRoutesOptions {
-  auth: AuthRequestHandler;
-  /** Applied to every auth route in place of the app-wide limit. */
-  rateLimit: Pick<RateLimitOptions, "max" | "timeWindow">;
+  container: Container;
 }
 
 /**
@@ -18,9 +17,12 @@ export interface AuthRoutesOptions {
  * get-session, sign-out): Fastify's request goes in as a web `Request`, and
  * Better Auth's `Response` comes back out unchanged.
  *
- * Register it before other routes, after `@fastify/rate-limit`.
+ * Register it before other routes, after `@fastify/rate-limit`: these routes
+ * replace the app-wide limit with a stricter 30 a minute.
  */
-export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, options) => {
+export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, { container }) => {
+  const auth = container.get<AuthRequestHandler>(TOKENS.Auth);
+
   // Better Auth parses bodies itself, so they pass through as raw bytes, whatever
   // their content type and even when empty. Scoped to this plugin's routes.
   app.removeAllContentTypeParsers();
@@ -29,10 +31,10 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (app, opt
   app.route({
     method: ["GET", "POST"],
     url: "/api/auth/*",
-    config: { rateLimit: options.rateLimit },
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
     async handler(request, reply) {
       const url = new URL(request.url, `${request.protocol}://${request.host}`);
-      const response = await options.auth.handler(
+      const response = await auth.handler(
         new Request(url, {
           method: request.method,
           headers: toWebHeaders(request.headers),
