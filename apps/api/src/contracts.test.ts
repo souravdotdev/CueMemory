@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import Fastify from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { z } from "zod";
-import { errorDtoSchema } from "@cue-memory/contracts/common";
+import { errorDtoSchema } from "@cue-memory/shared/common";
 import { registerContracts } from "./contracts";
 
 // A test-only route that declares a body and a response contract, so the

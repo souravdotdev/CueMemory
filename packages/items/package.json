@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@cue-memory/auth": "workspace:*",
-    "@cue-memory/contracts": "workspace:*",
+    "@cue-memory/shared": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {

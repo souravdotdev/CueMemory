@@ -1,4 +1,4 @@
-import type { MeResponseDto } from "@cue-memory/contracts/auth";
+import type { MeResponseDto } from "@cue-memory/shared/auth";
 import type { User } from "../../domain";
 
 /** Builds the `GET /me` response: the signed-in User, without the deletion time. */

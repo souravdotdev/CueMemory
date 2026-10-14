@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@cue-memory/ui/button";
-import { createItemRequestDtoSchema } from "@cue-memory/contracts/items";
+import { createItemRequestDtoSchema } from "@cue-memory/shared/items";
 import { createItem } from "@/lib/api";
 
 export function SaveForm() {

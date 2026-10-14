@@ -1,10 +1,10 @@
-import { errorDtoSchema } from "@cue-memory/contracts/common";
+import { errorDtoSchema } from "@cue-memory/shared/common";
 import {
   createItemResponseDtoSchema,
   listItemsResponseDtoSchema,
   type CreateItemResponseDto,
   type ListItemsResponseDto,
-} from "@cue-memory/contracts/items";
+} from "@cue-memory/shared/items";
 import { env } from "../env";
 
 const API_URL = env.NEXT_PUBLIC_API_URL;

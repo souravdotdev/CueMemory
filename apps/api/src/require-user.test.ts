@@ -7,8 +7,8 @@ import {
   type SessionResolver,
   type User,
 } from "@cue-memory/auth";
-import { meResponseDtoSchema } from "@cue-memory/contracts/auth";
-import { errorDtoSchema } from "@cue-memory/contracts/common";
+import { meResponseDtoSchema } from "@cue-memory/shared/auth";
+import { errorDtoSchema } from "@cue-memory/shared/common";
 import { registerContracts } from "./contracts";
 
 // An active User with a Google avatar; each test overrides only what it's about.

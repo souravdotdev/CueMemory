@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@cue-memory/auth": "workspace:*",
-    "@cue-memory/contracts": "workspace:*",
+    "@cue-memory/shared": "workspace:*",
     "@cue-memory/shared-kernel": "workspace:*",
     "@fastify/cors": "^11.3.0",
     "@fastify/helmet": "^13.1.1",

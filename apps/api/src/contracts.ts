@@ -5,7 +5,7 @@ import {
   validatorCompiler,
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import type { ErrorCodeDto, ErrorDto } from "@cue-memory/contracts/common";
+import type { ErrorCodeDto, ErrorDto } from "@cue-memory/shared/common";
 
 type ErrorResponse = { code: ErrorCodeDto; message: string };
 

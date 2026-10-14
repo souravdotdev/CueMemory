@@ -1,4 +1,4 @@
-import { meResponseDtoSchema } from "@cue-memory/contracts/auth";
+import { meResponseDtoSchema } from "@cue-memory/shared/auth";
 import { describe, expect, it } from "vitest";
 import type { User } from "../../domain";
 import { toMeResponseDto } from "./me-mapper";

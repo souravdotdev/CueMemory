@@ -1,4 +1,4 @@
-import { itemCardDtoSchema } from "@cue-memory/contracts/items";
+import { itemCardDtoSchema } from "@cue-memory/shared/items";
 import { describe, expect, it } from "vitest";
 import type { AppliedTag, Item, Tag, ThumbnailUrlResolver } from "../../domain";
 import { toItemCardDto } from "./item-card-mapper";

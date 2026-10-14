@@ -3,7 +3,7 @@ import type {
   ItemStatusDto,
   ItemTypeDto,
   TagSourceDto,
-} from "@cue-memory/contracts/items";
+} from "@cue-memory/shared/items";
 import type {
   AppliedTag,
   Item,
