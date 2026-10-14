@@ -1,15 +1,18 @@
+import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
-import Fastify from "fastify";
+import { Container } from "inversify";
 import {
-  meRoutes,
   requireUser,
   signedInUser,
+  type AuthRequestHandler,
   type SessionResolver,
   type User,
 } from "@cue-memory/auth";
 import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
 import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
-import { registerContracts } from "@/contracts";
+import { buildApp } from "@/app";
+import { TOKENS } from "@/di/tokens";
+import type { Env } from "@/env";
 
 // An active User with a Google avatar; each test overrides only what it's about.
 const user = (overrides: Partial<User> = {}): User => ({
@@ -27,13 +30,29 @@ const sessionsReturning = (found: User | null): SessionResolver => ({
   resolve: vi.fn(async () => found),
 });
 
-// The shared contracts, a dummy protected route that echoes who it sees, and GET /me.
-async function buildApp(sessions: SessionResolver) {
-  const app = registerContracts(Fastify());
+const env: Env = {
+  PORT: 4000,
+  BETTER_AUTH_SECRET: "a".repeat(32),
+  BETTER_AUTH_URL: "http://localhost:4000",
+  GOOGLE_CLIENT_ID: "google-client-id",
+  GOOGLE_CLIENT_SECRET: "google-client-secret",
+  WEB_ORIGIN: "https://allowed.example.com",
+};
+
+// The real app (with its GET /me) from a test container whose Session lookup is
+// `sessions`, plus a dummy protected route that echoes who it sees.
+async function buildTestApp(sessions: SessionResolver) {
+  const container = new Container();
+  container.bind(TOKENS.Env).toConstantValue(env);
+  container.bind<AuthRequestHandler>(TOKENS.Auth).toConstantValue({
+    handler: async () => Response.json({ ok: true }),
+  });
+  container.bind<SessionResolver>(TOKENS.SessionResolver).toConstantValue(sessions);
+
+  const app = await buildApp(container);
   app.get("/protected", { preHandler: requireUser({ sessions }) }, async (request) => ({
     userId: signedInUser(request).id,
   }));
-  await app.register(meRoutes, { sessions });
   return app;
 }
 
@@ -41,7 +60,7 @@ const withSessionCookie = { cookie: "better-auth.session_token=abc" };
 
 describe("requireUser", () => {
   it("refuses a request with no valid Session with 401 unauthorized", async () => {
-    const app = await buildApp(sessionsReturning(null));
+    const app = await buildTestApp(sessionsReturning(null));
 
     const res = await app.inject({ method: "GET", url: "/protected" });
 
@@ -51,7 +70,7 @@ describe("requireUser", () => {
 
   it("refuses a deleted User's Session with 401 unauthorized", async () => {
     const deleted = user({ deletedAt: new Date("2026-05-01T00:00:00.000Z") });
-    const app = await buildApp(sessionsReturning(deleted));
+    const app = await buildTestApp(sessionsReturning(deleted));
 
     const res = await app.inject({ method: "GET", url: "/protected", headers: withSessionCookie });
 
@@ -60,7 +79,7 @@ describe("requireUser", () => {
   });
 
   it("lets a valid Session through, and the route sees its User", async () => {
-    const app = await buildApp(sessionsReturning(user({ id: "user-42" })));
+    const app = await buildTestApp(sessionsReturning(user({ id: "user-42" })));
 
     const res = await app.inject({ method: "GET", url: "/protected", headers: withSessionCookie });
 
@@ -70,7 +89,7 @@ describe("requireUser", () => {
 
   it("hands the request's headers to the session resolver", async () => {
     const sessions = sessionsReturning(user());
-    const app = await buildApp(sessions);
+    const app = await buildTestApp(sessions);
 
     await app.inject({ method: "GET", url: "/protected", headers: withSessionCookie });
 
@@ -81,7 +100,7 @@ describe("requireUser", () => {
 
 describe("GET /me", () => {
   it("returns the signed-in User in the me contract, without internals", async () => {
-    const app = await buildApp(sessionsReturning(user()));
+    const app = await buildTestApp(sessionsReturning(user()));
 
     const res = await app.inject({ method: "GET", url: "/me", headers: withSessionCookie });
 
@@ -97,7 +116,7 @@ describe("GET /me", () => {
   });
 
   it("returns a null avatar for a User without a Google photo", async () => {
-    const app = await buildApp(sessionsReturning(user({ profileImg: null })));
+    const app = await buildTestApp(sessionsReturning(user({ profileImg: null })));
 
     const res = await app.inject({ method: "GET", url: "/me", headers: withSessionCookie });
 
@@ -105,7 +124,7 @@ describe("GET /me", () => {
   });
 
   it("is 401 without a valid Session", async () => {
-    const app = await buildApp(sessionsReturning(null));
+    const app = await buildTestApp(sessionsReturning(null));
 
     const res = await app.inject({ method: "GET", url: "/me" });
 

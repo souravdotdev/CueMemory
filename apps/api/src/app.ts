@@ -10,9 +10,14 @@ import {
   type AuthRequestHandler,
   type SessionResolver,
 } from "@cue-memory/auth";
-import { registerContracts } from "@/contracts";
+import {
+  serializerCompiler,
+  validatorCompiler,
+  type ZodTypeProvider,
+} from "fastify-type-provider-zod";
 import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";
+import { registerErrorMiddleware } from "@/interface/middleware/error.middleware";
 
 /**
  * Builds the API from a container: plugins, the error envelope and routes.
@@ -20,7 +25,14 @@ import type { Env } from "@/env";
  */
 export async function buildApp(container: Container, options: FastifyServerOptions = {}) {
   const env = container.get<Env>(TOKENS.Env);
-  const app = registerContracts(Fastify(options));
+  const app = Fastify(options).withTypeProvider<ZodTypeProvider>();
+
+  // Routes validate their request and serialize their response through the shared zod
+  // schemas they declare (undeclared response fields are stripped).
+  app.setValidatorCompiler(validatorCompiler);
+  app.setSerializerCompiler(serializerCompiler);
+  // Before plugins and routes, so they inherit the error and not-found handlers.
+  registerErrorMiddleware(app);
 
   // Credentials, so the browser sends and accepts the Session cookie cross-origin (ADR 0003).
   await app.register(cors, { origin: env.WEB_ORIGIN, credentials: true });

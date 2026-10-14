@@ -1,16 +1,12 @@
 import type { FastifyError, FastifyInstance, FastifyReply } from "fastify";
-import {
-  hasZodFastifySchemaValidationErrors,
-  serializerCompiler,
-  validatorCompiler,
-  type ZodTypeProvider,
-} from "fastify-type-provider-zod";
+import { hasZodFastifySchemaValidationErrors } from "fastify-type-provider-zod";
 import type { ErrorCode, ErrorResponse } from "@cue-memory/shared/schemas/common";
+import { AppError, type AppErrorCode } from "@/domain/errors";
 
 type SafeError = { code: ErrorCode; message: string };
 
-// Every status maps to a fixed, safe message: Fastify's own error messages
-// (and anything thrown with a statusCode) never reach the client.
+// Every status maps to a fixed, safe message: domain messages, Fastify's own
+// error messages and anything thrown with a statusCode never reach the client.
 const clientErrors: Partial<Record<number, SafeError>> = {
   401: { code: "unauthorized", message: "You need to sign in to do that" },
   404: { code: "not_found", message: "That resource doesn't exist" },
@@ -25,6 +21,14 @@ const serverError: SafeError = {
   message: "Something went wrong on our side",
 };
 
+// The HTTP meaning of each domain error code; 5xx codes are logged and sent as `internal`.
+const statusOfCode: Record<AppErrorCode, number> = {
+  NOT_FOUND: 404,
+  UNAUTHORIZED: 401,
+  USER_PERMANENTLY_DELETED: 401,
+  REPOSITORY_ERROR: 500,
+};
+
 function sendError(
   reply: FastifyReply,
   status: number,
@@ -37,17 +41,17 @@ function sendError(
 }
 
 /**
- * Wires the shared zod contracts into a Fastify app: routes validate their
- * request and serialize their response through the schemas they declare
- * (undeclared response fields are stripped), and every error leaves in the
- * common `{ error: { code, message, details? } }` envelope.
+ * The one place errors become responses, all in the shared
+ * `{ error: { code, message, details? } }` envelope:
+ * - request validation failures → 400 `validation_failed` with the issues;
+ * - domain errors (`AppError`) → the status their code maps to;
+ * - Fastify's own 4xx (rate limit, bad content type, ...) → their status;
+ * - anything else → a generic 500 `internal`, with the error only in the logs;
+ * - unknown routes → 404 `not_found`.
  *
- * Call it before registering plugins and routes so they inherit the handlers.
+ * Register it before plugins and routes so they inherit the handlers.
  */
-export function registerContracts(app: FastifyInstance) {
-  app.setValidatorCompiler(validatorCompiler);
-  app.setSerializerCompiler(serializerCompiler);
-
+export function registerErrorMiddleware(app: FastifyInstance) {
   app.setErrorHandler((error: FastifyError, request, reply) => {
     if (hasZodFastifySchemaValidationErrors(error)) {
       const issues = error.validation.map(({ instancePath, message }) => ({
@@ -57,7 +61,7 @@ export function registerContracts(app: FastifyInstance) {
       return sendError(reply, 400, "validation_failed", "The request is invalid", issues);
     }
 
-    const status = error.statusCode;
+    const status = error instanceof AppError ? statusOfCode[error.code] : error.statusCode;
 
     if (status !== undefined && status >= 400 && status < 500) {
       const { code, message } = clientErrors[status] ?? otherClientError;
@@ -71,6 +75,4 @@ export function registerContracts(app: FastifyInstance) {
   app.setNotFoundHandler((request, reply) =>
     sendError(reply, 404, "not_found", `Route ${request.method} ${request.url} not found`),
   );
-
-  return app.withTypeProvider<ZodTypeProvider>();
 }
