@@ -2,6 +2,6 @@
  * Turns a stored Thumbnail key into a short-lived URL a User's browser can load.
  * The storage adapter implements it; the bucket itself stays private.
  */
-export interface ThumbnailUrlResolver {
+export interface IThumbnailUrlProvider {
   resolve(thumbnailKey: string): Promise<string>;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toItem } from "./item-mappers";
+import { toItem } from "@/infrastructure/mappers/itemMapper";
 
 type ItemRow = Parameters<typeof toItem>[0];
 

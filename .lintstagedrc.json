@@ -3,7 +3,6 @@
   "apps/web/**/*.{ts,tsx,js}": "eslint --fix --config apps/web/eslint.config.js",
   "apps/api/**/*.{ts,js}": "eslint --fix --config apps/api/eslint.config.js",
   "apps/worker/**/*.{ts,js}": "eslint --fix --config apps/worker/eslint.config.js",
-  "packages/items/**/*.{ts,js}": "eslint --fix --config packages/items/eslint.config.js",
   "packages/auth/**/*.{ts,js}": "eslint --fix --config packages/auth/eslint.config.js",
   "packages/db/**/*.{ts,js}": "eslint --fix --config packages/db/eslint.config.js",
   "packages/shared/**/*.{ts,js}": "eslint --fix --config packages/shared/eslint.config.js",

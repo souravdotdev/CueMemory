@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toTag, toTagLink } from "./tag-mappers";
+import { toTag, toTagLink } from "@/infrastructure/mappers/tagMapper";
 
 type TagRow = Parameters<typeof toTag>[0];
 type TagLinkRow = Parameters<typeof toTagLink>[0];
