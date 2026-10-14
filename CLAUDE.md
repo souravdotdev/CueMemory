@@ -10,4 +10,4 @@ Uses the five default labels: needs-triage, needs-info, ready-for-agent, ready-f
 
 ### Domain docs
 
-Multi-context: a root `GLOSSARY-MAP.md` points to a `GLOSSARY.md` in each package. See `docs/agents/domain.md`.
+Multi-context: a root `GLOSSARY-MAP.md` points to a `GLOSSARY.md` per context under `docs/contexts`. See `docs/agents/domain.md`.
