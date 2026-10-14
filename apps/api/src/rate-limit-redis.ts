@@ -1,9 +1,9 @@
 import type { Redis } from "ioredis";
-import { redisConnection } from "@cue-memory/shared-kernel/redis";
+import { redisConnection } from "@cue-memory/db/redis";
 
 /**
  * A dedicated Redis connection for @fastify/rate-limit's store, separate
- * from the BullMQ connection (@cue-memory/shared-kernel's redisConnection). BullMQ
+ * from the BullMQ connection (@cue-memory/db's redisConnection). BullMQ
  * requires maxRetriesPerRequest: null so its blocking commands retry
  * forever — the opposite of what rate-limit checks want. Without a fail-fast
  * connection here, a Redis outage could make every request hang waiting on

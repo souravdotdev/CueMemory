@@ -2,8 +2,15 @@
   "extends": "@cue-memory/typescript-config/library.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    // InversifyJS's @injectable/@inject are legacy (parameter) decorators.
+    // No emitDecoratorMetadata: esbuild (tsup, tsx) can't emit it, so every
+    // constructor parameter names its token with @inject(TOKENS.X).
+    "experimentalDecorators": true,
+    // The `@/` alias: tsc and tsx read it here, tsup (esbuild) too; Vitest mirrors it.
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
-  "include": ["src"],
+  "include": ["src", "tests"],
   "exclude": ["node_modules", "dist"]
 }

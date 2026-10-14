@@ -12,8 +12,8 @@ export default defineConfig({
   // can't execute them at runtime unlike tsx's esbuild-based dev resolution.
   // skipNodeModulesBundle flips the default the other way: everything else
   // resolved from node_modules — including transitive deps pulled in only
-  // through those workspace packages (ioredis, bullmq, postgres via
-  // @cue-memory/items/shared-kernel, invisible to tsup's own package.json-based
+  // through those workspace packages (ioredis, postgres via
+  // @cue-memory/db, invisible to tsup's own package.json-based
   // auto-external detection) — stays external automatically, rather than
   // needing every transitive dependency hand-listed.
   noExternal: [/^@cue-memory\//],

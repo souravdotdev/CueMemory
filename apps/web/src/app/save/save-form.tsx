@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@cue-memory/ui/button";
-import { createItemRequestDtoSchema } from "@cue-memory/contracts/items";
+import { CreateItemSchema } from "@cue-memory/shared/schemas/items";
 import { createItem } from "@/lib/api";
 
 export function SaveForm() {
@@ -16,7 +16,7 @@ export function SaveForm() {
     event.preventDefault();
 
     // Same contract the API validates with, so the form and server never disagree.
-    const parsed = createItemRequestDtoSchema.safeParse({ url });
+    const parsed = CreateItemSchema.safeParse({ url });
     if (!parsed.success) {
       setStatus("error");
       setError(parsed.error.issues[0]?.message ?? "That link isn't valid");

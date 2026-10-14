@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
-import { dbEnv, pgClient } from "@cue-memory/shared-kernel/db";
+import { dbEnv, pgClient } from "@cue-memory/db/client";
 
 // Wipes every table, enum, and drizzle's migration bookkeeping so the schema
 // can be regenerated from a fresh `0000`. Local databases only.

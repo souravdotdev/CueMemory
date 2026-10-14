@@ -2,12 +2,12 @@
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
-This is a **multi-context** monorepo. Each feature package under `packages/` (currently `packages/items` and `packages/auth`) is a context.
+This is a **multi-context** monorepo. The contexts (currently Auth and Items) are language boundaries, not code boundaries: each has its own folder under `docs/contexts/` holding its glossary and its context-scoped ADRs.
 
 ## Before exploring, read these
 
 - **`GLOSSARY-MAP.md`** at the repo root: it points at one `GLOSSARY.md` per context. Read each one relevant to the topic.
-- **`docs/adr/`**: read ADRs that touch the area you're about to work in. Also check `packages/<context>/docs/adr/` for context-scoped decisions.
+- **`docs/adr/`**: read ADRs that touch the area you're about to work in. Also check `docs/contexts/<context>/adr/` for context-scoped decisions.
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
@@ -16,18 +16,15 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 ```
 /
 ├── GLOSSARY-MAP.md
-├── docs/adr/                          ← system-wide / cross-package decisions
-├── apps/
-│   ├── api/
-│   ├── web/
-│   └── worker/
-└── packages/
-    ├── items/
-    │   ├── GLOSSARY.md
-    │   └── docs/adr/                  ← items-specific decisions
-    └── auth/
-        ├── GLOSSARY.md
-        └── docs/adr/                  ← auth-specific decisions
+└── docs/
+    ├── adr/                           ← system-wide / cross-context decisions
+    └── contexts/
+        ├── auth/
+        │   ├── GLOSSARY.md
+        │   └── adr/                   ← auth-specific decisions
+        └── items/
+            ├── GLOSSARY.md
+            └── adr/                   ← items-specific decisions
 ```
 
 ## Use the glossary's vocabulary

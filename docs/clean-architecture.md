@@ -1,123 +1,154 @@
 # Clean Architecture
 
-This project follows Clean Architecture (ports-and-adapters / the dependency rule) **strictly, as a standing rule for every code change** — not a one-time refactor to admire. Read this before adding or modifying any backend code in `apps/api`, `apps/worker`, or `packages/*`.
+The backend follows Clean Architecture as a standing rule for every code change. Read this before you add or change code in `apps/api` (and, once it has a queue, `apps/worker`). Why the shape is layer-first, with use-case classes and a container, is in [ADR 0004](./adr/0004-layer-first-apps-with-use-case-classes-and-a-di-container.md). Why wire shapes are shared zod schemas, separate from the entities, is in [ADR 0001](./adr/0001-shared-zod-contracts-package.md). This doc describes the code as it is.
+
+## The four layers
+
+Each app is organised by layer, not by feature. The API's `src/` folder:
+
+```
+apps/api/src/
+  index.ts              reflect-metadata first; createContainer(), buildApp(), listen
+  app.ts                buildApp(container): plugins, error middleware, routes
+  env.ts                the validated environment (Env)
+  rate-limit-redis.ts   the fail-fast Redis for the rate-limit store
+  rate-limit-store.ts   RateLimitRedis type and IN_MEMORY_RATE_LIMITS (side-effect free)
+  di/
+    tokens.ts           TOKENS: one Symbol per bound dependency
+    container.ts        createContainer(): the only place concrete classes are bound
+  domain/
+    entities/           User.ts (User, SignInProfile), Item.ts, Tag.ts
+    repositories/       IUserRepository.ts
+    providers/          ISessionProvider.ts, IThumbnailUrlProvider.ts
+    errors/             AppError and its subclasses (barrel: @/domain/errors)
+    rules/              signInDecision.ts, tagName.ts (pure functions)
+  application/
+    use-cases/auth/     AdmitSignInUseCase, ResolveSignedInUserUseCase, GetMeUseCase
+    dto/auth/           MeOutput.ts
+    dto/items/          ItemCardOutput.ts (toItemCardOutput)
+  infrastructure/
+    auth/               createAuth.ts, signInHook.ts, googleProfile.ts, BetterAuthSessionProvider.ts
+    database/           Database.ts (the handle type), db.ts (the runtime Drizzle instance)
+    repositories/       DrizzleUserRepository.ts
+    mappers/            userMapper.ts, itemMapper.ts, tagMapper.ts (row -> entity)
+  interface/
+    routes/             auth.routes.ts, me.routes.ts (Fastify plugins)
+    controllers/        MeController.ts
+    middleware/         auth.middleware.ts, error.middleware.ts
+    http/               toWebHeaders.ts
+```
+
+What each layer holds:
+
+- **`domain/`** holds the business vocabulary and nothing else. It has entities (plain interfaces, dates as `Date`), ports (`I`-prefixed interfaces: repositories for storage, providers for every other outside service), errors and pure rules. Examples of rules: `decideSignIn(deletedAt, now)` returns `allow`, `restore` or `refuse`, with `GRACE_PERIOD_DAYS = 30`. `isDeleted(user)` says whether a User is deleted. `slugifyTagName` and `TAG_NAME_PATTERN` define Tag names. The domain imports nothing outside itself.
+- **`domain/errors/`** has `AppError(message, code)` with `NotFoundError`, `RepositoryError`, `UnauthorizedError` and `UserPermanentlyDeletedError`. A domain error carries a code (`AppErrorCode`), never an HTTP status.
+- **`application/`** holds the use cases and their DTOs. A use case is an `@injectable()` class named `XUseCase` with one `execute(input)` method. It gets its ports through `@inject(TOKENS.X)` constructor parameters. It returns an output DTO shaped for its view (for example `MeOutput`, `ItemCardOutput`), not an entity. Input types sit beside the use case (`AdmitSignInInput`). Output DTOs sit in `dto/<feature>/`. One exception, by design: `ResolveSignedInUserUseCase` returns the domain `User` entity, because the auth middleware attaches that User to the request for the use cases behind protected routes. Those use cases take the User as input (`GetMeUseCase.execute(user)`). The entity never reaches the wire: each route's use case still returns an output DTO.
+- **`infrastructure/`** holds the adapters: classes and functions that implement a domain port with a real tool. Examples: `DrizzleUserRepository implements IUserRepository`, `BetterAuthSessionProvider implements ISessionProvider`, and `createAuth`, which builds the Better Auth instance with every auth option ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md)). The row mappers (`toUser`, `toItem`, `toTag`, `toTagLink`) turn `@cue-memory/db` rows into entities. Tables, the Postgres client and the Redis connection come from `packages/db` (see [Database](./database.md)).
+- **`interface/`** holds the delivery mechanism (Fastify). Route plugins declare the shared request and response schemas, controllers do the HTTP work and call one use case, and middleware handles who is calling and how errors become responses. `error.middleware.ts` is the one place that maps an `AppError` code to an HTTP status and the shared error envelope. Zod validation failures become 400, and any other error becomes a generic 500 with the details only in the logs.
+
+`di/` sits outside the four layers. It is the composition root: the only code that knows every concrete class.
+
+Items has a domain (`Item`, `Tag`, the Tag name rule), an output DTO and row mappers, but no use case, repository or route yet. `IThumbnailUrlProvider` has no adapter and no token yet. They get wired the same way as Auth when the first Items use case lands.
 
 ## The dependency rule
 
-Source code dependencies point **inward only**. Outer layers depend on inner layers; inner layers know nothing about outer layers.
+Source code dependencies point inward only:
 
 ```
-presentation      (Fastify routes, BullMQ job processors, DTOs)
-        ↓ depends on
-infrastructure     (Drizzle repositories/schema, BullMQ adapters, connection wiring)
-        ↓ depends on
-application        (use cases)
-        ↓ depends on
-domain             (entities, port interfaces, pure business rules)
+interface        (routes, controllers, middleware)        ┐
+infrastructure   (Better Auth, Drizzle repositories, ...)  ┘ outer: may import application and domain
+        ↓
+application      (use cases, DTOs)                         may import domain
+        ↓
+domain           (entities, ports, errors, rules)          imports nothing outside itself
 ```
 
-An inner layer never imports from an outer one. A feature's `domain`/`application` code never imports `drizzle-orm`, `bullmq`, or `fastify` — it only knows about the **port interfaces** it defines itself.
+An inner layer never imports an outer one. Domain and application code knows only the ports the domain defines, never the tool behind them. `ResolveSignedInUserUseCase` depends on `ISessionProvider`, not on Better Auth. `AdmitSignInUseCase` depends on `IUserRepository`, not on Drizzle. Use cases may import `inversify` (for `@injectable`/`@inject`), `zod` and `@cue-memory/shared`. `@/di/tokens` is allowed too, because it holds only Symbols.
 
-## Feature-first packages, not layer-first packages
+### Lint guard
 
-Each **feature** is its own pnpm workspace package with all four layers nested inside it (`domain/`, `application/`, `infrastructure/`, `presentation/`), rather than one package per technical layer shared across every feature. A feature is a self-contained vertical slice — everything needed to build, persist, and expose it lives in one place, and the dependency rule is enforced _within_ that package by which subfolder imports which.
+In the API, lint enforces this rule. `apps/api/eslint.config.js` sets `no-restricted-imports` on `src/domain/**` and `src/application/**`. It blocks these imports: `drizzle-orm`, `fastify` (and `@fastify/*`, `fastify-*`), `better-auth`, `postgres`, `ioredis` and `@cue-memory/db`. Subpaths and `import type` are blocked too. If a domain or application file imports one of them, `pnpm lint` fails:
 
-This repo currently has two feature packages:
+```
+src/domain/zz-demo/bad.ts
+  1:1  error  'drizzle-orm' import is restricted from being used by a pattern. Domain and application never import tools. Drizzle belongs in infrastructure. Depend on a port instead  no-restricted-imports
+src/application/zz-demo/bad.ts
+  1:1  error  'ioredis' import is restricted from being used by a pattern. Domain and application never import tools. Redis belongs in infrastructure. Depend on a port instead  no-restricted-imports
+```
 
-- **`packages/items`** — the paste-a-link save/list/process flow. Has real code in all four layers.
-- **`packages/auth`** — the `User` entity, the Better Auth-compatible DB schema, Google sign-in (the Better Auth instance and the Fastify plugin that mounts it), and knowing who's calling: the `SessionResolver` port, the `resolveSignedInUser` use case, the `requireUser` guard and `GET /me`. All four layers have real code.
+To fix it, define a port in the domain and put the tool code in an infrastructure adapter. If you add a new tool library to the API, add it to the list. The guard runs in `pnpm lint` and in the pre-commit hook.
 
-`tags`, `collections`, and `reminders` do **not** have their own feature packages: they have no independent ports, use cases or routes. Their tables live inside `packages/items` as item-aggregate data (the `tags` and `item_tags` tables already do, from the tags design, #11). If one of them grows independent behavior (its own CRUD, its own route), it becomes its own feature package at that point, following the same pattern `items`/`auth` already establish.
+## Tokens, the container and scopes
 
-## The `items` feature, layer by layer
+Interfaces don't exist at runtime, so the container looks each dependency up by a token. `di/tokens.ts` exports `TOKENS`, one `Symbol` per bound dependency. A port's symbol is named after its interface (`TOKENS.UserRepository = Symbol("IUserRepository")`). Today the tokens are `Env`, `Database`, `UserRepository`, `Auth`, `SessionProvider`, `AdmitSignInUseCase`, `ResolveSignedInUserUseCase`, `GetMeUseCase`, `MeController` and `RateLimitRedis`.
 
-- **`domain/`** — `ports/` (`ItemRepository`, `ItemQueue`, `MetadataFetcher` — interfaces infrastructure must implement), `detect-item-type.ts` (a pure business rule: inferring item type from a URL), `tag.ts` (the `Tag` and `TagLink` entities, `TAG_SOURCES`, and `AppliedTag`: a Tag with the source it was applied with), `tag-name.ts` (`slugifyTagName`, the pure rule that turns a Tag name into its canonical slug, plus `TAG_NAME_PATTERN`/`MAX_TAG_NAME_LENGTH`), `tokens.ts` (DI symbols for this package's ports).
-- **`application/use-cases/`** — the actual interactors: `saveItem`, `listItems`, `processItem`. Each takes a `deps` object typed against the port interfaces, plus a plain input object, and returns a plain result. No HTTP, no SQL, no queue library — fully unit-testable by passing hand-written fake implementations of the ports.
-- **`infrastructure/`**:
-  - `persistence/` — `schema/` (the Drizzle `items` table, with its generated keyword-search `search_vector` column, and its `item_type`/`item_status` enums, built from the domain's `ITEM_TYPES`/`ITEM_STATUSES`; imports `users` from `@cue-memory/auth/schema` only for the FK column type; `tags.ts` holds the `tags` and `item_tags` tables and the `tag_source` enum, built from `TAG_SOURCES`, `TAG_NAME_PATTERN` and `MAX_TAG_NAME_LENGTH`), `drizzle-item-repository.ts` (`DrizzleItemRepository implements ItemRepository`), `item-mappers.ts` (`toItem` — translates Drizzle's raw `items` row, minus `search_vector`, into the domain `Item`, keeping dates as `Date`), `tag-mappers.ts` (`toTag` and `toTagLink` — the `tags` and `item_tags` rows into the domain `Tag` and `TagLink`, dropping the link's denormalized `user_id`).
-  - `queue/` — `queues.ts` (the BullMQ `Queue` instance + queue name constants), `bullmq-item-queue.ts` (`BullMqItemQueue implements ItemQueue`).
-  - `metadata/` — `stub-metadata-fetcher.ts` (`StubMetadataFetcher implements MetadataFetcher`, currently a placeholder — the seam where real extraction gets plugged in later).
-- **`presentation/`**:
-  - `http/` — `item-card-mapper.ts` (`toItemCardDto(item, tags, thumbnails)`: the explicit Item → `ItemCardDto` mapping against `@cue-memory/contracts/items`, taking the Item's Tags as the domain's `AppliedTag` `{ tag, source }` pairs (a `Tag` joined with its `TagLink`'s source) and a `ThumbnailUrlResolver` port from `domain/ports`; it also holds the compile-time check that the domain's `ITEM_TYPES`/`ITEM_STATUSES`/`TAG_SOURCES` match the contract's enums). No Items route exists yet; when one does, it lives here as a Fastify controller that declares its contracts, calls a use case and returns the mapper's output.
-  - `queue/` — `process-item.processor.ts` (`createProcessItemHandler` — the BullMQ delivery-mechanism equivalent of a route controller: unwraps a `Job`, calls the `processItem` use case).
+`di/container.ts` exports `createContainer()`, an InversifyJS `Container`. It is the only place in application code that creates an application class. It binds:
 
-Package exports: `.` (the full barrel — domain + application + infrastructure + presentation) and `./schema` (schema-only, so `packages/db`'s migration runner can read table definitions without pulling in Fastify/BullMQ).
+- **Constants** (`toConstantValue`): the validated `Env`, the `Database` (`db` from `infrastructure/database/db.ts`) and the rate-limit Redis.
+- **The Better Auth instance** (`toDynamicValue(...).inSingletonScope()`): built once, by `createAuth(database, config, { admitSignIn })` from the bound `Env` and `Database`. Its session-create hook gets `admitSignIn` as `{ execute }`, which asks the container for a fresh `AdmitSignInUseCase` on every sign-in. The binding ends `satisfies { api: SessionApi }`, so tsc checks that the instance still fits what `BetterAuthSessionProvider` needs.
+- **Adapters and controllers as singletons** (`.to(Class).inSingletonScope()`): `DrizzleUserRepository`, `BetterAuthSessionProvider`, `MeController`. One instance lives for the life of the process.
+- **Use cases as transient** (`.to(Class).inTransientScope()`): each `container.get` builds a new one, so a use case never carries state from one request to the next.
 
-## The `auth` feature, layer by layer
+Setup rules that keep this working:
 
-Better Auth runs inside the API and owns the sign-in flow ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md)). Every Better Auth detail stays in this package's `infrastructure/`; the rest of the code only ever sees the domain `User`.
+- `import "reflect-metadata"` comes first in `src/index.ts` and `di/container.ts`, and a test that imports a decorated class imports `reflect-metadata` first.
+- `tsconfig.json` sets `experimentalDecorators` but deliberately not `emitDecoratorMetadata`: esbuild (tsup, tsx) can't emit it. So every constructor parameter must name its token with `@inject(TOKENS.X)`. A parameter without one won't resolve.
+- Adding a use case takes three edits: the class, its token, and its binding. A missing binding fails when something resolves it, not at compile time. `tests/unit/di/container.test.ts` resolves every `TOKENS` entry through the real `createContainer()`, which catches it.
 
-- **`domain/`** — `user.ts` (the `User` entity; `isDeleted`, the rule that a User with a deletion time is deleted; and `SignInProfile`, what the sign-in provider says about the User right now, with a null name when it sends none), `sign-in-decision.ts` (`decideSignIn(deletedAt, now)`, the pure rule that a sign-in is `allow`, `restore` or `refuse`; `GRACE_PERIOD_DAYS` = 30, with a User deleted exactly 30 days ago still restorable; and `UserPermanentlyDeletedError`), `ports/session-resolver.ts` (`SessionResolver`: takes a request's web `Headers` and returns the User of its valid Session, or null), `ports/user-repository.ts` (`UserRepository`: `findById` and `recordSignIn` with `UserSignInChanges` — Display name, avatar and deletion time only, so no code path can change the email).
-- **`application/use-cases/`**:
-  - `admitSignIn({ users }, { userId, profile, now })` — the sign-in rules (Auth ADR 0001, spec #12): loads the User, applies `decideSignIn`, throws `UserPermanentlyDeletedError` on refuse, clears the deletion time on restore, and refreshes the avatar and (when the provider sends one) the Display name on every allowed sign-in. The email is never touched.
-  - `resolveSignedInUser({ sessions }, { headers })` — the User of the request's Session, or null when there's no valid Session or the User `isDeleted`, so a deleted User's old Sessions are refused everywhere (Auth ADR 0001).
-- **`infrastructure/`**:
-  - `better-auth/sign-in-hook.ts` — `createSignInHook(users)`, Better Auth's `databaseHooks.session.create.before`: just before a Session is created it reads the User's Google ID token from their Sign-in identity (Better Auth has just stored the fresh one), runs `admitSignIn`, and turns a refusal into a coded `APIError` (`USER_PERMANENTLY_DELETED`), which ends the OAuth flow at the error URL with that code and a readable `error_description`. A missing Google ID token ends it the same way, coded `GOOGLE_PROFILE_UNAVAILABLE`. `createAuth` pins `account.updateAccountOnSignIn: true` (Better Auth's default) because the hook relies on the ID token being fresh. Better Auth's `overrideUserInfoOnSignIn` is deliberately not used: it would also overwrite the email.
-  - `better-auth/google-profile.ts` — `googleProfileFromIdToken`: the Display name and avatar from the ID token's `name`/`picture` claims, the same profile Better Auth's Google provider reads (no photo → null avatar, no name → null).
-  - `better-auth/better-auth-session-resolver.ts` — `BetterAuthSessionResolver implements SessionResolver`: wraps Better Auth's server-side `getSession` (passed in as the one-method `SessionApi`, so its tests use a fake) and maps its User to the domain `User` through `toUser`.
-  - `better-auth/create-auth.ts` — `createAuth(db, config, { users })`, the factory that builds the Better Auth instance from a database handle, an `AuthConfig` (secret, base URL, web origin, Google credentials, optional cookie domain) and the `UserRepository` its sign-in hook uses. It holds every Better Auth decision: the Drizzle adapter with Better Auth's model names mapped explicitly to the plural tables, the database generating uuid ids (`generateId: "uuid"`), Google as the only provider with identity scopes only (`openid email profile`, and a `before` hook that refuses any `scopes` a caller adds to the request), OAuth tokens encrypted at rest, the default 7-day Session with no cookie cache (every request checks the `sessions` table, so revocation is immediate), cross-subdomain cookies only when a cookie domain is configured, the web origin as the only trusted origin, the sign-in hook, and `deletedAt` declared as an additional User field (never settable through Better Auth's API) so every Session lookup returns it. Better Auth's `image` field needs no mapping: the `users` table's Drizzle key is `image`, stored in the `profile_img` column, and `toUser` renames it to `profileImg`.
-  - `persistence/` — `schema/` (the Better Auth-compatible `users`/`sessions`/`accounts`/`verifications` tables; see [Database](./database.md#schema)), `user-mappers.ts` (`toUser`), `auth-database.ts` (the `AuthDatabase` handle type), `drizzle-user-repository.ts` (`DrizzleUserRepository implements UserRepository`), and `database.ts` (`db`: this package's own `drizzle(pgClient, { schema })`, the first runtime Drizzle instance; see [Shared infrastructure](#shared-infrastructure)).
-- **`presentation/http/`**:
-  - `require-user.ts` — `requireUser({ sessions })`, the guard every protected route runs as its `preHandler`: it calls `resolveSignedInUser` and throws a 401, which the shared error handler sends as the `unauthorized` envelope, or attaches the domain User to the request. Routes read it with `signedInUser(request)`; no route parses identity headers itself.
-  - `me-routes.ts` + `me-mapper.ts` — `meRoutes`, the `GET /me` route behind the guard, and `toMeResponseDto`, the explicit User → `MeResponseDto` mapping against `@cue-memory/contracts/auth` (display name, email, avatar URL, ISO created time; never the deletion time).
-  - `web-headers.ts` — `toWebHeaders`, Node's request headers as web `Headers`, shared by the guard and `authRoutes`.
-  - `auth-routes.ts` — `authRoutes`, a Fastify plugin that mounts Better Auth's handler under `/api/auth/*` (GET and POST): it turns Fastify's request into a web `Request` (the body passed through as raw bytes, whatever its content type), and sends Better Auth's `Response` back unchanged, every `set-cookie` included. It takes the handler as a one-method `AuthRequestHandler`, so its tests use a fake, and a per-route rate limit that `apps/api` sets stricter than the global one (see [Security](./security.md#rate-limiting)).
+`buildApp(container, fastifyOptions)` in `app.ts` takes the container rather than building one. Production passes `createContainer()`. Tests pass their own container with fakes (see [Testing](#testing-at-two-seams)). `buildApp` reads `Env` and `RateLimitRedis` from the container. Both are required, so a container can't quietly fall back to in-memory rate limits by leaving the Redis out: production binds the Redis, and a test container binds `IN_MEMORY_RATE_LIMITS` (`src/rate-limit-store.ts`) on purpose.
 
-Package exports: `.` (the barrel — domain, application, infrastructure, presentation, but not the runtime `db`), `./database` (`db`, kept off the barrel because importing it validates `DATABASE_URL`, which tests and the barrel's other consumers shouldn't need — the same reason `shared-kernel`'s `./db` and `./redis` are separate subpaths), and `./schema` (schema-only, for `packages/db` and `packages/items`).
+## One request through every layer: `GET /me`
 
-## Shared infrastructure
+A signed-in browser calls `GET /me` with its Session cookie.
 
-Two things are genuinely cross-feature and don't belong inside any one feature package:
+1. **Interface: the route.** `interface/routes/me.routes.ts` is a Fastify plugin registered by `buildApp` with `{ container }`. It declares `GET /me` with `preHandler: authMiddleware(container)` and the response schema `MeResponseSchema` from `@cue-memory/shared/schemas/auth`. The handler resolves `MeController` from the container. The route file never constructs it.
+2. **Interface: the middleware.** `authMiddleware` resolves a fresh `ResolveSignedInUserUseCase` from the container. It turns Node's request headers into web `Headers` (`interface/http/toWebHeaders.ts`), calls `execute({ headers })` and attaches the returned domain `User` as `request.user`.
+3. **Application: the use case.** `ResolveSignedInUserUseCase.execute` asks its `ISessionProvider` port for the Session's User. If there is none, or `isDeleted(user)` (a domain rule) says the User is deleted, it throws `UnauthorizedError` (a domain error). Otherwise it returns the User.
+4. **Infrastructure: the adapter.** The container bound `ISessionProvider` to `BetterAuthSessionProvider`. It calls Better Auth's `api.getSession({ headers })`, which checks the `sessions` table on every request. It maps Better Auth's user to the domain `User` with the same `toUser` row mapper the repository uses: a missing `image` or `deletedAt` becomes null, and `image` becomes `profileImg`. Better Auth's internals stop here.
+5. **Interface: the controller.** `MeController.getMe(request)` reads the User with `signedInUser(request)` and calls `GetMeUseCase.execute(user)`.
+6. **Application: the output DTO.** `GetMeUseCase` is pure (it has no ports). It returns `MeOutput`: id, Display name, email, avatar URL and an ISO created time, never the deletion time.
+7. **Interface: the response.** Fastify serializes `MeOutput` through `MeResponseSchema` (undeclared fields are stripped) and sends 200.
 
-- **`packages/shared-kernel`** — raw connection primitives only: `db/client.ts` (a raw `postgres()` client, **not** wrapped in `drizzle()` — no schema bound here) and `redis/connection.ts` (a raw `ioredis` instance). Exported as two independent subpaths, `./db` and `./redis`, specifically so importing one doesn't eagerly validate the other's env vars (e.g. `packages/db`'s migration runner only needs `DATABASE_URL`, not `REDIS_URL`). No `@cue-memory/*` dependencies — a true leaf package.
-- **`packages/db`** — not a feature package. It's the single centralized Drizzle-kit migration runner: `schema.ts` re-exports `@cue-memory/items/schema` + `@cue-memory/auth/schema`, and `drizzle.config.ts` points at that shim. One Postgres database has one migration history spanning every feature's tables, so this can't be split per feature the way application code can.
+When step 3 throws `UnauthorizedError`, the error travels up to `error.middleware.ts`. It maps the code `UNAUTHORIZED` to 401 and sends the shared envelope `{ error: { code: "unauthorized", message: "You need to sign in to do that" } }`. The domain's own message never reaches the client.
 
-Each feature package wraps the shared raw `pgClient` in its **own** local `drizzle(pgClient, { schema })` call (e.g. `packages/items/src/infrastructure/persistence/drizzle-item-repository.ts`) — safe because the connection pool lives in the raw postgres client, not the Drizzle wrapper, so multiple independent `drizzle()` instances coexist over it without conflict.
+Sign-in itself runs the same layers from a different front door. Better Auth's handler is mounted by `interface/routes/auth.routes.ts` under `/api/auth/*`. Just before a Session is created, its hook (`infrastructure/auth/signInHook.ts`) runs `AdmitSignInUseCase`. That use case applies `decideSignIn` through `IUserRepository` and throws `UserPermanentlyDeletedError` on refuse. The hook catches that error and turns it into Better Auth's coded `APIError` (see [Auth ADR 0001](./contexts/auth/adr/0001-soft-delete-users-with-30-day-restore.md)).
 
-Dependency graph is acyclic: `db → items`, `db → auth`, `items → auth` (schema-only, for the `users` FK column type), `items → shared-kernel`, `items → contracts`, `auth → shared-kernel` (for the runtime `db`), `auth → contracts`, `api → auth`, `api → contracts`, `web → contracts`, `contracts →` nothing (only zod). `auth` never depends on `items`, and neither depends back on `db`.
+## Testing at two seams
 
-## The composition roots
+Tests live in `apps/api/tests/unit/`, mirroring `src/`, and import through the `@/` alias. Fakes are small hand-written objects or `vi.fn()`, written inline in each test file. More detail is in [Testing](./testing.md).
 
-Concrete adapters get wired into use cases at the **composition root**, the one spot in each app allowed to know about every concrete implementation at once. Wiring uses an [InversifyJS](https://inversify.io) `Container`:
+- **The HTTP seam** covers everything a client can observe. `tests/unit/app.test.ts` builds the real app with `buildApp(testContainer())` and drives it with Fastify `inject`. `testContainer()` binds the real use cases and controller, a fake `ISessionProvider`, a fake `Auth` handler and a literal `Env`. It binds `RateLimitRedis` to `IN_MEMORY_RATE_LIMITS`. Tests check statuses, bodies and headers: 401 envelopes, `GET /me` output, CORS, security headers, 404 and generic 500 envelopes. A test that needs an extra route (for example one that throws a domain error) adds it to the built app before calling `inject`. `tests/unit/interface/routes/auth.routes.test.ts` uses the same seam for the `/api/auth/*` mount.
+- **The use-case seam** covers business behaviour without the container: `new XUseCase(fake).execute(input)`. For example, `new ResolveSignedInUserUseCase(sessionsReturning(null))` rejects with `UnauthorizedError`. `AdmitSignInUseCase` is tested against a fake `IUserRepository`, checking the changes it records and the error it throws.
 
-- `apps/api/src/composition.ts` — binds `ItemsTypes.ItemRepository → DrizzleItemRepository` and `ItemsTypes.ItemQueue → BullMqItemQueue` (both `inSingletonScope()`, both imported from `@cue-memory/items`), resolves both via `container.get(...)`, exports the result as a plain `dependencies` object.
-- `apps/worker/src/composition.ts` — binds `ItemsTypes.ItemRepository → DrizzleItemRepository` and `ItemsTypes.MetadataFetcher → StubMetadataFetcher`, same pattern, same source package.
-
-Neither composition root imports `@cue-memory/db` — that package has no runtime exports left to import. As more features gain ports (e.g. `auth` growing a real repository), their composition-root bindings get added the same way, each feature's `TYPES` imported under its own alias (`TYPES as ItemsTypes`, `TYPES as AuthTypes`, ...) so multiple registries coexist cleanly.
-
-Both `apps/api/src/index.ts` and `apps/worker/src/index.ts` import the resolved `dependencies` object from their composition root and pass it into a controller/handler factory (`itemRoutes(dependencies)`, `createProcessItemHandler(dependencies)`), which closes over it and passes it through to use-case calls unchanged. The container is purely an implementation detail of `composition.ts` — nothing in a feature's use cases, routes, or job processor knows Inversify exists.
-
-**Setup requirements** (both `apps/api` and `apps/worker`):
-
-- `import "reflect-metadata";` as the literal first line of `src/index.ts`.
-- `experimentalDecorators: true` and `emitDecoratorMetadata: true` in `tsconfig.json`, added only to the one package that actually declares `@injectable()` classes (`packages/items`) — not to the apps that merely reference them by identifier in `composition.ts`, and not to `packages/db` or `packages/auth`, neither of which has any decorated classes.
-
-## DI tokens
-
-Each feature package owns its own token registry, colocated with the ports it defines — `packages/items/src/domain/tokens.ts` exports `TYPES` (a plain `Symbol.for(...)` registry, deliberately not importing `inversify` itself, so the domain/application layers stay framework-free). `packages/auth` has ports (`SessionResolver`, `UserRepository`) but no tokens file: no DI container is in use today, so `apps/api/src/auth.ts` is the composition root for auth. It constructs `DrizzleUserRepository` and passes it to `createAuth`, and constructs `BetterAuthSessionResolver` and passes it to `meRoutes`. This keeps a feature's ports and their runtime identifiers as one unit that moves together, rather than a shared registry every feature reaches into.
+Pure domain rules (`signInDecision`, `tagName`), mappers, output DTOs, infrastructure adapters (`createAuth` over a mocked database, `BetterAuthSessionProvider`, `googleProfile`, `signInHook`) and env validation are tested directly against their own inputs and outputs. `tests/unit/di/container.test.ts` resolves every token through the real `createContainer()`, with a stubbed environment and a stand-in rate-limit Redis (ioredis connects on construction; the Postgres client only on its first query, which the test never makes). No test needs a database or Redis.
 
 ## Where new code goes
 
-Ask these questions in order:
+1. **A new business rule** is a pure function in `domain/rules/`, tested on its own.
+2. **A new workflow** is a use case in `application/use-cases/<feature>/XUseCase.ts`, with an output DTO in `application/dto/<feature>/` if it returns something. Add its token and a transient binding.
+3. **A new need from the outside world** (storage, email, a queue, a model API) is a port in `domain/repositories/` or `domain/providers/`, an adapter in `infrastructure/`, a token, and a singleton binding. The port changes first, then the adapter.
+4. **A new endpoint** is a route plugin in `interface/routes/` that declares shared schemas from `@cue-memory/shared`. Add a controller class in `interface/controllers/` that calls one use case, bind it as a singleton, and register the plugin in `buildApp`. Protected routes use `authMiddleware(container)` and read the User with `signedInUser(request)`. They never read identity from the body.
+5. **A new error case** is an `AppError` subclass with a new `AppErrorCode`. Add the code to `statusOfCode` in `error.middleware.ts` (it is a `Record`, so tsc forces this).
 
-1. **Is it a new business rule or workflow step for an existing feature?** → a new use case (or an addition to an existing one) in that feature's `application/use-cases`. Define whatever new port method it needs on the relevant interface in that feature's `domain/ports`.
-2. **Does an existing port need a new capability to support that use case?** → add the method to the port interface in `domain/ports`, then implement it in the corresponding adapter under `infrastructure/`. The port interface changes first; the implementation follows.
-3. **Is it a new external integration** (a new port entirely — e.g. an email sender, an LLM tagging client)? → define the port interface in that feature's `domain/ports`, write a concrete adapter for it under that feature's `infrastructure/`, and wire it into the relevant app's `composition.ts`.
-4. **Is it purely a delivery-mechanism concern** (an HTTP route, request validation, response shaping, a new BullMQ queue registration)? → that feature's `presentation/`. It should still only ever call into that feature's `application/use-cases` for actual logic.
-5. **Is it a genuinely new feature** with no existing package to live in? → a new `packages/<feature>` following the exact shape `items`/`auth` establish: start with whichever layers actually have content (often just `domain/` + `infrastructure/` for schema), and add `application/`/`presentation/` once real use cases/routes exist — never scaffold empty layer folders ahead of time.
+Don't create empty layer folders ahead of time. A folder appears with its first file.
 
-**Hard rule**: if you find yourself importing `drizzle-orm`, `bullmq`, `postgres`, `ioredis`, or `fastify` types into a feature's `domain/` or `application/`, stop — that's the dependency rule being violated. Business logic must not know its infrastructure.
+## The worker (documented, not yet built)
 
-## Why this exists
+`apps/worker` has no queue today: its `index.ts` only logs that there is nothing to consume. When the first queue lands, the worker becomes a small app with the same four layers. Only the front door differs: a job arrives instead of an HTTP request, and a processor replaces the controller.
 
-Clean Architecture's indirection has a real cost — an extra port interface and adapter class for something that could be a single inline database call. It pays for itself here because:
+| Part           | In the API                    | In the worker                                                   |
+| -------------- | ----------------------------- | --------------------------------------------------------------- |
+| Front door     | route + controller            | a `worker.ts` switch on `job.name` + a processor                |
+| Input check    | the route's zod schema        | `XPayloadSchema.parse(job.data)` in the processor               |
+| Business logic | use case                      | use case                                                        |
+| Tokens         | `TOKENS` in `apps/api/src/di` | the worker's own `WORKER_TOKENS` and container                  |
+| Queue names    | n/a                           | constants from a shared queue entry point, no typed-out strings |
 
-- **Use cases are independently testable** — `saveItem`/`listItems`/`processItem` are tested (`packages/items/src/application/use-cases/*.test.ts`) with hand-written fake `ItemRepository`/`ItemQueue`/`MetadataFetcher` implementations, no database or Redis required. The same pattern extends to the controllers: `packages/items`' HTTP route tests and job-processor test both call the route/handler factory directly with fake dependencies, entirely bypassing the real `composition.ts` and its live infrastructure. See [Testing](./testing.md).
-- **Swapping infrastructure is a one-file change** — replacing Drizzle, or adding a second delivery mechanism (a CLI, a second API framework) alongside Fastify, touches one feature's `infrastructure/`/`presentation/` folder, not the business logic itself.
-- **A feature's full stack lives in one place** — reviewing or extending the paste-a-link flow means working inside `packages/items`, not jumping across three separately-versioned technical-layer packages to find the pieces that make up one concept.
+The planned shape:
 
-## Why InversifyJS specifically
+- **The API enqueues through a port.** A use case depends on an `IQueueProvider` in the domain, and a BullMQ adapter in infrastructure implements it. The use case never imports `bullmq`.
+- **`worker.ts` routes by job name.** It creates the BullMQ `Worker` for a queue and switches on `job.name`, calling one processor per job type. An unknown name throws `UnrecoverableError`, so it is not retried.
+- **A processor is a thin controller.** It lives in the worker's `interface/processors/`. It parses `job.data` with the payload's zod schema, maps it to the use case's input, and calls `container.get<XUseCase>(WORKER_TOKENS.XUseCase).execute(input)`.
+- **The worker has its own `di/tokens.ts` and `di/container.ts`.** It never shares or mixes the API's `TOKENS`. The lint guard, the `reflect-metadata` rule and the two test seams apply as in the API: the processor seam drives a processor with a fake job and a test container, and use cases are tested with `new XUseCase(fake)`.
 
-At the current scale — two dependencies per app, wired in a ~15-line composition root — manually calling `new DrizzleItemRepository()` would do the same job with less ceremony, and that's what this project did initially. Inversify was added ahead of that need, on the expectation that the dependency graph will grow (more use cases, more ports, deeper chains where one adapter depends on another). At that point, manually sequencing every `new X(y, z)` call by hand gets error-prone; a container resolves the whole graph from a binding registry instead, and gives lifecycle control (singleton/transient/request scope) as a declared setting rather than something to hand-build.
-
-The design choice that matters most here: **only the composition roots and the concrete adapter classes know Inversify exists.** Each feature's `application/`/`domain` layers were deliberately kept plain-function-based rather than converted to injectable classes, specifically so they keep the property that made them valuable in the first place — trivial unit testing by passing hand-written fake objects, no container, no decorators, no metadata reflection required. Introducing a DI container didn't have to mean making everything in the codebase container-aware, and it doesn't here.
+Payload schemas and queue names go in `@cue-memory/shared` under a queue entry point. That entry point doesn't exist yet. It is added with the first queue, not before. See [Queue](./queue.md).

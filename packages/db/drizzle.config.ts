@@ -1,8 +1,8 @@
 import { defineConfig } from "drizzle-kit";
-import { dbEnv } from "@cue-memory/shared-kernel/db";
+import { dbEnv } from "@cue-memory/db/client";
 
 export default defineConfig({
-  schema: "./schema.ts",
+  schema: "./src/schema/index.ts",
   out: "./migrations",
   dialect: "postgresql",
   dbCredentials: {

@@ -51,7 +51,7 @@ See [Database](./database.md) for the schema itself and the full migration workf
 pnpm dev
 ```
 
-Runs `dev` in every app in parallel via Turborepo (`apps/web` on Next.js's default port, `apps/api` on `PORT` from its env, `apps/worker` with no HTTP server — it just consumes the queue). Turborepo's terminal UI (`"ui": "tui"` in `turbo.json`) shows all three side by side.
+Runs `dev` in every app in parallel via Turborepo (`apps/web` on Next.js's default port, `apps/api` on `PORT` from its env, `apps/worker` with no HTTP server — it will consume the queue, and has nothing to consume yet). Turborepo's terminal UI (`"ui": "tui"` in `turbo.json`) shows all three side by side.
 
 To run just one app: `pnpm --filter web dev` (or `api`, `worker`).
 
@@ -72,11 +72,12 @@ These same checks (plus commit-message linting) also run automatically in CI on 
 
 `apps/api`/`apps/worker`'s `start` script (`node dist/index.js`) now actually works — `pnpm build` bundles them with `tsup` rather than emitting raw `tsc` output, specifically to solve two compounding problems plain `tsc` couldn't: Node's ESM resolver needs explicit `.js` extensions on relative imports (which the source doesn't have), and every `@cue-memory/*` workspace package is plain TypeScript that was never compiled — plain `node` can't execute it at all, only bundler-based tools (`tsx` in dev, `tsup` in production) can. See [Architecture](./architecture.md#monorepo-layout) for the full explanation.
 
-## Smoke-testing the save flow end to end
+## Smoke-testing the API
+
+The save flow (Item endpoints and the worker's queue) isn't built yet (see [Queue](./queue.md)); what runs today is auth:
 
 1. `docker compose up -d`
-2. Configure and apply `.env` + migrations as above
-3. `pnpm --filter api dev` and `pnpm --filter worker dev` in separate terminals
-4. `POST /items` with a JSON body `{ "url": "https://example.com/some-article" }` and header `x-user-id: <a real user id in the users table>` — see [API](./api.md)
-5. The worker picks the job off the queue, fetches metadata (currently stubbed), and flips the item's status to `ready`
-6. `GET /items` with the same `x-user-id` header returns the processed item — or start `apps/web` and see it on the feed page directly
+2. Configure and apply `.env` + migrations as above, including the Google OAuth client from [Environment Variables](./environment-variables.md)
+3. `pnpm --filter api dev`
+4. `curl http://localhost:4000/health` returns `{ "status": "ok" }`, and `curl http://localhost:4000/me` returns `401` in the `unauthorized` error envelope — see [API](./api.md)
+5. Sign in with Google through `POST /api/auth/sign-in/social`, then `GET /me` with the Session cookie returns the signed-in User
