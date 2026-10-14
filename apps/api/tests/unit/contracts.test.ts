@@ -3,7 +3,7 @@ import Fastify from "fastify";
 import rateLimit from "@fastify/rate-limit";
 import { z } from "zod";
 import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
-import { registerContracts } from "./contracts";
+import { registerContracts } from "@/contracts";
 
 // A test-only route that declares a body and a response contract, so the
 // shared wiring (type provider + error handler) can be exercised end to end.

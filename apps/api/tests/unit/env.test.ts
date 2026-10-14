@@ -16,7 +16,7 @@ function loadEnv(overrides: Record<string, string | undefined> = {}) {
     vi.stubEnv(name, value);
   }
   vi.resetModules();
-  return import("./env").then((module) => module.env);
+  return import("@/env").then((module) => module.env);
 }
 
 beforeEach(() => {

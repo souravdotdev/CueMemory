@@ -9,7 +9,7 @@ import {
 } from "@cue-memory/auth";
 import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
 import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
-import { registerContracts } from "./contracts";
+import { registerContracts } from "@/contracts";
 
 // An active User with a Google avatar; each test overrides only what it's about.
 const user = (overrides: Partial<User> = {}): User => ({

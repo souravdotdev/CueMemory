@@ -23,6 +23,8 @@ const schema = z.object({
   AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
 });
 
+export type Env = z.infer<typeof schema>;
+
 const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
