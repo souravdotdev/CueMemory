@@ -14,8 +14,8 @@ import {
 import { users } from "./auth";
 import { items } from "./items";
 
-// The Items domain's Tag sources and Tag name rule (slugifyTagName); the Items
-// package checks the two agree.
+// The Items domain's Tag sources and Tag name rule (slugifyTagName); the API's
+// schema-agreement test checks the two agree.
 export const tagSourceEnum = pgEnum("tag_source", ["ai", "user"]);
 
 export const tagNameRule = {

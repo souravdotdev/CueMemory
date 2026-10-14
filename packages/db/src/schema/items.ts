@@ -12,7 +12,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { users } from "./auth";
 
-// The Items domain's Item types and Item statuses; the Items package checks the two agree.
+// The Items domain's Item types and Item statuses; the API's schema-agreement
+// test checks the two agree.
 export const itemTypeEnum = pgEnum("item_type", [
   "article",
   "tweet",

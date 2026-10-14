@@ -10,7 +10,7 @@ Shared config lives in `packages/typescript-config`, three bases:
 - `library.json` — extends `base`, adds `declaration`/`declarationMap` (for editor go-to-definition into internal packages)
 - `nextjs.json` — extends `base`, adds JSX/Next.js plugin settings
 
-Every app/package has its own `tsconfig.json` extending one of these (never a root-level `tsconfig.json` — each package's config stays local so a change to one package's types doesn't invalidate every other package's Turborepo cache). Internal packages use Node.js subpath-style resolution (`moduleResolution: "bundler"`) rather than TS path aliases, so JIT-imported packages resolve correctly without a build step.
+Every app/package has its own `tsconfig.json` extending one of these (never a root-level `tsconfig.json` — each package's config stays local so a change to one package's types doesn't invalidate every other package's Turborepo cache). Internal packages use Node.js subpath-style resolution (`moduleResolution: "bundler"`) rather than TS path aliases, so JIT-imported packages resolve correctly without a build step. The one alias is inside `apps/api`: `@/*` points at its own `src/` (so `@/domain/errors` rather than long relative paths), and `apps/api/vitest.config.ts` repeats it for tests; `tsx` and `tsup` read it from `tsconfig.json`. `apps/api` also turns on `experimentalDecorators` for InversifyJS, deliberately without `emitDecoratorMetadata` (see [Clean Architecture](./clean-architecture.md#tokens-the-container-and-scopes)).
 
 Pinned to `typescript@^6.0.3` everywhere — not `latest` (TypeScript 7 is out but `typescript-eslint` doesn't support it yet as a peer dependency; pinning avoids the peer-dependency conflict rather than fighting it per-install).
 
@@ -26,7 +26,7 @@ Shared config lives in `packages/eslint-config` (ESLint 9, flat config format):
 - `node-library.js` — thin wrapper around `base.js`; used by `apps/api`, `apps/worker`, and every `packages/*` package
 - `next.js` — `base.js`'s rules plus `eslint-config-next`'s React/JSX-a11y/Next-specific rules (core-web-vitals); used only by `apps/web`
 
-Every package has a two-line `eslint.config.js` importing the right shared config, and a `lint` script (`eslint .`).
+Every package has a short `eslint.config.js` importing the right shared config, and a `lint` script (`eslint .`). `apps/api`'s adds the dependency-rule lint guard: `no-restricted-imports` stops `src/domain/` and `src/application/` from importing Drizzle, Fastify, Better Auth, postgres, ioredis or `@cue-memory/db` (see [Clean Architecture](./clean-architecture.md#lint-guard)).
 
 Also pinned rather than `latest`: `eslint@^9.39.5` and `@eslint/js@^9.39.0` — `eslint-config-next`'s transitive plugins (`eslint-plugin-react`, `eslint-plugin-jsx-a11y`, `eslint-plugin-import`) don't yet declare ESLint 10 as a supported peer.
 
@@ -40,7 +40,7 @@ Root-level only — `.prettierrc.json` and `.prettierignore` at the repo root, `
 
 Config (`.prettierrc.json`): `printWidth: 100`, `trailingComma: "all"` — everything else is Prettier 3's defaults.
 
-Ignored (`.prettierignore`): `pnpm-lock.yaml`, `dist/`, `.next/`, `.turbo/`, `packages/db/drizzle/` (generated migration SQL). `node_modules` and VCS directories are ignored by Prettier automatically.
+Ignored (`.prettierignore`): `pnpm-lock.yaml`, `dist/`, `.next/`, `.turbo/`, `packages/db/migrations/` (generated migration SQL). `node_modules` and VCS directories are ignored by Prettier automatically.
 
 ```bash
 pnpm format         # prettier --write . — reformats in place
@@ -77,7 +77,7 @@ Not set up: editor-level format-on-save config (`.vscode/settings.json`). Reason
 
 `.github/workflows/ci.yml` — two jobs, the machine-enforced backstop for exactly what's already enforced locally (above). Local hooks only run on commits made on a machine that has them installed; CI catches `--no-verify`, a fork PR where hooks never ran, or anything else that slipped past `.husky/`.
 
-- **`ci`** (every push to `main`, every PR): installs with `pnpm install --frozen-lockfile` (fails loudly on any `package.json`/`pnpm-lock.yaml` drift, rather than silently rewriting the lockfile), then `pnpm format:check` first since it's the fastest check, then a single `pnpm exec turbo run lint check-types test build` — the same command used for local verification throughout this project, letting Turborepo parallelize across all 12 workspace packages respecting their dependency graph rather than four separate sequential invocations. No Postgres/Redis service containers are configured — the whole point of the fakes-over-real-infra approach in [Testing](./testing.md) is that the suite doesn't need them.
+- **`ci`** (every push to `main`, every PR): installs with `pnpm install --frozen-lockfile` (fails loudly on any `package.json`/`pnpm-lock.yaml` drift, rather than silently rewriting the lockfile), then `pnpm format:check` first since it's the fastest check, then a single `pnpm exec turbo run lint check-types test build` — the same command used for local verification throughout this project, letting Turborepo parallelize across every workspace package respecting their dependency graph rather than four separate sequential invocations. No Postgres/Redis service containers are configured — the whole point of the fakes-over-real-infra approach in [Testing](./testing.md) is that the suite doesn't need them.
 - **`commitlint`** (PRs only): checks out full history and lints every commit in the PR's range against the same `commitlint.config.js` used locally — the CI-side version of what `.husky/commit-msg` already does, for the cases that hook can't reach.
 
 There's no Turborepo Remote Cache token configured, so without help every CI run would start fully cold. `.turbo` (the local task-output cache — confirmed by inspection to be where Turborepo actually writes cached results, at the repo root) is cached across runs via `actions/cache`, keyed on the commit SHA with an OS-level restore-key fallback, so unchanged packages skip re-running instead of every run paying the full 26-task cost.

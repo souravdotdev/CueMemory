@@ -121,7 +121,7 @@ There are no Collections. Organisation is tags only.
 ## 11. Technical Architecture
 
 - **Web app**: Next.js.
-- **API**: Fastify. Every request and response goes through the shared zod contracts package (ADR 0001).
+- **API**: Fastify. Every request and response goes through the shared zod schemas in `packages/shared` (ADR 0001). The API is organised by layer, with use-case classes wired by an InversifyJS container (ADR 0004).
 - **Worker**: BullMQ on Redis. It handles processing, AI tagging, embeddings, digest sending, and Reminders later. Saving never waits on slow work.
 - **Postgres + pgvector**: all structured data plus embeddings. No separate vector database at this scale.
 - **Object storage** (S3-compatible, private bucket): Thumbnails, served through short-lived signed URLs, and uploads later.

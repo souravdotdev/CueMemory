@@ -7,7 +7,7 @@ const toolImports = [
   { group: ["drizzle-orm", "drizzle-orm/*"], message: "Drizzle belongs in infrastructure." },
   {
     group: ["fastify", "fastify/*", "@fastify/*", "fastify-*"],
-    message: "Fastify belongs in presentation.",
+    message: "Fastify belongs in interface.",
   },
   { group: ["better-auth", "better-auth/*"], message: "Better Auth belongs in infrastructure." },
   { group: ["postgres", "postgres/*"], message: "Postgres belongs in infrastructure." },
