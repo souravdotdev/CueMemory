@@ -312,9 +312,9 @@ importers:
 
   packages/items:
     dependencies:
-      '@cue-memory/auth':
+      '@cue-memory/db':
         specifier: workspace:*
-        version: link:../auth
+        version: link:../db
       '@cue-memory/shared':
         specifier: workspace:*
         version: link:../shared

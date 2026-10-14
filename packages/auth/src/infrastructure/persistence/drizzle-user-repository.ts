@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { User, UserRepository, UserSignInChanges } from "../../domain";
 import type { AuthDatabase } from "./auth-database";
-import { users } from "./schema";
+import { users } from "@cue-memory/db/schema";
 import { toUser } from "./user-mappers";
 
 export class DrizzleUserRepository implements UserRepository {

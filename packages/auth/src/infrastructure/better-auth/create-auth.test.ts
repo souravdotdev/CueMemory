@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/postgres-js";
 import type { UserRepository } from "../../domain";
-import * as schema from "../persistence/schema";
+import * as schema from "@cue-memory/db/schema";
 import { createAuth, type AuthConfig } from "./create-auth";
 
 const config: AuthConfig = {

@@ -1,4 +1,3 @@
-import { users } from "@cue-memory/auth/schema";
 import { sql } from "drizzle-orm";
 import {
   check,
@@ -12,11 +11,17 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { TAG_SOURCES } from "../../../domain/tag";
-import { MAX_TAG_NAME_LENGTH, TAG_NAME_PATTERN } from "../../../domain/tag-name";
+import { users } from "./auth";
 import { items } from "./items";
 
-export const tagSourceEnum = pgEnum("tag_source", TAG_SOURCES);
+// The Items domain's Tag sources and Tag name rule (slugifyTagName); the Items
+// package checks the two agree.
+export const tagSourceEnum = pgEnum("tag_source", ["ai", "user"]);
+
+export const tagNameRule = {
+  pattern: "^[a-z0-9+#.]+(-[a-z0-9+#.]+)*$",
+  maxLength: 50,
+} as const;
 
 export const tags = pgTable(
   "tags",
@@ -38,7 +43,7 @@ export const tags = pgTable(
     // Backstop for slugifyTagName: a skipped normalization step can't store a non-slug.
     check(
       "tags_name_is_slug",
-      sql`${table.name} ~ '${sql.raw(TAG_NAME_PATTERN)}' AND char_length(${table.name}) <= ${sql.raw(String(MAX_TAG_NAME_LENGTH))}`,
+      sql`${table.name} ~ '${sql.raw(tagNameRule.pattern)}' AND char_length(${table.name}) <= ${sql.raw(String(tagNameRule.maxLength))}`,
     ),
   ],
 );

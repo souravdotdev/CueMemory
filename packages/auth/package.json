@@ -5,8 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./database": "./src/infrastructure/persistence/database.ts",
-    "./schema": "./src/infrastructure/persistence/schema/index.ts"
+    "./database": "./src/infrastructure/persistence/database.ts"
   },
   "scripts": {
     "lint": "eslint .",

@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./schema": "./src/infrastructure/persistence/schema/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "lint": "eslint .",
@@ -13,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cue-memory/auth": "workspace:*",
+    "@cue-memory/db": "workspace:*",
     "@cue-memory/shared": "workspace:*",
     "drizzle-orm": "^0.45.2"
   },

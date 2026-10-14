@@ -1,5 +1,5 @@
 import type { Item } from "../../domain/item";
-import { items } from "./schema/items";
+import type { items } from "@cue-memory/db/schema";
 
 // Every field passes through unchanged, dates included; ISO strings are the
 // contract mapper's job (see ADR 0001). search_vector is a search detail, not part of the Item.

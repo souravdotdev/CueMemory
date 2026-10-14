@@ -1,5 +1,5 @@
 import type { User } from "../../domain/user";
-import { users } from "./schema/auth";
+import { users } from "@cue-memory/db/schema";
 
 // `emailVerified`/`updatedAt` are better-auth internals with no use case —
 // deliberately dropped here rather than spread, and `image` (the Drizzle key

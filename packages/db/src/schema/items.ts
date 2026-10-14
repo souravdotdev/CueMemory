@@ -1,4 +1,3 @@
-import { users } from "@cue-memory/auth/schema";
 import { type SQL, sql } from "drizzle-orm";
 import {
   check,
@@ -11,11 +10,19 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import { ITEM_STATUSES, ITEM_TYPES } from "../../../domain/item";
+import { users } from "./auth";
 
-export const itemTypeEnum = pgEnum("item_type", ITEM_TYPES);
+// The Items domain's Item types and Item statuses; the Items package checks the two agree.
+export const itemTypeEnum = pgEnum("item_type", [
+  "article",
+  "tweet",
+  "video",
+  "image",
+  "pdf",
+  "link",
+]);
 
-export const itemStatusEnum = pgEnum("item_status", ITEM_STATUSES);
+export const itemStatusEnum = pgEnum("item_status", ["processing", "ready", "failed"]);
 
 // Postgres full-text search vector; drizzle-orm has no built-in tsvector column.
 const tsvector = customType<{ data: string }>({

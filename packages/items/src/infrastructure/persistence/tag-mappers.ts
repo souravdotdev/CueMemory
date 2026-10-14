@@ -1,5 +1,5 @@
 import type { Tag, TagLink } from "../../domain/tag";
-import type { itemTags, tags } from "./schema/tags";
+import type { itemTags, tags } from "@cue-memory/db/schema";
 
 // Dates pass through unchanged; ISO strings are the contract mapper's job (see ADR 0001).
 export function toTag(row: typeof tags.$inferSelect): Tag {

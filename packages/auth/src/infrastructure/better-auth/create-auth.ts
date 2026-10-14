@@ -3,7 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import type { UserRepository } from "../../domain";
 import type { AuthDatabase } from "../persistence/auth-database";
-import { accounts, sessions, users, verifications } from "../persistence/schema";
+import { accounts, sessions, users, verifications } from "@cue-memory/db/schema";
 import { createSignInHook } from "./sign-in-hook";
 
 export type { AuthDatabase } from "../persistence/auth-database";
