@@ -1,11 +1,16 @@
 import { eq } from "drizzle-orm";
-import type { User, UserRepository, UserSignInChanges } from "../../domain";
-import type { AuthDatabase } from "./auth-database";
+import { inject, injectable } from "inversify";
 import { users } from "@cue-memory/db/schema";
-import { toUser } from "./user-mappers";
+import { TOKENS } from "@/di/tokens";
+import type { User } from "@/domain/entities/User";
+import type { IUserRepository, UserSignInChanges } from "@/domain/repositories/IUserRepository";
+import type { Database } from "@/infrastructure/database/Database";
+import { toUser } from "@/infrastructure/mappers/userMapper";
 
-export class DrizzleUserRepository implements UserRepository {
-  constructor(private readonly db: AuthDatabase) {}
+/** Users in the `users` table, through Drizzle. */
+@injectable()
+export class DrizzleUserRepository implements IUserRepository {
+  constructor(@inject(TOKENS.Database) private readonly db: Database) {}
 
   async findById(id: string): Promise<User | null> {
     const [row] = await this.db.select().from(users).where(eq(users.id, id)).limit(1);

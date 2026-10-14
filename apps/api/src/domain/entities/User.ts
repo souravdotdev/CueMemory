@@ -8,3 +8,12 @@ export interface User {
   deletedAt: Date | null;
   createdAt: Date;
 }
+
+/**
+ * What the sign-in provider says about a User right now. `name` is null when the
+ * provider sends none, so an existing Display name is kept rather than blanked.
+ */
+export interface SignInProfile {
+  name: string | null;
+  profileImg: string | null;
+}

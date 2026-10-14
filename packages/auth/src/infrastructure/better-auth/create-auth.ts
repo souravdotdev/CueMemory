@@ -1,10 +1,9 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import type { UserRepository } from "../../domain";
 import type { AuthDatabase } from "../persistence/auth-database";
 import { accounts, sessions, users, verifications } from "@cue-memory/db/schema";
-import { createSignInHook } from "./sign-in-hook";
+import { createSignInHook, type SignInHookDeps } from "./sign-in-hook";
 
 export type { AuthDatabase } from "../persistence/auth-database";
 
@@ -24,10 +23,8 @@ export interface AuthConfig {
   cookieDomain?: string;
 }
 
-export interface AuthDeps {
-  /** Where the sign-in hook reads Users and records sign-ins. */
-  users: UserRepository;
-}
+/** What the sign-in hook runs: the API's sign-in rules, resolved from its container. */
+export type AuthDeps = SignInHookDeps;
 
 /**
  * Builds the Better Auth instance: Google sign-in only, over the Auth tables.
@@ -75,7 +72,7 @@ export function createAuth(db: AuthDatabase, config: AuthConfig, deps: AuthDeps)
     },
     databaseHooks: {
       // The sign-in rules: refuse, restore, and refresh the profile (Auth ADR 0001).
-      session: { create: { before: createSignInHook(deps.users) } },
+      session: { create: { before: createSignInHook(deps) } },
     },
     account: {
       // Sign-in identities' Google tokens are encrypted at rest.

@@ -7,12 +7,14 @@ export const TOKENS = {
   Env: Symbol("Env"),
   /** The Drizzle database over the shared Postgres client. */
   Database: Symbol("Database"),
-  /** Where Users are stored (`UserRepository`). */
-  UserRepository: Symbol("UserRepository"),
+  /** Where Users are stored (`IUserRepository`). */
+  UserRepository: Symbol("IUserRepository"),
   /** The Better Auth instance; routes use its web-standard request handler. */
   Auth: Symbol("Auth"),
   /** Finds the User behind a request's Session (`ISessionProvider`). */
   SessionProvider: Symbol("ISessionProvider"),
+  /** The sign-in rules run before a Session is created (`AdmitSignInUseCase`). */
+  AdmitSignInUseCase: Symbol("AdmitSignInUseCase"),
   /** Who is calling; refuses no Session or a deleted User (`ResolveSignedInUserUseCase`). */
   ResolveSignedInUserUseCase: Symbol("ResolveSignedInUserUseCase"),
   /** The signed-in User as the `GET /me` output (`GetMeUseCase`). */

@@ -1,22 +1,22 @@
 import "reflect-metadata";
 import { Container } from "inversify";
 import type { Redis } from "ioredis";
-import {
-  createAuth,
-  DrizzleUserRepository,
-  type AuthDatabase,
-  type UserRepository,
-} from "@cue-memory/auth";
+import { createAuth } from "@cue-memory/auth";
 import { db } from "@cue-memory/auth/database";
+import { AdmitSignInUseCase } from "@/application/use-cases/auth/AdmitSignInUseCase";
 import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
 import { ResolveSignedInUserUseCase } from "@/application/use-cases/auth/ResolveSignedInUserUseCase";
 import { TOKENS } from "@/di/tokens";
 import type { ISessionProvider } from "@/domain/providers/ISessionProvider";
+import type { IUserRepository } from "@/domain/repositories/IUserRepository";
+import { GRACE_PERIOD_DAYS } from "@/domain/rules/signInDecision";
 import { env, type Env } from "@/env";
 import {
   BetterAuthSessionProvider,
   type SessionApi,
 } from "@/infrastructure/auth/BetterAuthSessionProvider";
+import type { Database } from "@/infrastructure/database/Database";
+import { DrizzleUserRepository } from "@/infrastructure/repositories/DrizzleUserRepository";
 import { MeController } from "@/interface/controllers/MeController";
 import { rateLimitRedis } from "@/rate-limit-redis";
 
@@ -31,12 +31,13 @@ export function createContainer(): Container {
   const container = new Container({ defaultScope: "Singleton" });
 
   container.bind<Env>(TOKENS.Env).toConstantValue(env);
-  container.bind<AuthDatabase>(TOKENS.Database).toConstantValue(db);
+  container.bind<Database>(TOKENS.Database).toConstantValue(db);
   container.bind<Redis>(TOKENS.RateLimitRedis).toConstantValue(rateLimitRedis);
 
   container
-    .bind<UserRepository>(TOKENS.UserRepository)
-    .toDynamicValue((context) => new DrizzleUserRepository(context.get(TOKENS.Database)));
+    .bind<IUserRepository>(TOKENS.UserRepository)
+    .to(DrizzleUserRepository)
+    .inSingletonScope();
 
   container.bind<Auth>(TOKENS.Auth).toDynamicValue((context) => {
     const config = context.get<Env>(TOKENS.Env);
@@ -49,7 +50,12 @@ export function createContainer(): Container {
         google: { clientId: config.GOOGLE_CLIENT_ID, clientSecret: config.GOOGLE_CLIENT_SECRET },
         cookieDomain: config.AUTH_COOKIE_DOMAIN,
       },
-      { users: context.get(TOKENS.UserRepository) },
+      {
+        // The session-create hook runs a fresh AdmitSignInUseCase for every sign-in.
+        admitSignIn: (input) =>
+          container.get<AdmitSignInUseCase>(TOKENS.AdmitSignInUseCase).execute(input),
+        gracePeriodDays: GRACE_PERIOD_DAYS,
+      },
       // BetterAuthSessionProvider takes this instance for its get-session.
     ) satisfies { api: SessionApi };
   });
@@ -59,6 +65,7 @@ export function createContainer(): Container {
     .to(BetterAuthSessionProvider)
     .inSingletonScope();
 
+  container.bind(TOKENS.AdmitSignInUseCase).to(AdmitSignInUseCase).inTransientScope();
   container
     .bind(TOKENS.ResolveSignedInUserUseCase)
     .to(ResolveSignedInUserUseCase)

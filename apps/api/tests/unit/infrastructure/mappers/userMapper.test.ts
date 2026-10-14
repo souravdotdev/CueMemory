@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toUser } from "./user-mappers";
+import { toUser } from "@/infrastructure/mappers/userMapper";
 
 type UserRow = Parameters<typeof toUser>[0];
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideSignIn, GRACE_PERIOD_DAYS } from "./sign-in-decision";
+import { decideSignIn, GRACE_PERIOD_DAYS } from "@/domain/rules/signInDecision";
 
 const DAY = 24 * 60 * 60 * 1000;
 const now = new Date("2026-06-01T12:00:00.000Z");
