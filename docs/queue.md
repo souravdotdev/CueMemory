@@ -16,18 +16,29 @@ Async processing is handled with [BullMQ](https://docs.bullmq.io) backed by Redi
 
 ### URL rules
 
-`itemTypeFromUrl` is pure: it returns an Item type, or null when no rule matches (the use case then fetches the page). Rules run in order and the first match wins. Hosts are compared lower-case without a leading `www.` or `m.`; only the URL's path is matched, never its query or fragment.
+`itemTypeFromUrl(url)` (`domain/rules/itemTypeFromUrl.ts`) is pure and works on any URL, pasted or reached by redirect: it returns an Item type, or null when no rule matches (the use case then fetches the page). It tries the **known-site table** first, then the **file extension** ending the path. Only the URL's path is matched, never its query or fragment.
 
-| URL                                                          | Item type       |
-| ------------------------------------------------------------ | --------------- |
-| `x.com` / `twitter.com` with `/<user>/status/<id>`           | Post            |
-| `youtube.com/watch`, `/shorts/…`, `/live/…`; `youtu.be/<id>` | Video           |
-| `instagram.com/reel/…` or `/reels/…`                         | Video           |
-| `instagram.com/p/…`                                          | Image           |
-| `reddit.com/r/<sub>/comments/…`; `redd.it/<id>`              | Article         |
-| path ends `.pdf` (any case)                                  | PDF             |
-| path ends `.png .jpg .jpeg .gif .webp .svg .avif` (any case) | Image           |
-| anything else                                                | no rule (fetch) |
+**Known sites** (`domain/rules/knownSites.ts`, `KNOWN_SITES`) is plain data: each row is hosts, an optional path pattern and an Item type, so adding a site is one row. Hosts are compared lower-case without a leading `www.` or `m.`; `*.example.com` matches any subdomain and `*` any host. Rows run in order and the first match wins, so a GitHub issue (Post) sits above a GitHub repository (Code). Profiles, homepages and listings on these hosts match no row and are fetched like any other page.
+
+| Item type | Known sites                                                                                                                                                                                                                                                             |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Video     | YouTube (`/watch`, `/shorts/`, `/live/`, `youtu.be`), Vimeo, TikTok videos and `vm.`/`vt.` short links, Twitch videos and clips, Dailymotion (`dai.ly`), Loom, Instagram reels, Facebook videos (`fb.watch`)                                                            |
+| Audio     | Spotify tracks, albums, playlists, episodes and shows; SoundCloud tracks and sets; Apple Podcasts; Apple Music albums, playlists and songs; Bandcamp tracks and albums                                                                                                  |
+| Post      | X/Twitter `/<user>/status/<id>`, Threads, Bluesky, Mastodon `/@<user>/<id>` on any host, LinkedIn posts, Facebook posts, Reddit threads (`redd.it`), Instagram posts (`/p/`), GitHub issues, pull requests and discussions, Stack Overflow and Stack Exchange questions |
+| Code      | GitHub, GitLab and Bitbucket repositories, files and folders; Gist; CodePen; CodeSandbox; Replit; npm and PyPI package pages                                                                                                                                            |
+| Article   | Medium, Substack, dev.to and Hashnode pieces; LinkedIn articles (`/pulse/`)                                                                                                                                                                                             |
+| Image     | Imgur, Flickr photos (`flic.kr`), Unsplash photos                                                                                                                                                                                                                       |
+
+**File extensions** (`domain/rules/itemTypeFromExtension.ts`), any case:
+
+| Path ends                                                                                                                                                                                  | Item type       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| `.pdf`                                                                                                                                                                                     | PDF             |
+| `.png .jpg .jpeg .gif .webp .svg .avif .heic .bmp .tif .tiff`                                                                                                                              | Image           |
+| `.mp3 .wav .m4a .ogg .oga .opus .flac .aac`                                                                                                                                                | Audio           |
+| `.mp4 .m4v .mov .webm .mkv .avi`                                                                                                                                                           | Video           |
+| archives (`.zip .rar .7z .tar .gz .tgz .bz2 .xz`), documents (`.doc(x) .xls(x) .ppt(x) .odt .ods .odp .rtf .epub`), installers and disk images (`.dmg .pkg .exe .msi .apk .deb .rpm .iso`) | File            |
+| anything else                                                                                                                                                                              | no rule (fetch) |
 
 ### Response rules
 
