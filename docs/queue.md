@@ -20,7 +20,7 @@ Async processing is handled with [BullMQ](https://docs.bullmq.io) backed by Redi
 
 | URL                                                          | Item type       |
 | ------------------------------------------------------------ | --------------- |
-| `x.com` / `twitter.com` with `/<user>/status/<id>`           | Tweet           |
+| `x.com` / `twitter.com` with `/<user>/status/<id>`           | Post            |
 | `youtube.com/watch`, `/shorts/…`, `/live/…`; `youtu.be/<id>` | Video           |
 | `instagram.com/reel/…` or `/reels/…`                         | Video           |
 | `instagram.com/p/…`                                          | Image           |
@@ -49,4 +49,4 @@ What else it builds on:
 
 ## Not yet built
 
-The worker follows the same layering as the API (see [Clean Architecture](./clean-architecture.md#the-worker)). Real extraction (Open Graph for articles, oEmbed for tweets, the YouTube API for videos, text extraction for PDFs) and the AI tag-suggestion call are not implemented; see product plan section 6 for the intended scope. Why an Item failed is logged by the worker with the Item id, not stored (see [Database](./database.md#schema)).
+The worker follows the same layering as the API (see [Clean Architecture](./clean-architecture.md#the-worker)). Real extraction (Open Graph for articles, oEmbed for posts, the YouTube API for videos, text extraction for PDFs) and the AI tag-suggestion call are not implemented; see product plan section 6 for the intended scope. Why an Item failed is logged by the worker with the Item id, not stored (see [Database](./database.md#schema)).

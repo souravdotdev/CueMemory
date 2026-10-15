@@ -31,31 +31,43 @@ _Avoid_: AI-generated flag, origin
 ### Item types
 
 **Item type**:
-What kind of thing an Item is: Article, Tweet, Video, Image, PDF, or Link.
+What form an Item's content takes: Article, Post, Video, Image, Audio, PDF, Code, File, or Link.
 _Avoid_: Category, kind
 
 **Article**:
-The Item type for a piece of writing to read, including Reddit threads and pages that declare themselves articles.
-_Avoid_: Post, page, blog
+The Item type for a written piece: a page that declares itself an article, or a page on a known publishing site such as Medium, Substack or dev.to. Documentation pages are Articles; a docs landing page is a Link.
+_Avoid_: Page, blog, blog post
 
-**Tweet**:
-The Item type for a post on X (formerly Twitter).
-_Avoid_: Post, X post
+**Post**:
+The Item type for something a person published on a social network: X, Threads, Bluesky, Mastodon, LinkedIn, Facebook, Reddit threads, Instagram posts, GitHub issues, pull requests and discussions, and Stack Overflow questions. Instagram reels and TikToks are Videos.
+_Avoid_: Tweet, X post, status
 
 **Video**:
-The Item type for something to watch, including YouTube videos and Instagram reels.
+The Item type for something to watch, including YouTube videos, Instagram reels and TikToks.
 _Avoid_: Clip, reel
 
 **Image**:
-The Item type for a picture, including Instagram posts and image files.
+The Item type for a picture, including image files.
 _Avoid_: Photo, picture
+
+**Audio**:
+The Item type for something to listen to: music, podcasts and audio files, including Spotify, SoundCloud, Apple Podcasts and Bandcamp.
+_Avoid_: Podcast, track, song
 
 **PDF**:
 The Item type for a PDF document.
 _Avoid_: Document, file
 
+**Code**:
+The Item type for source code: repositories, files, folders, gists, snippets and sandboxes (GitHub, GitLab, Bitbucket, Gist, CodePen, CodeSandbox, Replit), and package pages on npm or PyPI. Documentation about code is an Article.
+_Avoid_: Repo, snippet, project
+
+**File**:
+The Item type for a download that isn't a PDF, Image, Video or Audio, such as a `.zip`, `.docx`, `.xlsx` or `.dmg`.
+_Avoid_: Download, attachment, document
+
 **Link**:
-The Item type for everything else: anything that isn't recognisably one of the other types.
+The Item type for everything else, including homepages, product pages and docs landing pages: anything that isn't recognisably one of the other types.
 _Avoid_: Other, generic, unknown
 
 ### Processing

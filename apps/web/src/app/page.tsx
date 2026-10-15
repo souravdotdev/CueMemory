@@ -1,5 +1,6 @@
 import { Card } from "@cue-memory/ui/card";
 import { fetchItems } from "@/lib/api";
+import { itemTypeLabel } from "@/lib/item-type-label";
 
 export default async function FeedPage() {
   const { items } = await fetchItems();
@@ -15,7 +16,7 @@ export default async function FeedPage() {
           <Card>
             <strong>{item.title ?? item.sourceUrl}</strong>
             <div style={{ fontSize: "0.85rem", opacity: 0.7 }}>
-              {item.type} · {item.status}
+              {[itemTypeLabel(item.type), item.status].filter(Boolean).join(" · ")}
             </div>
           </Card>
         </li>

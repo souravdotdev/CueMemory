@@ -16,10 +16,13 @@ import { users } from "./auth";
 // test checks the two agree.
 export const itemTypeEnum = pgEnum("item_type", [
   "article",
-  "tweet",
+  "post",
   "video",
   "image",
+  "audio",
   "pdf",
+  "code",
+  "file",
   "link",
 ]);
 

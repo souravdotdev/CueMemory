@@ -43,6 +43,13 @@
       "when": 1791305759143,
       "tag": "0005_add_items_search_vector",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792060151155,
+      "tag": "0006_rename_tweet_to_post_and_add_item_types",
+      "breakpoints": true
     }
   ]
 }

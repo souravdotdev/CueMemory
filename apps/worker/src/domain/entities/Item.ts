@@ -1,6 +1,16 @@
 // The same Item types and statuses as the API's Items domain and the database
 // enums; tests/unit/domain/schema-agreement.test.ts keeps them in step.
-export const ITEM_TYPES = ["article", "tweet", "video", "image", "pdf", "link"] as const;
+export const ITEM_TYPES = [
+  "article",
+  "post",
+  "video",
+  "image",
+  "audio",
+  "pdf",
+  "code",
+  "file",
+  "link",
+] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
 export const ITEM_STATUSES = ["processing", "ready", "failed"] as const;

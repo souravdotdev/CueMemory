@@ -12,7 +12,7 @@ const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|svg|avif)$/i;
 const URL_RULES: readonly UrlRule[] = [
   {
     // A post on X: /<user>/status/<id>
-    type: "tweet",
+    type: "post",
     matches: (host, path) =>
       (host === "x.com" || host === "twitter.com") && /^\/[^/]+\/status\/\d+(\/|$)/.test(path),
   },

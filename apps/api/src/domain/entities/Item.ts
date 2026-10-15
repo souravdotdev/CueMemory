@@ -1,5 +1,15 @@
-// New Item types are added later by extending this list (see spec #13).
-export const ITEM_TYPES = ["article", "tweet", "video", "image", "pdf", "link"] as const;
+// New Item types are added by extending this list (see spec #73).
+export const ITEM_TYPES = [
+  "article",
+  "post",
+  "video",
+  "image",
+  "audio",
+  "pdf",
+  "code",
+  "file",
+  "link",
+] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
 export const ITEM_STATUSES = ["processing", "ready", "failed"] as const;

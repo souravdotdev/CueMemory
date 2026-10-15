@@ -4,11 +4,11 @@ import { itemTypeFromUrl } from "@/domain/rules/itemTypeFromUrl";
 describe("itemTypeFromUrl", () => {
   it.each([
     // X or Twitter: /<user>/status/<id>
-    ["https://x.com/jack/status/20", "tweet"],
-    ["https://twitter.com/jack/status/20", "tweet"],
-    ["https://www.twitter.com/jack/status/20?s=20", "tweet"],
-    ["https://m.twitter.com/jack/status/20", "tweet"],
-    ["https://x.com/jack/status/20/photo/1", "tweet"],
+    ["https://x.com/jack/status/20", "post"],
+    ["https://twitter.com/jack/status/20", "post"],
+    ["https://www.twitter.com/jack/status/20?s=20", "post"],
+    ["https://m.twitter.com/jack/status/20", "post"],
+    ["https://x.com/jack/status/20/photo/1", "post"],
     // YouTube: /watch, /shorts/, /live/ and youtu.be
     ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "video"],
     ["https://m.youtube.com/watch?v=dQw4w9WgXcQ&t=42", "video"],
@@ -41,7 +41,7 @@ describe("itemTypeFromUrl", () => {
   });
 
   it.each([
-    // An X profile, a home timeline and a search aren't Tweets
+    // An X profile, a home timeline and a search aren't Posts
     "https://x.com/jack",
     "https://www.twitter.com/jack/likes",
     "https://x.com/search?q=status",
