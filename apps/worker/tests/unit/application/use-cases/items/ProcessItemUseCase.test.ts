@@ -31,7 +31,16 @@ function fetcherAnswering(page: FetchedPage) {
   return { fetchPage: vi.fn(async (_sourceUrl: string) => page) } satisfies IUrlFetcher;
 }
 
-const anHtmlPage: FetchedPage = { contentType: "text/html", htmlHead: "<head></head>" };
+// A fetched page that ended at `finalUrl`, with nothing else to go on unless given.
+const fetched = (fields: Partial<FetchedPage> = {}): FetchedPage => ({
+  finalUrl: "https://arxiv.org/pdf/2401.00001",
+  contentType: null,
+  htmlHead: null,
+  firstBytes: null,
+  ...fields,
+});
+
+const anHtmlPage = fetched({ contentType: "text/html", htmlHead: "<head></head>" });
 
 describe("ProcessItemUseCase", () => {
   it("marks a saved YouTube link Ready as a Video", async () => {
@@ -54,13 +63,17 @@ describe("ProcessItemUseCase", () => {
   });
 
   it.each([
-    [{ contentType: "application/pdf", htmlHead: null }, "pdf"],
-    [{ contentType: "image/webp", htmlHead: null }, "image"],
+    [fetched({ contentType: "application/pdf", firstBytes: new Uint8Array() }), "pdf"],
+    [fetched({ contentType: "image/webp", firstBytes: new Uint8Array() }), "image"],
     [
-      {
+      fetched({ contentType: "application/octet-stream", firstBytes: Buffer.from("%PDF-1.7") }),
+      "pdf",
+    ],
+    [
+      fetched({
         contentType: "text/html",
         htmlHead: '<head><meta property="og:type" content="article"></head>',
-      },
+      }),
       "article",
     ],
     [anHtmlPage, "link"],
@@ -80,6 +93,67 @@ describe("ProcessItemUseCase", () => {
       expect(item).toMatchObject({ status: "ready", type });
     },
   );
+
+  it("types a short link by the URL it leads to", async () => {
+    const { repository, item } = itemsInMemory("https://bit.ly/3xYz");
+    const fetcher = fetcherAnswering(
+      fetched({ ...anHtmlPage, finalUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }),
+    );
+
+    const result = await new ProcessItemUseCase(repository, fetcher).execute({
+      itemId: ITEM_ID,
+      userId: USER_ID,
+    });
+
+    expect(fetcher.fetchPage).toHaveBeenCalledWith("https://bit.ly/3xYz");
+    expect(result).toEqual({ outcome: "ready", type: "video" });
+    expect(item).toMatchObject({ status: "ready", type: "video" });
+  });
+
+  it("types a short link by the URL it leads to even when that page answers vaguely", async () => {
+    const { repository } = itemsInMemory("https://t.co/abc123");
+    const fetcher = fetcherAnswering(
+      fetched({ finalUrl: "https://example.com/report.pdf", contentType: null }),
+    );
+
+    const result = await new ProcessItemUseCase(repository, fetcher).execute({
+      itemId: ITEM_ID,
+      userId: USER_ID,
+    });
+
+    expect(result).toEqual({ outcome: "ready", type: "pdf" });
+  });
+
+  it("prefers a rule on the final URL over the response", async () => {
+    const { repository } = itemsInMemory("https://lnkd.in/eXyZ");
+    const fetcher = fetcherAnswering(
+      fetched({
+        finalUrl: "https://youtu.be/dQw4w9WgXcQ",
+        contentType: "text/html",
+        htmlHead: '<head><meta property="og:type" content="article"></head>',
+      }),
+    );
+
+    const result = await new ProcessItemUseCase(repository, fetcher).execute({
+      itemId: ITEM_ID,
+      userId: USER_ID,
+    });
+
+    expect(result).toEqual({ outcome: "ready", type: "video" });
+  });
+
+  it("never changes the Source URL", async () => {
+    const { repository, item } = itemsInMemory("https://bit.ly/3xYz");
+    const fetcher = fetcherAnswering(fetched({ finalUrl: "https://youtu.be/dQw4w9WgXcQ" }));
+
+    await new ProcessItemUseCase(repository, fetcher).execute({ itemId: ITEM_ID, userId: USER_ID });
+
+    expect(item.sourceUrl).toBe("https://bit.ly/3xYz");
+    expect(repository.markReady).toHaveBeenCalledWith(
+      { itemId: ITEM_ID, userId: USER_ID },
+      "video",
+    );
+  });
 
   it("fails when the fetch fails, so the job is retried", async () => {
     const { repository, item } = itemsInMemory("http://127.0.0.1:4000/health");

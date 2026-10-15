@@ -15,6 +15,9 @@ import {
 } from "@/infrastructure/http/SafeUrlFetcher";
 
 const ARTICLE_HEAD = '<html><head><meta property="og:type" content="article"></head>';
+const PNG_START = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+]);
 
 // A local test server. It listens on loopback, which the real guard refuses,
 // so the fetchers under test treat 127.0.0.1 (and only it) as public too.
@@ -40,6 +43,31 @@ function route(path: string, res: ServerResponse) {
       return res.writeHead(200, { "content-type": "application/pdf" }).end("%PDF-1.7");
     case "/to-article":
       return redirect("/article");
+    case "/short":
+      // A short link: two hops, the second to an absolute URL.
+      return redirect("/short-2");
+    case "/short-2":
+      return redirect(`http://site.test:${port}/pdf`);
+    case "/download":
+      return res
+        .writeHead(200, { "content-type": "application/octet-stream" })
+        .end(Buffer.concat([PNG_START, Buffer.alloc(64 * 1024)]));
+    case "/untyped":
+      // Node sends no Content-Type unless told to.
+      return res.writeHead(200).end("%PDF-1.4");
+    case "/endless-binary": {
+      // A download that never ends, streamed until the client hangs up.
+      openResponses.add(res);
+      res.writeHead(200, { "content-type": "application/octet-stream" });
+      res.write(Buffer.from([0x1a, 0x45]));
+      const chunk = Buffer.alloc(64 * 1024, 0xdf);
+      const pump = () => {
+        while (!res.destroyed && res.write(chunk));
+        if (!res.destroyed) res.once("drain", pump);
+      };
+      setTimeout(pump, 20);
+      return;
+    }
     case "/to-private":
       return redirect("http://10.0.0.1/admin");
     case "/to-metadata":
@@ -130,14 +158,21 @@ describe("SafeUrlFetcher, allowed fetches", () => {
   it("fetches an HTML page's head and sends the CueMemory User-Agent", async () => {
     const page = await localFetcher().fetchPage(at("/article"));
 
-    expect(page).toEqual({ contentType: "text/html; charset=utf-8", htmlHead: ARTICLE_HEAD });
+    expect(page).toEqual({
+      finalUrl: at("/article"),
+      contentType: "text/html; charset=utf-8",
+      htmlHead: ARTICLE_HEAD,
+      firstBytes: null,
+    });
     expect(lastHeaders["user-agent"]).toBe(USER_AGENT);
   });
 
   it("connects only to the checked address (site.test isn't in the real DNS)", async () => {
     await expect(localFetcher().fetchPage(at("/pdf"))).resolves.toEqual({
+      finalUrl: at("/pdf"),
       contentType: "application/pdf",
       htmlHead: null,
+      firstBytes: new Uint8Array(Buffer.from("%PDF-1.7")),
     });
     expect(hits).toEqual(["/pdf"]);
   });
@@ -146,7 +181,41 @@ describe("SafeUrlFetcher, allowed fetches", () => {
     const page = await localFetcher().fetchPage(at("/to-article"));
 
     expect(page.htmlHead).toBe(ARTICLE_HEAD);
+    expect(page.finalUrl).toBe(at("/article"));
     expect(hits).toEqual(["/to-article", "/article"]);
+  });
+
+  it("reports the final URL after a chain of redirects", async () => {
+    const page = await localFetcher().fetchPage(at("/short"));
+
+    expect(page.finalUrl).toBe(at("/pdf"));
+    expect(page.contentType).toBe("application/pdf");
+    expect(hits).toEqual(["/short", "/short-2", "/pdf"]);
+  });
+
+  it("reads only the first 16 bytes of a download", async () => {
+    const page = await localFetcher().fetchPage(at("/download"));
+
+    expect(page).toEqual({
+      finalUrl: at("/download"),
+      contentType: "application/octet-stream",
+      htmlHead: null,
+      firstBytes: new Uint8Array(PNG_START),
+    });
+  });
+
+  it("reads the first bytes of a response without a Content-Type", async () => {
+    const page = await localFetcher().fetchPage(at("/untyped"));
+
+    expect(page.contentType).toBeNull();
+    expect(page.firstBytes).toEqual(new Uint8Array(Buffer.from("%PDF-1.4")));
+  });
+
+  it("stops after the first bytes of a download that never ends", async () => {
+    const page = await localFetcher({ timeoutMs: 2000 }).fetchPage(at("/endless-binary"));
+
+    expect(page.firstBytes).toHaveLength(16);
+    expect(Array.from(page.firstBytes!.subarray(0, 4))).toEqual([0x1a, 0x45, 0xdf, 0xdf]);
   });
 
   it("follows up to 5 redirects", async () => {
@@ -188,8 +257,10 @@ describe("SafeUrlFetcher, allowed fetches", () => {
 
   it("says nothing about a page that isn't there", async () => {
     await expect(localFetcher().fetchPage(at("/gone"))).resolves.toEqual({
+      finalUrl: at("/gone"),
       contentType: null,
       htmlHead: null,
+      firstBytes: null,
     });
   });
 

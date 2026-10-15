@@ -146,7 +146,8 @@ apps/worker/src/
     entities/           Item.ts (the fields Processing needs; ItemRef; Item types and statuses)
     repositories/       IItemRepository.ts (findById, markReady, markFailed)
     providers/          IUrlFetcher.ts (fetchPage)
-    rules/              itemTypeFromUrl.ts, itemTypeFromResponse.ts, mediaType.ts (pure functions)
+    rules/              itemTypeFromUrl.ts, itemTypeFromResponse.ts, itemTypeFromContentType.ts,
+                        itemTypeFromMagicBytes.ts, mediaType.ts (pure functions)
   application/
     use-cases/items/    ProcessItemUseCase, FailItemUseCase
     dto/items/          ProcessItemResult.ts, FailItemResult.ts

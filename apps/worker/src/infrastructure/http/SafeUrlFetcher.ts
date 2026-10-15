@@ -6,6 +6,7 @@ import type { LookupFunction } from "node:net";
 import { isIP } from "node:net";
 import { injectable, unmanaged } from "inversify";
 import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
+import { MAGIC_BYTES_LENGTH } from "@/domain/rules/itemTypeFromMagicBytes";
 import { mediaTypeOf } from "@/domain/rules/mediaType";
 import { isPublicAddress } from "@/infrastructure/http/publicAddress";
 
@@ -46,7 +47,8 @@ const systemResolve = async (hostname: string): Promise<ResolvedAddress[]> =>
  * pinned to those checked addresses (so a second DNS answer can't swap in an
  * internal one); redirects are followed by hand, each hop checked the same
  * way, at most 5; the whole fetch times out after 10 s; at most ~1 MB of an
- * HTML body is read, and only up to `</head>`. Other bodies aren't read.
+ * HTML body is read, and only up to `</head>`; of any other body only the
+ * first 16 bytes are read. It reports the URL it ended at.
  * The container builds it with the defaults; tests construct it directly to
  * pass options.
  */
@@ -153,15 +155,36 @@ export class SafeUrlFetcher implements IUrlFetcher {
     // Any other unsuccessful answer says nothing about the page: it stays a Link.
     if (status < 200 || status >= 300) {
       response.destroy();
-      return { contentType: null, htmlHead: null };
+      return { finalUrl: url.href, contentType: null, htmlHead: null, firstBytes: null };
     }
 
     const contentType = response.headers["content-type"] ?? null;
     if (!HTML_TYPES.has(mediaTypeOf(contentType))) {
-      response.destroy();
-      return { contentType, htmlHead: null };
+      const firstBytes = await this.readFirstBytes(response, signal);
+      return { finalUrl: url.href, contentType, htmlHead: null, firstBytes };
     }
-    return { contentType, htmlHead: await this.readHead(response, signal) };
+    const htmlHead = await this.readHead(response, signal);
+    return { finalUrl: url.href, contentType, htmlHead, firstBytes: null };
+  }
+
+  /** The body's first bytes (its magic bytes), then hangs up. */
+  private async readFirstBytes(
+    response: IncomingMessage,
+    signal: AbortSignal,
+  ): Promise<Uint8Array> {
+    const chunks: Buffer[] = [];
+    let length = 0;
+    try {
+      for await (const chunk of response as AsyncIterable<Buffer>) {
+        if (signal.aborted) throw signal.reason;
+        chunks.push(chunk);
+        length += chunk.length;
+        if (length >= MAGIC_BYTES_LENGTH) break;
+      }
+    } finally {
+      response.destroy();
+    }
+    return new Uint8Array(Buffer.concat(chunks).subarray(0, MAGIC_BYTES_LENGTH));
   }
 
   /** The body up to `</head>`, reading at most `maxBytes`. */

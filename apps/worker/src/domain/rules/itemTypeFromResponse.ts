@@ -1,5 +1,7 @@
 import type { ItemType } from "@/domain/entities/Item";
 import type { FetchedPage } from "@/domain/providers/IUrlFetcher";
+import { itemTypeFromContentType } from "@/domain/rules/itemTypeFromContentType";
+import { itemTypeFromMagicBytes } from "@/domain/rules/itemTypeFromMagicBytes";
 import { mediaTypeOf } from "@/domain/rules/mediaType";
 
 const META_TAG = /<meta\b[^>]*>/gi;
@@ -18,15 +20,22 @@ function openGraphType(htmlHead: string): string | null {
   return null;
 }
 
+// Content-Types that say only "some bytes": the first bytes decide instead.
+const VAGUE_TYPES = new Set(["", "application/octet-stream", "binary/octet-stream"]);
+
 /**
- * Works out an Item type from a fetched page: a PDF or an image by its
- * Content-Type, an Article when an HTML page's head declares `og:type`
- * article, and a Link otherwise.
+ * Works out an Item type from a fetched page: a non-HTML response by its
+ * Content-Type, or by its magic bytes when the Content-Type is missing or
+ * vague; an Article when an HTML page's head declares `og:type` article; and
+ * a Link otherwise.
  */
 export function itemTypeFromResponse(page: FetchedPage): ItemType {
-  const mediaType = mediaTypeOf(page.contentType);
-  if (mediaType === "application/pdf") return "pdf";
-  if (mediaType.startsWith("image/")) return "image";
+  const byContentType = itemTypeFromContentType(page.contentType);
+  if (byContentType) return byContentType;
+  if (VAGUE_TYPES.has(mediaTypeOf(page.contentType))) {
+    const byBytes = itemTypeFromMagicBytes(page.firstBytes);
+    if (byBytes) return byBytes;
+  }
   if (page.htmlHead !== null && openGraphType(page.htmlHead) === "article") return "article";
   return "link";
 }

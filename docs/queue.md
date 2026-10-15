@@ -11,7 +11,7 @@ Async processing is handled with [BullMQ](https://docs.bullmq.io) backed by Redi
 - **Job defaults.** 3 attempts with exponential backoff from 5 s (so retries 5 s and 10 s later), `removeOnComplete: 1000` and `removeOnFail: 5000` so Redis doesn't keep job history forever.
 - **If enqueueing fails** (Redis down), `POST /items` answers `500 internal`. The Item is already stored and stays Processing; there is no retry endpoint yet.
 - **Consumer (`apps/worker`).** `index.ts` builds the container, pings Redis and starts `createItemsWorker` (`interface/itemsWorker.ts`): a BullMQ `Worker` on `ITEMS_QUEUE` over the shared Redis connection. Its job switch, `runItemsJob`, dispatches by `job.name`; an unknown name throws `UnrecoverableError`, so it fails without a retry. The Process Item processor (`interface/processors/processItem.processor.ts`) parses `job.data` with `ProcessItemJobSchema`; an invalid payload also throws `UnrecoverableError`. Otherwise it runs `ProcessItemUseCase` from the worker's container and logs the outcome. On SIGINT/SIGTERM the worker finishes its current job (`worker.close()`), then closes Redis.
-- **Processing.** `ProcessItemUseCase` loads the Item scoped to its User (a deleted Item is nothing to do: the job completes), applies the URL rules (`domain/rules/itemTypeFromUrl.ts`) and marks the Item Ready with the type. A URL no rule matches is fetched once through the `IUrlFetcher` port (`domain/providers/IUrlFetcher.ts`), and the response decides (see [Response rules](#response-rules)). Any error (a refused, failed or timed-out fetch, Postgres down) propagates, so BullMQ retries with the defaults above.
+- **Processing.** `ProcessItemUseCase` loads the Item scoped to its User (a deleted Item is nothing to do: the job completes), applies the URL rules (`domain/rules/itemTypeFromUrl.ts`) and marks the Item Ready with the type. A URL no rule matches is fetched once through the `IUrlFetcher` port (`domain/providers/IUrlFetcher.ts`), which reports the final URL after redirects; the URL rules run again on that final URL (so a short link such as `bit.ly`, `t.co` or `lnkd.in` to YouTube becomes a Video), and only if none matches does the response decide (see [Response rules](#response-rules)). The Source URL is never changed: it stays as pasted. Any error (a refused, failed or timed-out fetch, Postgres down) propagates, so BullMQ retries with the defaults above.
 - **Failure.** `createItemsWorker` listens for the Worker's `failed` event with `onItemsJobFailed` (`interface/itemsJobFailed.ts`). Every failed attempt is logged with its job, attempt number and reason (`console.error`); the reason is not stored. An attempt BullMQ will retry leaves the Item Processing. Once no attempt is left, BullMQ moves the job to the failed set and sets `job.finishedOn`; that is the handler's signal, whatever the attempt count says. It covers the last retry, an unrecoverable error, and a job that stalled more than the Worker's `maxStalledCount` allows (default 1; BullMQ fails it with `UnrecoverableError: job stalled more than allowable limit` when it's next picked up, attempts left or not). Then the job name's final-failure step runs (`interface/itemsJobs.ts` pairs each name with its processor and that step): for a Process Item job, `processItemFailed` (`interface/processors/processItemFailed.processor.ts`) runs `FailItemUseCase`: the Item becomes Failed, and an Item with no Item type yet becomes a Link, so it still displays like any other Item. An invalid payload names no Item and an unknown name has no step, so neither changes an Item. If marking the Item fails, the handler logs it and the Item stays Processing; there is no retry endpoint yet.
 
 ### URL rules
@@ -31,16 +31,20 @@ Async processing is handled with [BullMQ](https://docs.bullmq.io) backed by Redi
 
 ### Response rules
 
-`SafeUrlFetcher` (`infrastructure/http/`) implements `IUrlFetcher`: one GET, guarded against server-side request forgery (see [Security](./security.md#the-workers-url-fetch)). `itemTypeFromResponse` (`domain/rules/itemTypeFromResponse.ts`, pure) types what it returns:
+`SafeUrlFetcher` (`infrastructure/http/`) implements `IUrlFetcher`: one GET, guarded against server-side request forgery (see [Security](./security.md#the-workers-url-fetch)). It returns the final URL, the Content-Type, the HTML head of an HTML response and the first 16 bytes of any other response. `itemTypeFromResponse` (`domain/rules/itemTypeFromResponse.ts`, pure) types it, first match wins:
 
-| Response                                                              | Item type |
-| --------------------------------------------------------------------- | --------- |
-| `Content-Type: application/pdf` (an arXiv paper without `.pdf`)       | PDF       |
-| `Content-Type: image/*`                                               | Image     |
-| HTML whose `<head>` has `<meta property="og:type" content="article">` | Article   |
-| anything else, including a 4xx answer                                 | Link      |
+| Response                                                                                           | Item type |
+| -------------------------------------------------------------------------------------------------- | --------- |
+| a Content-Type `itemTypeFromContentType` knows (below)                                             | its type  |
+| no Content-Type, or `application/octet-stream`: magic bytes `itemTypeFromMagicBytes` knows (below) | its type  |
+| HTML whose `<head>` has `<meta property="og:type" content="article">`                              | Article   |
+| anything else, including a 4xx answer                                                              | Link      |
 
-A 5xx or 429 answer fails the attempt instead, so the job retries. Only an HTML body is read, at most ~1 MB and only up to `</head>`.
+`itemTypeFromContentType` (`domain/rules/itemTypeFromContentType.ts`): `application/pdf` (an arXiv paper without `.pdf`) → PDF; `image/*` → Image; `audio/*`, `application/ogg` → Audio; `video/*` → Video; archives (zip, gzip, tar, 7z, rar …), office documents (Word, Excel, PowerPoint, OpenXML, OpenDocument, RTF), EPUB, disk images and installers (dmg, iso, exe/msi, deb, rpm, apk) → File.
+
+`itemTypeFromMagicBytes` (`domain/rules/itemTypeFromMagicBytes.ts`), for a server that is vague about what it sends: `%PDF-` → PDF; PNG, JPEG, GIF, WebP, TIFF, and ISO media files branded `avif`/`heic` → Image; ID3 or an MPEG frame (MP3), OGG, WAV, FLAC, and ISO media files branded `M4A` → Audio; other ISO media files (MP4, MOV), WebM/MKV, AVI → Video; ZIP (and so docx/xlsx/jar), gzip, 7z, RAR → File.
+
+A 5xx or 429 answer fails the attempt instead, so the job retries. Of an HTML body at most ~1 MB is read, only up to `</head>`; of any other body only the first 16 bytes.
 
 What else it builds on:
 
