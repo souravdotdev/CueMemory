@@ -12,6 +12,8 @@ export const WORKER_TOKENS = {
   ItemRepository: Symbol("IItemRepository"),
   /** `IUrlFetcher`: the guarded fetch of every Source URL. */
   UrlFetcher: Symbol("IUrlFetcher"),
+  /** `IJsonFetcher`: the guarded fetch of a small JSON answer (an oEmbed endpoint's), the same fetcher as `UrlFetcher`. */
+  JsonFetcher: Symbol("IJsonFetcher"),
   /** `IOEmbedProvider`: the guarded oEmbed lookup that types and titles a page. */
   OEmbedProvider: Symbol("IOEmbedProvider"),
   /** `ProcessItemUseCase`: what a Process Item job runs. */

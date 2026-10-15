@@ -146,19 +146,22 @@ apps/worker/src/
     entities/           Item.ts (the fields Processing needs; ItemRef; ItemMetadata; Item types and statuses),
                         PageHead.ts (a page head's extracted tags)
     repositories/       IItemRepository.ts (findById, markReady, markFailed)
-    providers/          IUrlFetcher.ts (fetchPage), IOEmbedProvider.ts (fetchOEmbed)
-    rules/              itemTypeFromUrl.ts, knownSites.ts, itemTypeFromExtension.ts, itemTypeFromResponse.ts,
+    providers/          IUrlFetcher.ts (fetchPage → FetchedPage: html | file | unsuccessful),
+                        IJsonFetcher.ts (fetchJson), IOEmbedProvider.ts (fetchOEmbed)
+    rules/              itemTypeFromUrl.ts, knownSites.ts (the known-site table, with each site's oEmbed
+                        endpoint), itemTypeFromExtension.ts, itemTypeFromResponse.ts,
                         itemTypeFromContentType.ts, itemTypeFromMagicBytes.ts, mediaType.ts,
                         itemTypeFromJsonLd.ts, itemTypeFromOpenGraph.ts, itemTypeFromTwitterCard.ts,
-                        oEmbed.ts (known providers, which endpoint to ask, oEmbed types), pageMetadata.ts
-                        (pure functions)
+                        oEmbed.ts (which endpoint to ask, oEmbed types), pageMetadata.ts,
+                        parsedUrl.ts, collapseWhitespace.ts (pure functions)
   application/
     use-cases/items/    ProcessItemUseCase, FailItemUseCase
     dto/items/          ProcessItemResult.ts, FailItemResult.ts
   infrastructure/
     database/           Database.ts, db.ts
-    http/               SafeUrlFetcher.ts, publicAddress.ts (the guarded fetch), parsePageHead.ts (htmlparser2),
-                        GuardedOEmbedProvider.ts (oEmbed over the same guard)
+    http/               SafeUrlFetcher.ts, publicAddress.ts (the guarded fetch), readBody.ts (bounded body
+                        reads), looksLikeHtml.ts (sniffs a body without a Content-Type),
+                        parsePageHead.ts (htmlparser2), GuardedOEmbedProvider.ts (oEmbed over IJsonFetcher)
     repositories/       DrizzleItemRepository.ts
   interface/
     itemsJobs.ts        the job-name map: each name's processor and final-failure step
@@ -178,7 +181,7 @@ apps/worker/src/
 - **The API enqueues through a port.** `SaveItemUseCase` depends on `IQueueProvider` in the domain, and `BullMqQueueProvider` in infrastructure implements it. The port takes its own `ProcessItemRequest`; the adapter maps it to the shared job payload. The use case never imports `bullmq`; the lint guard blocks it.
 - **One worker per queue, routing by job name.** `interface/itemsWorker.ts` creates the BullMQ `Worker` for the Items queue. `interface/itemsJobs.ts` maps each job name to `{ process, onFinalFailure }`. The job switch `runItemsJob(container, job)` runs the name's `process`; an unknown name throws `UnrecoverableError`, so it is not retried. The `failed` handler, `onItemsJobFailed`, logs each failed attempt and, once BullMQ has no attempt left (`job.finishedOn` is set: the last retry, or a stall), runs the name's `onFinalFailure` (`processItemFailed`), which runs a use case like any processor.
 - **A processor is a thin controller.** It lives in `interface/processors/`. It parses `job.data` with the payload's zod schema (an invalid payload throws `UnrecoverableError`), maps it to the use case's input, and calls `container.get<XUseCase>(WORKER_TOKENS.XUseCase).execute(input)`. Errors from the use case pass through, so BullMQ retries.
-- **The worker has its own `di/tokens.ts` and `di/container.ts`.** It never shares or mixes the API's `TOKENS`. Its port symbols are named after their interfaces too (`WORKER_TOKENS.ItemRepository = Symbol("IItemRepository")`). Adapters (`DrizzleItemRepository`, `SafeUrlFetcher`) are `@injectable()` singletons bound with `.to(...).inSingletonScope()`; use cases are transient. `SafeUrlFetcher`'s options parameter is `@unmanaged()`, so the container builds it with the defaults and tests construct it directly with their own. Use-case results sit in `application/dto/items/`, as in the API. The worker's `Item` entity is its own (the domain can't import the API's); `tests/unit/domain/schema-agreement.test.ts` keeps its Item types and statuses equal to the database enums.
+- **The worker has its own `di/tokens.ts` and `di/container.ts`.** It never shares or mixes the API's `TOKENS`. Its port symbols are named after their interfaces too (`WORKER_TOKENS.ItemRepository = Symbol("IItemRepository")`). Adapters (`DrizzleItemRepository`, `SafeUrlFetcher`, `GuardedOEmbedProvider`) are `@injectable()` singletons bound to their port's token with `.to(...).inSingletonScope()`, and depend on other ports by token only, never on a concrete class; use cases are transient. One `SafeUrlFetcher` implements two ports: it is bound to `WORKER_TOKENS.UrlFetcher` (`IUrlFetcher`), and `WORKER_TOKENS.JsonFetcher` (`IJsonFetcher`, which `GuardedOEmbedProvider` injects) is `.toService(WORKER_TOKENS.UrlFetcher)`, the same instance, so the page fetch and the oEmbed call share one guard. `SafeUrlFetcher`'s options parameter is `@unmanaged()`, so the container builds it with the defaults and tests construct it directly with their own. Use-case results sit in `application/dto/items/`, as in the API. The worker's `Item` entity is its own (the domain can't import the API's); `tests/unit/domain/schema-agreement.test.ts` keeps its Item types and statuses equal to the database enums.
 - **Two test seams, as in the API.** The processor seam drives `runItemsJob` with a fake job and a test container whose use case is a stand-in; use cases are tested with `new XUseCase(fake)`.
 
 Payload schemas and queue names go in `@cue-memory/shared/schemas/queue` (today `ITEMS_QUEUE`, `PROCESS_ITEM_JOB`, `ProcessItemJobSchema`). See [Queue](./queue.md).

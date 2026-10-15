@@ -7,6 +7,7 @@ import {
   type ItemType,
   NO_METADATA,
 } from "@/domain/entities/Item";
+import type { PageHead } from "@/domain/entities/PageHead";
 import type { IOEmbedProvider, OEmbed } from "@/domain/providers/IOEmbedProvider";
 import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
@@ -18,6 +19,8 @@ import { itemTypeFromUrl } from "@/domain/rules/itemTypeFromUrl";
 import {
   itemTypeFromOEmbed,
   type KnownOEmbedProvider,
+  knownOEmbedRequestFor,
+  type OEmbedRequest,
   oEmbedRequestFor,
 } from "@/domain/rules/oEmbed";
 import {
@@ -34,10 +37,10 @@ import {
  *
  * Every Item is fetched, even one a URL rule already types, for its title.
  * When the fetch fails or is refused, an Item a rule typed still becomes
- * Ready (without a title); an untyped one's error propagates, so the job is
- * retried and, out of attempts, the Item ends Failed as a Link. An oEmbed
- * call that fails or is refused never fails Processing: the page's other
- * signals decide.
+ * Ready, titled by its known oEmbed provider if it has one (X, YouTube …);
+ * an untyped one's error propagates, so the job is retried and, out of
+ * attempts, the Item ends Failed as a Link. An oEmbed call that fails or is
+ * refused never fails Processing: the page's other signals decide.
  */
 @injectable()
 export class ProcessItemUseCase {
@@ -57,24 +60,26 @@ export class ProcessItemUseCase {
       page = await this.fetcher.fetchPage(item.sourceUrl);
     } catch (error) {
       if (typeFromSourceUrl === null) throw error;
-      return this.ready(ref, typeFromSourceUrl, NO_METADATA);
+      // A known provider still describes a post its site wouldn't serve.
+      const answer = await this.ask(knownOEmbedRequestFor(item.sourceUrl));
+      return this.ready(ref, typeFromSourceUrl, metadataOf(null, answer));
     }
 
-    const answer = await this.oEmbedAbout(page);
-    return this.ready(ref, itemTypeOf(typeFromSourceUrl, page, answer), metadataOf(page, answer));
+    const head = page.kind === "html" ? page.head : null;
+    // A file says nothing oEmbed could add; an unsuccessful answer may still be a known provider's.
+    const request = page.kind === "file" ? null : oEmbedRequestFor(page.finalUrl, head);
+    const answer = await this.ask(request);
+    return this.ready(ref, itemTypeOf(typeFromSourceUrl, page, answer), metadataOf(head, answer));
   }
 
-  /**
-   * What oEmbed says about an HTML page (or an unsuccessful answer, which a
-   * known provider may still describe): null for a file, when there is no
-   * endpoint to ask, or when the call fails or is refused.
-   */
-  private async oEmbedAbout(page: FetchedPage): Promise<OEmbedAnswer | null> {
-    if (page.firstBytes !== null) return null;
-    const request = oEmbedRequestFor(page.finalUrl, page.head);
+  /** What the oEmbed endpoint says, or null when there is none to ask or the call fails or is refused. */
+  private async ask(request: OEmbedRequest | null): Promise<OEmbedAnswer | null> {
     if (!request) return null;
     try {
-      return { oEmbed: await this.oEmbeds.fetchOEmbed(request.endpointUrl), ...request };
+      return {
+        oEmbed: await this.oEmbeds.fetchOEmbed(request.endpointUrl),
+        provider: request.provider,
+      };
     } catch {
       return null;
     }
@@ -93,9 +98,9 @@ export class ProcessItemUseCase {
 /**
  * The Item type precedence, the first signal that answers wins:
  * 1. the URL rules on the Source URL as pasted, then on the final URL;
- * 2. a non-HTML response's Content-Type, then its magic bytes;
+ * 2. a file's Content-Type, then its magic bytes;
  * 3. the page's declarations: oEmbed, then JSON-LD, then Open Graph, then
- *    Twitter Card;
+ *    Twitter Card (an unsuccessful answer has only oEmbed);
  * 4. Link.
  * The Source URL itself is never changed: it stays as pasted.
  */
@@ -104,25 +109,31 @@ function itemTypeOf(
   page: FetchedPage,
   answer: OEmbedAnswer | null,
 ): ItemType {
-  const { head } = page;
-  return (
-    typeFromSourceUrl ??
-    itemTypeFromUrl(page.finalUrl) ??
-    itemTypeFromResponse(page) ??
-    (answer && itemTypeFromOEmbed(answer.oEmbed, answer.provider)) ??
-    (head && itemTypeFromJsonLd(head)) ??
-    (head && itemTypeFromOpenGraph(head)) ??
-    (head && itemTypeFromTwitterCard(head)) ??
-    "link"
-  );
+  const fromUrl = typeFromSourceUrl ?? itemTypeFromUrl(page.finalUrl);
+  if (fromUrl) return fromUrl;
+  const fromOEmbed = answer && itemTypeFromOEmbed(answer.oEmbed, answer.provider);
+  switch (page.kind) {
+    case "file":
+      return itemTypeFromResponse(page) ?? "link";
+    case "html":
+      return (
+        fromOEmbed ??
+        itemTypeFromJsonLd(page.head) ??
+        itemTypeFromOpenGraph(page.head) ??
+        itemTypeFromTwitterCard(page.head) ??
+        "link"
+      );
+    case "unsuccessful":
+      return fromOEmbed ?? "link";
+  }
 }
 
 /**
  * The title and description precedence, field by field: oEmbed (a title
  * only), then Open Graph, then Twitter Card, then the page's `<title>` and
- * meta description. A page that isn't HTML has none.
+ * meta description. Without an HTML head or an oEmbed answer there are none.
  */
-function metadataOf({ head }: FetchedPage, answer: OEmbedAnswer | null): ItemMetadata {
+function metadataOf(head: PageHead | null, answer: OEmbedAnswer | null): ItemMetadata {
   const sources: ItemMetadata[] = [];
   if (answer) sources.push({ title: answer.oEmbed.title, description: null });
   if (head)

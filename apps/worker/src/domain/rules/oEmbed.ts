@@ -1,91 +1,46 @@
 import type { ItemType } from "@/domain/entities/Item";
 import type { PageHead } from "@/domain/entities/PageHead";
 import type { OEmbed } from "@/domain/providers/IOEmbedProvider";
-import { hostMatches, siteHost } from "@/domain/rules/itemTypeFromUrl";
+import {
+  KNOWN_SITES,
+  type KnownSite,
+  knownSiteFor,
+  type OEmbedEndpoint,
+  siteHost,
+} from "@/domain/rules/knownSites";
+import { parsedUrl } from "@/domain/rules/parsedUrl";
 
 /**
- * A known oEmbed provider: pages on these hosts whose path matches are asked
- * about at its endpoint, and a `rich` answer from it is this Item type.
- * `hosts` and `path` work as in the known-site table (`knownSites.ts`).
+ * A known oEmbed provider: a known-site row (`knownSites.ts`) with an oEmbed
+ * endpoint. Its links are asked about at that endpoint directly, so a page
+ * behind a login wall (X, Reddit, TikTok) still gets a type and a title, and
+ * a `rich` answer from it is the row's Item type.
  */
-export interface KnownOEmbedProvider {
-  readonly name: string;
-  readonly hosts: readonly string[];
-  readonly path: RegExp;
-  /** The endpoint, without a query; the page URL and `format=json` are added to it. */
-  readonly endpoint: string;
-  /** What a `rich` answer (an embedded player or post) from this provider is. */
-  readonly rich: ItemType;
-}
-
-/**
- * The oEmbed providers asked directly, chosen from the final URL, so a page
- * behind a login wall (X, Reddit, TikTok) still gets a type and a title.
- * Adding a provider is one row.
- */
-export const KNOWN_OEMBED_PROVIDERS: readonly KnownOEmbedProvider[] = [
-  {
-    name: "YouTube",
-    hosts: ["youtube.com"],
-    path: /^\/(watch\/?$|shorts\/|live\/)/,
-    endpoint: "https://www.youtube.com/oembed",
-    rich: "video",
-  },
-  {
-    name: "YouTube",
-    hosts: ["youtu.be"],
-    path: /^\/[^/]+/,
-    endpoint: "https://www.youtube.com/oembed",
-    rich: "video",
-  },
-  {
-    name: "Vimeo",
-    hosts: ["vimeo.com"],
-    path: /^\/(\d+|channels\/[^/]+\/\d+|groups\/[^/]+\/videos\/\d+)\/?$/,
-    endpoint: "https://vimeo.com/api/oembed.json",
-    rich: "video",
-  },
-  {
-    name: "X",
-    hosts: ["x.com", "twitter.com"],
-    path: /^\/[^/]+\/status\/\d+(\/|$)/,
-    endpoint: "https://publish.twitter.com/oembed",
-    rich: "post",
-  },
-  {
-    name: "Spotify",
-    hosts: ["open.spotify.com"],
-    path: /^\/(intl-[a-z-]+\/)?(track|album|playlist|episode|show)\/[^/]+/,
-    endpoint: "https://open.spotify.com/oembed",
-    rich: "audio",
-  },
-  {
-    name: "SoundCloud",
-    hosts: ["soundcloud.com"],
-    path: /^\/[^/]+\/[^/]+/,
-    endpoint: "https://soundcloud.com/oembed",
-    rich: "audio",
-  },
-  {
-    name: "Reddit",
-    hosts: ["reddit.com", "old.reddit.com", "new.reddit.com", "np.reddit.com"],
-    path: /^\/r\/[^/]+\/(comments|s)\/[^/]+/,
-    endpoint: "https://www.reddit.com/oembed",
-    rich: "post",
-  },
-  {
-    name: "TikTok",
-    hosts: ["tiktok.com"],
-    path: /^\/@[^/]+\/video\/\d+/,
-    endpoint: "https://www.tiktok.com/oembed",
-    rich: "video",
-  },
-];
+export type KnownOEmbedProvider = KnownSite & { readonly oEmbed: OEmbedEndpoint };
 
 /** The one oEmbed call to make for a page, and the known provider it goes to (null if none). */
 export interface OEmbedRequest {
   endpointUrl: string;
   provider: KnownOEmbedProvider | null;
+}
+
+function isProvider(site: KnownSite | null): site is KnownOEmbedProvider {
+  return site?.oEmbed !== undefined;
+}
+
+/**
+ * The known provider's endpoint to ask about a page URL, with
+ * `?url=<page URL>&format=json`; null when the URL's known-site row has no
+ * endpoint (or it matches no row). Needs no fetch of the page.
+ */
+export function knownOEmbedRequestFor(pageUrl: string): OEmbedRequest | null {
+  const url = parsedUrl(pageUrl);
+  const site = url && knownSiteFor(url);
+  if (!isProvider(site)) return null;
+  const endpoint = new URL(site.oEmbed.endpoint);
+  endpoint.searchParams.set("url", pageUrl);
+  endpoint.searchParams.set("format", "json");
+  return { endpointUrl: endpoint.href, provider: site };
 }
 
 /**
@@ -95,20 +50,8 @@ export interface OEmbedRequest {
  * there is neither.
  */
 export function oEmbedRequestFor(finalUrl: string, head: PageHead | null): OEmbedRequest | null {
-  const url = parsed(finalUrl);
-  if (url) {
-    const host = siteHost(url);
-    const provider = KNOWN_OEMBED_PROVIDERS.find(
-      (candidate) => hostMatches(candidate.hosts, host) && candidate.path.test(url.pathname),
-    );
-    if (provider) {
-      const endpoint = new URL(provider.endpoint);
-      endpoint.searchParams.set("url", finalUrl);
-      endpoint.searchParams.set("format", "json");
-      return { endpointUrl: endpoint.href, provider };
-    }
-  }
-
+  const known = knownOEmbedRequestFor(finalUrl);
+  if (known) return known;
   const link = head?.oEmbedLinks.find(({ format }) => format === "json");
   if (!link) return null;
   return { endpointUrl: link.url, provider: providerAt(link.url) };
@@ -129,7 +72,7 @@ export function itemTypeFromOEmbed(
     case "photo":
       return "image";
     case "rich":
-      return provider?.rich ?? null;
+      return provider?.type ?? null;
     default:
       return null;
   }
@@ -137,21 +80,13 @@ export function itemTypeFromOEmbed(
 
 /** The known provider whose endpoint a discovery link points at, if any. */
 function providerAt(endpointUrl: string): KnownOEmbedProvider | null {
-  const url = parsed(endpointUrl);
+  const url = parsedUrl(endpointUrl);
   if (!url) return null;
   const where = siteHost(url) + url.pathname;
-  return (
-    KNOWN_OEMBED_PROVIDERS.find((provider) => {
-      const endpoint = new URL(provider.endpoint);
-      return siteHost(endpoint) + endpoint.pathname === where;
-    }) ?? null
-  );
-}
-
-function parsed(rawUrl: string): URL | null {
-  try {
-    return new URL(rawUrl);
-  } catch {
-    return null;
-  }
+  const atEndpoint = (site: KnownSite) => {
+    if (!site.oEmbed) return false;
+    const endpoint = new URL(site.oEmbed.endpoint);
+    return siteHost(endpoint) + endpoint.pathname === where;
+  };
+  return KNOWN_SITES.filter(isProvider).find(atEndpoint) ?? null;
 }

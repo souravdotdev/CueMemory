@@ -1,5 +1,6 @@
 import { Parser } from "htmlparser2";
 import type { MetaTag, OEmbedLink, PageHead } from "@/domain/entities/PageHead";
+import { parsedUrl } from "@/domain/rules/parsedUrl";
 
 // A Map, so a type such as "constructor" never reads a prototype key.
 const OEMBED_FORMATS = new Map<string, OEmbedLink["format"]>([
@@ -68,11 +69,8 @@ function oEmbedLink(attributes: Record<string, string>, pageUrl: string): OEmbed
   const format = OEMBED_FORMATS.get(attributes.type?.trim().toLowerCase() ?? "");
   const rel = attributes.rel?.toLowerCase().split(/\s+/) ?? [];
   if (!format || !rel.includes("alternate") || !attributes.href) return null;
-  try {
-    return { url: new URL(attributes.href.trim(), pageUrl).href, format };
-  } catch {
-    return null;
-  }
+  const url = parsedUrl(attributes.href.trim(), pageUrl);
+  return url && { url: url.href, format };
 }
 
 /** The JSON value, or undefined if the block isn't valid JSON. */

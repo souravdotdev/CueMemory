@@ -18,6 +18,8 @@ Pinned to `typescript@^6.0.3` everywhere — not `latest` (TypeScript 7 is out b
 pnpm check-types   # tsc --noEmit in every package, via Turborepo
 ```
 
+`apps/web`'s `check-types` runs `next typegen` first (route types into `.next/types`, and `next-env.d.ts`), and `next build` empties and rewrites the same `.next` and `next-env.d.ts`. Run side by side (as in `turbo run lint check-types test build`, worst with `--force`), tsc could find `.next/types` gone halfway through. So `apps/web/turbo.json` makes the web `build` depend on its own `check-types`: the two never overlap, and `turbo run build` type-checks the web app first. The Next.js ESLint config ignores the generated `next-env.d.ts` for the same reason.
+
 ## ESLint
 
 Shared config lives in `packages/eslint-config` (ESLint 9, flat config format):

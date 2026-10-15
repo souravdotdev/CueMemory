@@ -72,14 +72,21 @@ function oEmbedsFailing() {
   } satisfies IOEmbedProvider;
 }
 
-// A fetched page that ended at `finalUrl`, with nothing else to go on unless given.
-const fetched = (fields: Partial<FetchedPage> = {}): FetchedPage => ({
-  finalUrl: "https://example.com/page",
-  contentType: null,
-  head: null,
-  firstBytes: null,
-  ...fields,
+const PAGE_URL = "https://example.com/page";
+
+// An answer that says nothing about the page (a 404, a 403 behind a login wall …).
+const unsuccessful = (finalUrl = PAGE_URL, status = 404): FetchedPage => ({
+  kind: "unsuccessful",
+  finalUrl,
+  status,
 });
+
+// A 2xx answer that isn't HTML, starting with these bytes.
+const file = (
+  contentType: string | null,
+  firstBytes: Uint8Array = new Uint8Array(),
+  finalUrl = PAGE_URL,
+): FetchedPage => ({ kind: "file", finalUrl, contentType, firstBytes });
 
 // An HTML page whose head declares these meta tags, title and JSON-LD.
 const htmlPage = (
@@ -89,16 +96,17 @@ const htmlPage = (
     jsonLd = [],
     oEmbedLinks = [],
   }: Partial<Pick<PageHead, "title" | "jsonLd">> & { oEmbedLinks?: OEmbedLink[] } = {},
-) =>
-  fetched({
-    contentType: "text/html; charset=utf-8",
-    head: {
-      meta: Object.entries(meta).map(([key, content]) => ({ key, content })),
-      title,
-      jsonLd,
-      oEmbedLinks,
-    },
-  });
+): FetchedPage => ({
+  kind: "html",
+  finalUrl: PAGE_URL,
+  contentType: "text/html; charset=utf-8",
+  head: {
+    meta: Object.entries(meta).map(([key, content]) => ({ key, content })),
+    title,
+    jsonLd,
+    oEmbedLinks,
+  },
+});
 
 const run = (
   sourceUrl: string,
@@ -127,17 +135,15 @@ describe("ProcessItemUseCase, Item type", () => {
   });
 
   it.each([
-    [fetched({ contentType: "application/pdf", firstBytes: new Uint8Array() }), "pdf"],
-    [fetched({ contentType: "image/webp", firstBytes: new Uint8Array() }), "image"],
-    [
-      fetched({ contentType: "application/octet-stream", firstBytes: Buffer.from("%PDF-1.7") }),
-      "pdf",
-    ],
+    [file("application/pdf"), "pdf"],
+    [file("image/webp"), "image"],
+    [file("application/octet-stream", Buffer.from("%PDF-1.7")), "pdf"],
+    [file("text/plain", Buffer.from("just text")), "link"],
     [htmlPage({}, { jsonLd: [{ "@type": "PodcastEpisode" }] }), "audio"],
     [htmlPage({ "og:type": "article" }), "article"],
     [htmlPage({ "twitter:card": "player" }), "video"],
     [htmlPage({ "og:type": "website" }, { title: "A homepage" }), "link"],
-    [fetched(), "link"],
+    [unsuccessful(), "link"],
   ] as [FetchedPage, ItemType][])(
     "types a URL no rule recognises by the response (%o → %s)",
     async (page, type) => {
@@ -159,7 +165,7 @@ describe("ProcessItemUseCase, Item type", () => {
   });
 
   it("types a short link by the URL it leads to even when that page answers vaguely", async () => {
-    const page = fetched({ finalUrl: "https://example.com/report.pdf", contentType: null });
+    const page = file(null, new Uint8Array(), "https://example.com/report.pdf");
 
     const { result } = run("https://t.co/abc123", fetcherAnswering(page));
 
@@ -217,7 +223,7 @@ describe("ProcessItemUseCase, Item type", () => {
   );
 
   it("never changes the Source URL", async () => {
-    const page = fetched({ finalUrl: "https://youtu.be/dQw4w9WgXcQ" });
+    const page = unsuccessful("https://youtu.be/dQw4w9WgXcQ");
     const { item, repository, result } = run("https://bit.ly/3xYz", fetcherAnswering(page));
 
     await result;
@@ -268,7 +274,7 @@ describe("ProcessItemUseCase, title and description", () => {
   });
 
   it("has no title or description for a response that isn't HTML", async () => {
-    const page = fetched({ contentType: "application/pdf", firstBytes: new Uint8Array() });
+    const page = file("application/pdf");
 
     const { repository, result } = run("https://example.com/paper", fetcherAnswering(page));
 
@@ -301,7 +307,7 @@ describe("ProcessItemUseCase, oEmbed", () => {
 
   it("asks a known provider's endpoint, chosen from the final URL, even behind a login wall", async () => {
     const oEmbeds = oEmbedsAnswering({ type: "rich", title: "A post on X" });
-    const page = fetched({ finalUrl: "https://x.com/someone/status/1234567890" });
+    const page = unsuccessful("https://x.com/someone/status/1234567890", 403);
 
     const { result } = run("https://t.co/abc123", fetcherAnswering(page), oEmbeds);
 
@@ -398,11 +404,7 @@ describe("ProcessItemUseCase, oEmbed", () => {
 
   it("asks nothing about a response that isn't HTML", async () => {
     const oEmbeds = oEmbedsAnswering({ type: "video", title: "A title" });
-    const page = fetched({
-      finalUrl: "https://www.youtube.com/watch?v=abc",
-      contentType: "application/pdf",
-      firstBytes: new Uint8Array(),
-    });
+    const page = file("application/pdf", new Uint8Array(), "https://www.youtube.com/watch?v=abc");
 
     const { result } = run("https://example.com/paper", fetcherAnswering(page), oEmbeds);
 
@@ -410,16 +412,56 @@ describe("ProcessItemUseCase, oEmbed", () => {
     expect(oEmbeds.fetchOEmbed).not.toHaveBeenCalled();
   });
 
-  it("asks nothing when the page fetch fails", async () => {
-    const oEmbeds = oEmbedsAnswering({ type: "video", title: "A title" });
+  it.each([
+    ["times out", new Error("Fetching https://x.com/… timed out after 10000 ms")],
+    ["is rate limited", new Error("Fetching https://x.com/… answered 429")],
+    ["fails", new Error("Fetching https://x.com/… answered 503")],
+    [
+      "is refused",
+      Object.assign(new Error("x.com resolves to 10.0.0.1"), { name: "UrlRefusedError" }),
+    ],
+  ])("still asks a known provider, once, when the page fetch %s", async (_case, error) => {
+    const oEmbeds = oEmbedsAnswering({ type: "video", title: "  A post   on X " });
 
-    const { result } = run(
-      "https://youtu.be/dQw4w9WgXcQ",
-      fetcherFailing(new Error("offline")),
+    const { item, result } = run(
+      "https://x.com/someone/status/1234567890",
+      fetcherFailing(error),
       oEmbeds,
     );
 
-    await expect(result).resolves.toMatchObject({ type: "video", metadata: NO_METADATA });
+    // The URL rule types it; oEmbed only titles it.
+    const metadata = { title: "A post on X", description: null };
+    await expect(result).resolves.toEqual({ outcome: "ready", type: "post", metadata });
+    expect(item).toMatchObject({ status: "ready", type: "post", ...metadata });
+    expect(oEmbeds.fetchOEmbed).toHaveBeenCalledTimes(1);
+    const endpoint = new URL(oEmbeds.fetchOEmbed.mock.calls[0]![0]);
+    expect(endpoint.origin + endpoint.pathname).toBe("https://publish.twitter.com/oembed");
+    expect(endpoint.searchParams.get("url")).toBe("https://x.com/someone/status/1234567890");
+  });
+
+  it("marks a typed Item Ready without a title when the page fetch and oEmbed both fail", async () => {
+    const { result } = run(
+      "https://youtu.be/dQw4w9WgXcQ",
+      fetcherFailing(new Error("offline")),
+      oEmbedsFailing(),
+    );
+
+    await expect(result).resolves.toEqual({
+      outcome: "ready",
+      type: "video",
+      metadata: NO_METADATA,
+    });
+  });
+
+  it.each([
+    ["a typed Item without a known provider", "https://github.com/vercel/next.js"],
+    ["an untyped Item", "https://bit.ly/3xYz"],
+  ])("asks nothing about %s when the page fetch fails", async (_case, sourceUrl) => {
+    const oEmbeds = oEmbedsAnswering({ type: "video", title: "A title" });
+
+    const { result } = run(sourceUrl, fetcherFailing(new Error("offline")), oEmbeds);
+
+    await result.catch(() => {});
     expect(oEmbeds.fetchOEmbed).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import { redisConnection } from "@cue-memory/db/redis";
 import { FailItemUseCase } from "@/application/use-cases/items/FailItemUseCase";
 import { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
 import { WORKER_TOKENS } from "@/di/tokens";
+import type { IJsonFetcher } from "@/domain/providers/IJsonFetcher";
 import type { IOEmbedProvider } from "@/domain/providers/IOEmbedProvider";
 import type { IUrlFetcher } from "@/domain/providers/IUrlFetcher";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
@@ -28,10 +29,10 @@ export function createContainer(): Container {
     .bind<IItemRepository>(WORKER_TOKENS.ItemRepository)
     .to(DrizzleItemRepository)
     .inSingletonScope();
-  // One SafeUrlFetcher serves both the page fetch and the oEmbed lookup, so
-  // both go through the same guard.
-  container.bind(SafeUrlFetcher).toSelf().inSingletonScope();
-  container.bind<IUrlFetcher>(WORKER_TOKENS.UrlFetcher).toService(SafeUrlFetcher);
+  // One SafeUrlFetcher serves both the page fetch and the oEmbed lookup's
+  // JSON, so both go through the same guard.
+  container.bind<IUrlFetcher>(WORKER_TOKENS.UrlFetcher).to(SafeUrlFetcher).inSingletonScope();
+  container.bind<IJsonFetcher>(WORKER_TOKENS.JsonFetcher).toService(WORKER_TOKENS.UrlFetcher);
   container
     .bind<IOEmbedProvider>(WORKER_TOKENS.OEmbedProvider)
     .to(GuardedOEmbedProvider)

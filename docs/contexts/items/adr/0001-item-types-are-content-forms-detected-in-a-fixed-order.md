@@ -12,7 +12,7 @@ The order runs from the signal CueMemory controls and can test to the ones the p
 
 ## Consequences
 
-- Adding a site is a row in the known-site table (and, for oEmbed, in the known-provider table); adding an Item type is an enum migration in `packages/db` plus the API, worker, shared schema and web labels, kept in step by the schema-agreement tests. Existing Items are not reclassified when the rules change.
+- Adding a site is a row in the known-site table (with its oEmbed endpoint on the same row, if it has one); adding an Item type is an enum migration in `packages/db` plus the API, worker, shared schema and web labels, kept in step by the schema-agreement tests. Existing Items are not reclassified when the rules change.
 - A URL rule can't be overruled by anything the page says: a GitHub repository that declares itself an Article stays Code. A wrong row is fixed in the table, not by the page.
 - oEmbed is asked at most once per Item, through the same guard as the page fetch, and its failure only falls through to the next signal; only a failed page fetch for an Item no URL rule typed can fail Processing.
 - Changing the order is a change to this decision: it needs a new ADR, because it silently changes what new Items become.

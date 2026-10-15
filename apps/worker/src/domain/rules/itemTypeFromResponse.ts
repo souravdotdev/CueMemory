@@ -1,5 +1,5 @@
 import type { ItemType } from "@/domain/entities/Item";
-import type { FetchedPage } from "@/domain/providers/IUrlFetcher";
+import type { FetchedFile } from "@/domain/providers/IUrlFetcher";
 import { itemTypeFromContentType } from "@/domain/rules/itemTypeFromContentType";
 import { itemTypeFromMagicBytes } from "@/domain/rules/itemTypeFromMagicBytes";
 import { mediaTypeOf } from "@/domain/rules/mediaType";
@@ -8,14 +8,13 @@ import { mediaTypeOf } from "@/domain/rules/mediaType";
 const VAGUE_TYPES = new Set(["", "application/octet-stream", "binary/octet-stream"]);
 
 /**
- * Works out an Item type from what a fetched response is, as a file: its
- * Content-Type, or its magic bytes when the Content-Type is missing or vague.
- * Null for HTML and anything else it doesn't recognise (the page's own
- * declarations decide next).
+ * Works out an Item type from a fetched file (a 2xx answer that isn't HTML):
+ * its Content-Type, or its magic bytes when the Content-Type is missing or
+ * vague. Null for anything it doesn't recognise.
  */
-export function itemTypeFromResponse(page: FetchedPage): ItemType | null {
-  const byContentType = itemTypeFromContentType(page.contentType);
+export function itemTypeFromResponse(file: FetchedFile): ItemType | null {
+  const byContentType = itemTypeFromContentType(file.contentType);
   if (byContentType) return byContentType;
-  const vague = VAGUE_TYPES.has(mediaTypeOf(page.contentType));
-  return vague ? itemTypeFromMagicBytes(page.firstBytes) : null;
+  const vague = VAGUE_TYPES.has(mediaTypeOf(file.contentType));
+  return vague ? itemTypeFromMagicBytes(file.firstBytes) : null;
 }

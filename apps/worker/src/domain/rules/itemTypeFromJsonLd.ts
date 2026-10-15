@@ -35,16 +35,18 @@ function* nodeTypes(value: unknown): Generator<string> {
 
 /**
  * Works out an Item type from the page's JSON-LD `@type`s: the first one,
- * in document order, that names a kind of content. An ImageObject only counts
- * when the page declares nothing else (a page with a featured image is not an
- * Image). Null when nothing recognised is declared.
+ * in document order, that names a kind of content. An ImageObject is the
+ * least specific of them: it counts only when the page declares no other
+ * kind of content (an Article with a featured image is an Article), whatever
+ * else it declares that names none (a WebPage, a WebSite). Null when nothing
+ * recognised is declared.
  */
 export function itemTypeFromJsonLd(head: PageHead): ItemType | null {
-  const types = [...nodeTypes(head.jsonLd)];
-  for (const type of types) {
+  let image = false;
+  for (const type of nodeTypes(head.jsonLd)) {
     const itemType = SCHEMA_TYPES.get(type);
-    if (itemType && itemType !== "image") return itemType;
+    if (itemType === "image") image = true;
+    else if (itemType) return itemType;
   }
-  const onlyImages = types.length > 0 && types.every((type) => type === "ImageObject");
-  return onlyImages ? "image" : null;
+  return image ? "image" : null;
 }

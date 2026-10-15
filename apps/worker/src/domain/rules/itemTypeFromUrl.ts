@@ -1,20 +1,7 @@
 import type { ItemType } from "@/domain/entities/Item";
 import { itemTypeFromExtension } from "@/domain/rules/itemTypeFromExtension";
-import { KNOWN_SITES, type KnownSite } from "@/domain/rules/knownSites";
-
-/** Whether a host (as `siteHost` gives it) is one of these host patterns (see `KnownSite.hosts`). */
-export function hostMatches(hosts: KnownSite["hosts"], host: string): boolean {
-  return hosts.some((pattern) => {
-    if (pattern === "*") return true;
-    if (pattern.startsWith("*.")) return host.endsWith(pattern.slice(1));
-    return host === pattern;
-  });
-}
-
-/** A URL's host as the site tables compare it: lower-case, without a leading `www.` or `m.`. */
-export function siteHost(url: URL): string {
-  return url.hostname.toLowerCase().replace(/^(www|m)\./, "");
-}
+import { knownSiteFor } from "@/domain/rules/knownSites";
+import { parsedUrl } from "@/domain/rules/parsedUrl";
 
 /**
  * The URL rules: works out an Item type from a URL's address alone, without
@@ -24,16 +11,7 @@ export function siteHost(url: URL): string {
  * caller decides what an unrecognised URL becomes.
  */
 export function itemTypeFromUrl(rawUrl: string): ItemType | null {
-  let url: URL;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    return null;
-  }
-  const host = siteHost(url);
-  const path = url.pathname;
-  const site = KNOWN_SITES.find(
-    (candidate) => hostMatches(candidate.hosts, host) && (candidate.path?.test(path) ?? true),
-  );
-  return site?.type ?? itemTypeFromExtension(path);
+  const url = parsedUrl(rawUrl);
+  if (!url) return null;
+  return knownSiteFor(url)?.type ?? itemTypeFromExtension(url.pathname);
 }

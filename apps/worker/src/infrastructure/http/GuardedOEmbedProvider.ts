@@ -1,22 +1,23 @@
 import { Parser } from "htmlparser2";
 import { inject, injectable } from "inversify";
+import { WORKER_TOKENS } from "@/di/tokens";
+import type { IJsonFetcher } from "@/domain/providers/IJsonFetcher";
 import type { IOEmbedProvider, OEmbed } from "@/domain/providers/IOEmbedProvider";
-import { SafeUrlFetcher } from "@/infrastructure/http/SafeUrlFetcher";
+import { collapseWhitespace } from "@/domain/rules/collapseWhitespace";
 
 /**
- * Asks an oEmbed endpoint through `SafeUrlFetcher.fetchJson`: the same address
- * guard, pinning, redirect checks and timeout as the page fetch, JSON only,
- * at most 64 KB. Reads only the answer's `type` and `title`; an answer
- * without a title (X's) is titled by the text of the post its embed quotes.
+ * Asks an oEmbed endpoint through the guarded JSON fetch (`IJsonFetcher`,
+ * the same `SafeUrlFetcher` as the page fetch: address guard, pinning,
+ * redirect checks and timeout, JSON only, at most 64 KB). Reads only the
+ * answer's `type` and `title`; an answer without a title (X's) is titled by
+ * the text of the post its embed quotes.
  */
 @injectable()
 export class GuardedOEmbedProvider implements IOEmbedProvider {
-  constructor(
-    @inject(SafeUrlFetcher) private readonly fetcher: Pick<SafeUrlFetcher, "fetchJson">,
-  ) {}
+  constructor(@inject(WORKER_TOKENS.JsonFetcher) private readonly json: IJsonFetcher) {}
 
   async fetchOEmbed(endpointUrl: string): Promise<OEmbed> {
-    const answer = await this.fetcher.fetchJson(endpointUrl);
+    const answer = await this.json.fetchJson(endpointUrl);
     if (typeof answer !== "object" || answer === null || Array.isArray(answer)) {
       throw new Error(`${endpointUrl} answered something that isn't an oEmbed object`);
     }
@@ -75,5 +76,5 @@ function quotedText(html: string | null): string | null {
     },
   });
   parser.end(html);
-  return text.replace(/\s+/g, " ").trim() || null;
+  return collapseWhitespace(text) || null;
 }

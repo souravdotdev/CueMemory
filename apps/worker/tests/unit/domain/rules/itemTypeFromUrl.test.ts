@@ -104,6 +104,11 @@ describe("itemTypeFromUrl", () => {
       ["https://dev.to/someone/some-title-4k2l", "article"],
       ["https://someone.hashnode.dev/some-title", "article"],
       ["https://hashnode.com/post/some-title-ckabc123", "article"],
+      ["https://arxiv.org/abs/1706.03762", "article"],
+      ["https://arxiv.org/abs/1706.03762v7", "article"],
+      // PDF
+      ["https://arxiv.org/pdf/1706.03762", "pdf"],
+      ["https://arxiv.org/pdf/1706.03762v7", "pdf"],
       // Image
       ["https://imgur.com/gallery/AbC12", "image"],
       ["https://imgur.com/a/AbC12", "image"],
@@ -172,6 +177,8 @@ describe("itemTypeFromUrl", () => {
       "https://imgur.com/upload",
       "https://www.flickr.com/photos/someone/",
       "https://unsplash.com/",
+      "https://arxiv.org/",
+      "https://arxiv.org/list/cs.LG/recent",
       // Anything else
       "https://example.com/blog/a-post",
       "https://news.ycombinator.com/item?id=1",
@@ -225,6 +232,23 @@ describe("itemTypeFromUrl", () => {
 
   it("applies the first matching row: a GitHub issue is a Post, not Code", () => {
     expect(itemTypeFromUrl("https://github.com/o/r/issues/1")).toBe("post");
+  });
+
+  describe("the any-host Mastodon row", () => {
+    it.each([
+      // A named site's own /@user/<digits> paths are that site's, never a Mastodon post
+      ["https://replit.com/@someone/123", "code"],
+      ["https://www.youtube.com/@channel/123", null],
+      ["https://www.tiktok.com/@someone/123", null],
+      ["https://medium.com/@someone/123", null],
+      ["https://www.threads.net/@zuck/123", null],
+      ["https://someone.substack.com/@someone/123", null],
+      // Any other host is taken for a Mastodon instance
+      ["https://mastodon.social/@Gargron/109318821117356215", "post"],
+      ["https://hachyderm.io/users/someone/statuses/111", "post"],
+    ] as const)("%s → %s", (url, type) => {
+      expect(itemTypeFromUrl(url)).toBe(type);
+    });
   });
 
   it("matches no rule for a string that isn't a URL", () => {

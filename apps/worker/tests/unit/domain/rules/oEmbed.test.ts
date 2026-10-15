@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { OEmbedLink, PageHead } from "@/domain/entities/PageHead";
 import type { OEmbed } from "@/domain/providers/IOEmbedProvider";
-import { itemTypeFromOEmbed, oEmbedRequestFor } from "@/domain/rules/oEmbed";
+import { itemTypeFromOEmbed, knownOEmbedRequestFor, oEmbedRequestFor } from "@/domain/rules/oEmbed";
 
 const head = (oEmbedLinks: OEmbedLink[] = []): PageHead => ({
   meta: [],
@@ -40,7 +40,7 @@ describe("oEmbedRequestFor, known providers", () => {
   ])("asks %s's provider at its endpoint", (pageUrl, endpoint, provider) => {
     const request = oEmbedRequestFor(pageUrl, head());
 
-    expect(request?.provider?.name).toBe(provider);
+    expect(request?.provider?.oEmbed.name).toBe(provider);
     expect(endpointOf(request!.endpointUrl)).toBe(endpoint);
     expect(urlParamOf(request!.endpointUrl)).toBe(pageUrl);
     expect(new URL(request!.endpointUrl).searchParams.get("format")).toBe("json");
@@ -67,6 +67,25 @@ describe("oEmbedRequestFor, known providers", () => {
   });
 });
 
+describe("knownOEmbedRequestFor", () => {
+  it("asks a known provider from the page URL alone, with no page to read", () => {
+    const request = knownOEmbedRequestFor("https://x.com/someone/status/1234567890");
+
+    expect(request?.provider?.type).toBe("post");
+    expect(endpointOf(request!.endpointUrl)).toBe("https://publish.twitter.com/oembed");
+    expect(urlParamOf(request!.endpointUrl)).toBe("https://x.com/someone/status/1234567890");
+  });
+
+  it.each([
+    "https://example.com/page",
+    "https://github.com/vercel/next.js",
+    "https://www.youtube.com/@someone",
+    "not a url",
+  ])("knows none for %s", (pageUrl) => {
+    expect(knownOEmbedRequestFor(pageUrl)).toBeNull();
+  });
+});
+
 describe("oEmbedRequestFor, discovery links", () => {
   it("uses the page's first JSON discovery link as written", () => {
     const request = oEmbedRequestFor(
@@ -90,7 +109,7 @@ describe("oEmbedRequestFor, discovery links", () => {
       head([{ url: "https://www.youtube.com/oembed?url=x&format=json", format: "json" }]),
     );
 
-    expect(request?.provider?.name).toBe("YouTube");
+    expect(request?.provider?.oEmbed.name).toBe("YouTube");
   });
 
   it("asks nothing of a page with only XML discovery links", () => {

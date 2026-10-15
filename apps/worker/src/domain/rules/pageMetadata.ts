@@ -1,5 +1,6 @@
 import type { ItemMetadata } from "@/domain/entities/Item";
 import { metaContent, type PageHead } from "@/domain/entities/PageHead";
+import { collapseWhitespace } from "@/domain/rules/collapseWhitespace";
 
 export const MAX_TITLE_LENGTH = 300;
 export const MAX_DESCRIPTION_LENGTH = 1000;
@@ -42,7 +43,7 @@ export function pickMetadata(sources: readonly ItemMetadata[]): ItemMetadata {
 
 function firstClean(candidates: readonly (string | null)[], maxLength: number): string | null {
   for (const candidate of candidates) {
-    const text = candidate?.replace(/\s+/g, " ").trim();
+    const text = candidate && collapseWhitespace(candidate);
     if (text) return capped(text, maxLength);
   }
   return null;

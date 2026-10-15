@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { inject, injectable } from "inversify";
 import { items } from "@cue-memory/db/schema";
 import { WORKER_TOKENS } from "@/di/tokens";
-import type { Item, ItemMetadata, ItemRef, ItemType } from "@/domain/entities/Item";
+import type { Item, ItemMetadata, ItemRef, ItemStatus, ItemType } from "@/domain/entities/Item";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 import type { Database } from "@/infrastructure/database/Database";
 
@@ -26,21 +26,22 @@ export class DrizzleItemRepository implements IItemRepository {
     return row ?? null;
   }
 
-  async markReady(
-    ref: ItemRef,
-    type: ItemType,
-    { title, description }: ItemMetadata,
-  ): Promise<void> {
-    await this.db
-      .update(items)
-      .set({ status: "ready", type, title, description, updatedAt: new Date() })
-      .where(ownedBy(ref));
+  async markReady(ref: ItemRef, type: ItemType, metadata: ItemMetadata): Promise<void> {
+    await this.finish(ref, { status: "ready", type, ...metadata });
   }
 
   async markFailed(ref: ItemRef, type: ItemType): Promise<void> {
+    await this.finish(ref, { status: "failed", type });
+  }
+
+  /** Ends the Item's Processing with this status, Item type and (when Ready) metadata. */
+  private async finish(
+    ref: ItemRef,
+    fields: { status: ItemStatus; type: ItemType } & Partial<ItemMetadata>,
+  ): Promise<void> {
     await this.db
       .update(items)
-      .set({ status: "failed", type, updatedAt: new Date() })
+      .set({ ...fields, updatedAt: new Date() })
       .where(ownedBy(ref));
   }
 }
