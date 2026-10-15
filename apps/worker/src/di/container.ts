@@ -4,9 +4,11 @@ import { Container } from "inversify";
 import { redisConnection } from "@cue-memory/db/redis";
 import { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
 import { WORKER_TOKENS } from "@/di/tokens";
+import type { IUrlFetcher } from "@/domain/providers/IUrlFetcher";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 import type { Database } from "@/infrastructure/database/Database";
 import { db } from "@/infrastructure/database/db";
+import { SafeUrlFetcher } from "@/infrastructure/http/SafeUrlFetcher";
 import { DrizzleItemRepository } from "@/infrastructure/repositories/DrizzleItemRepository";
 
 /**
@@ -20,6 +22,7 @@ export function createContainer(): Container {
   container.bind<Database>(WORKER_TOKENS.Database).toConstantValue(db);
   container.bind<Redis>(WORKER_TOKENS.RedisConnection).toConstantValue(redisConnection);
   container.bind<IItemRepository>(WORKER_TOKENS.ItemRepository).to(DrizzleItemRepository);
+  container.bind<IUrlFetcher>(WORKER_TOKENS.UrlFetcher).toConstantValue(new SafeUrlFetcher());
 
   container
     .bind<ProcessItemUseCase>(WORKER_TOKENS.ProcessItemUseCase)
