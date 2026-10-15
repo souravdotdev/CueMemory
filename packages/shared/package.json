@@ -22,7 +22,7 @@
     "@cue-memory/typescript-config": "workspace:*",
     "@cue-memory/vitest-config": "workspace:*",
     "@types/node": "^26.5.1",
-    "eslint": "^9.39.5",
+    "eslint": "^10.12.0",
     "typescript": "^6.0.3",
     "vitest": "^5.0.1"
   }
