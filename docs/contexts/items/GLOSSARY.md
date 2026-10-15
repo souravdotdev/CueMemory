@@ -34,8 +34,28 @@ _Avoid_: AI-generated flag, origin
 What kind of thing an Item is: Article, Tweet, Video, Image, PDF, or Link.
 _Avoid_: Category, kind
 
+**Article**:
+The Item type for a piece of writing to read, including Reddit threads.
+_Avoid_: Post, page, blog
+
+**Tweet**:
+The Item type for a post on X (formerly Twitter).
+_Avoid_: Post, X post
+
+**Video**:
+The Item type for something to watch, including YouTube videos and Instagram reels.
+_Avoid_: Clip, reel
+
+**Image**:
+The Item type for a picture, including Instagram posts and image files.
+_Avoid_: Photo, picture
+
+**PDF**:
+The Item type for a PDF document.
+_Avoid_: Document, file
+
 **Link**:
-The Item type for anything that isn't recognisably one of the other types.
+The Item type for everything else: anything that isn't recognisably one of the other types.
 _Avoid_: Other, generic, unknown
 
 ### Processing

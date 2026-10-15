@@ -175,6 +175,12 @@ importers:
       '@cue-memory/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@cue-memory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      bullmq:
+        specifier: ^6.3.15
+        version: 6.3.15(ioredis@6.0.0)
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(kysely@0.29.6)(postgres@3.4.9)

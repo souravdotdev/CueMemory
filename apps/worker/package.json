@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@cue-memory/db": "workspace:*",
+    "@cue-memory/shared": "workspace:*",
+    "bullmq": "^6.3.15",
     "drizzle-orm": "^0.45.2",
     "inversify": "^8.2.3",
     "ioredis": "^6.0.0",

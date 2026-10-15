@@ -132,23 +132,40 @@ Pure domain rules (`signInDecision`, `tagName`), mappers, output DTOs, infrastru
 
 Don't create empty layer folders ahead of time. A folder appears with its first file.
 
-## The worker (documented, not yet built)
+## The worker
 
-`apps/worker` has no queue today, but it already has the API's tooling: its own `WORKER_TOKENS` (`src/di/tokens.ts`) and `createContainer()` (`src/di/container.ts`, binding the Drizzle `Database` and the shared Redis connection), `reflect-metadata` loaded first in `index.ts`, `experimentalDecorators` and the `@/` alias in its `tsconfig.json` (mirrored in `vitest.config.ts`), tests in `tests/unit/`, and the same lint guard in its `eslint.config.js` (Drizzle, BullMQ, Postgres, Redis and `@cue-memory/db` are refused in `src/domain/` and `src/application/`). `index.ts` builds the container, connects to Redis and waits. When the first queue lands, the worker fills in the same four layers. Only the front door differs: a job arrives instead of an HTTP request, and a processor replaces the controller.
+`apps/worker` has the API's tooling: its own `WORKER_TOKENS` (`src/di/tokens.ts`) and `createContainer()` (`src/di/container.ts`), `reflect-metadata` loaded first in `index.ts`, `experimentalDecorators` and the `@/` alias in its `tsconfig.json` (mirrored in `vitest.config.ts`), tests in `tests/unit/`, and the same lint guard in its `eslint.config.js` (Drizzle, BullMQ, Postgres, Redis and `@cue-memory/db` are refused in `src/domain/` and `src/application/`). It fills in the same four layers; only the front door differs: a job arrives instead of an HTTP request, and a processor replaces the controller.
+
+```
+apps/worker/src/
+  index.ts              reflect-metadata first; createContainer(), ping Redis, createItemsWorker
+  di/                   tokens.ts (WORKER_TOKENS), container.ts
+  domain/
+    entities/           Item.ts (the fields Processing needs; Item types and statuses)
+    repositories/       IItemRepository.ts (findById, markReady)
+    rules/              itemTypeFromUrl.ts (pure URL rules)
+  application/
+    use-cases/items/    ProcessItemUseCase
+  infrastructure/
+    database/           Database.ts, db.ts
+    repositories/       DrizzleItemRepository.ts
+  interface/
+    itemsWorker.ts      createItemsWorker (the BullMQ Worker) and runItemsJob (the job switch)
+    processors/         processItem.processor.ts
+```
 
 | Part           | In the API                    | In the worker                                                   |
 | -------------- | ----------------------------- | --------------------------------------------------------------- |
-| Front door     | route + controller            | a `worker.ts` switch on `job.name` + a processor                |
-| Input check    | the route's zod schema        | `XPayloadSchema.parse(job.data)` in the processor               |
+| Front door     | route + controller            | a job switch on `job.name` (`runItemsJob`) + a processor        |
+| Input check    | the route's zod schema        | `XPayloadSchema.safeParse(job.data)` in the processor           |
 | Business logic | use case                      | use case                                                        |
 | Tokens         | `TOKENS` in `apps/api/src/di` | the worker's own `WORKER_TOKENS` and container                  |
 | Queue names    | n/a                           | constants from a shared queue entry point, no typed-out strings |
 
-The planned shape:
-
-- **The API enqueues through a port (built).** `SaveItemUseCase` depends on `IQueueProvider` in the domain, and `BullMqQueueProvider` in infrastructure implements it. The use case never imports `bullmq`; the lint guard blocks it.
-- **`worker.ts` routes by job name.** It creates the BullMQ `Worker` for a queue and switches on `job.name`, calling one processor per job type. An unknown name throws `UnrecoverableError`, so it is not retried.
-- **A processor is a thin controller.** It lives in the worker's `interface/processors/`. It parses `job.data` with the payload's zod schema, maps it to the use case's input, and calls `container.get<XUseCase>(WORKER_TOKENS.XUseCase).execute(input)`.
-- **The worker has its own `di/tokens.ts` and `di/container.ts`.** It never shares or mixes the API's `TOKENS`. The lint guard, the `reflect-metadata` rule and the two test seams apply as in the API: the processor seam drives a processor with a fake job and a test container, and use cases are tested with `new XUseCase(fake)`.
+- **The API enqueues through a port.** `SaveItemUseCase` depends on `IQueueProvider` in the domain, and `BullMqQueueProvider` in infrastructure implements it. The use case never imports `bullmq`; the lint guard blocks it.
+- **One worker per queue, routing by job name.** `interface/itemsWorker.ts` creates the BullMQ `Worker` for the Items queue; its job switch `runItemsJob(container, job)` calls one processor per job name. An unknown name throws `UnrecoverableError`, so it is not retried.
+- **A processor is a thin controller.** It lives in `interface/processors/`. It parses `job.data` with the payload's zod schema (an invalid payload throws `UnrecoverableError`), maps it to the use case's input, and calls `container.get<XUseCase>(WORKER_TOKENS.XUseCase).execute(input)`. Errors from the use case pass through, so BullMQ retries.
+- **The worker has its own `di/tokens.ts` and `di/container.ts`.** It never shares or mixes the API's `TOKENS`. Repositories are singletons; use cases are transient. The worker's `Item` entity is its own (the domain can't import the API's); `tests/unit/domain/schema-agreement.test.ts` keeps its Item types and statuses equal to the database enums.
+- **Two test seams, as in the API.** The processor seam drives `runItemsJob` with a fake job and a test container whose use case is a stand-in; use cases are tested with `new XUseCase(fake)`.
 
 Payload schemas and queue names go in `@cue-memory/shared/schemas/queue` (today `ITEMS_QUEUE`, `PROCESS_ITEM_JOB`, `ProcessItemJobSchema`). See [Queue](./queue.md).

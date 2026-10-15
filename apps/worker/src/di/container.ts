@@ -2,20 +2,29 @@ import "reflect-metadata";
 import type { Redis } from "ioredis";
 import { Container } from "inversify";
 import { redisConnection } from "@cue-memory/db/redis";
+import { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
 import { WORKER_TOKENS } from "@/di/tokens";
+import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 import type { Database } from "@/infrastructure/database/Database";
 import { db } from "@/infrastructure/database/db";
+import { DrizzleItemRepository } from "@/infrastructure/repositories/DrizzleItemRepository";
 
 /**
  * The worker's production container: the only place its concrete classes are
  * built and bound to their tokens. Infrastructure lives for the process's
- * life; use cases, once there are any, are built fresh each time.
+ * life; use cases are built fresh for each job.
  */
 export function createContainer(): Container {
   const container = new Container({ defaultScope: "Singleton" });
 
   container.bind<Database>(WORKER_TOKENS.Database).toConstantValue(db);
   container.bind<Redis>(WORKER_TOKENS.RedisConnection).toConstantValue(redisConnection);
+  container.bind<IItemRepository>(WORKER_TOKENS.ItemRepository).to(DrizzleItemRepository);
+
+  container
+    .bind<ProcessItemUseCase>(WORKER_TOKENS.ProcessItemUseCase)
+    .to(ProcessItemUseCase)
+    .inTransientScope();
 
   return container;
 }

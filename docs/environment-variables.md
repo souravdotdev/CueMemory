@@ -46,7 +46,7 @@ For local sign-in, create a Google OAuth **web** client whose authorized redirec
 | `DATABASE_URL` | Postgres connection string, to update item status after processing | `postgres://postgres:postgres@localhost:5433/cue_memory` |
 | `REDIS_URL`    | Redis connection string, to consume queued jobs                    | `redis://localhost:6380`                                 |
 
-Both are required: the worker connects to Redis when it boots and refuses to start without either URL. It has no queue to consume yet (see [Queue](./queue.md)), so today it boots, connects and waits. No `PORT` — the worker doesn't expose an HTTP server, it will just consume the queue. `apps/worker/.env.example` lists both.
+Both are required: the worker connects to Redis when it boots and refuses to start without either URL. It consumes the Items queue (see [Queue](./queue.md)). No `PORT` — the worker doesn't expose an HTTP server. `apps/worker/.env.example` lists both.
 
 ## `apps/web/.env`
 

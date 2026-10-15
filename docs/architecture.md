@@ -13,8 +13,11 @@ apps/
               src/interface/       Fastify routes, controllers and middleware
               src/infrastructure/  adapters: Better Auth, Drizzle repositories, row mappers
               src/di/              tokens.ts and container.ts (the InversifyJS container)
-  worker/   Background-job process, the same layers as the API (boots and waits; no queue yet)
-              src/infrastructure/  adapters: the Drizzle database
+  worker/   Background-job process consuming the Items queue, the same layers as the API
+              src/domain/          the Item entity, the Item repository port, the URL rules
+              src/application/     ProcessItemUseCase
+              src/interface/       itemsWorker.ts (BullMQ Worker + job switch) and processors/
+              src/infrastructure/  adapters: the Drizzle database and Item repository
               src/di/              tokens.ts (WORKER_TOKENS) and container.ts
 
 packages/
@@ -52,7 +55,7 @@ That's fine for anything bundler-based — but plain `node` cannot execute raw T
 
 **Backend API** (`apps/api`): Fastify, `@fastify/cors`, `@fastify/helmet`, `@fastify/rate-limit`, Zod (validation via `fastify-type-provider-zod`), Better Auth, `tsx` (dev runtime), `tsup` (build)
 
-**Worker** (`apps/worker`): InversifyJS + `reflect-metadata`, `tsx` (dev runtime), `tsup` (build) (no queue consumer yet)
+**Worker** (`apps/worker`): BullMQ (consumes the Items queue), InversifyJS + `reflect-metadata`, `tsx` (dev runtime), `tsup` (build)
 
 **Dependency injection** (`apps/api`, `apps/worker`): InversifyJS + `reflect-metadata`, one container per app in `src/di/container.ts` — see [Clean Architecture](./clean-architecture.md)
 
