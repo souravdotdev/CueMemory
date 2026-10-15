@@ -41,7 +41,7 @@ describe("SaveItemUseCase", () => {
     const { repository, saved } = itemsInMemory();
     const useCase = new SaveItemUseCase(repository, queueRecording());
 
-    await useCase.execute({ userId: USER_ID, url: "https://youtu.be/dQw4w9WgXcQ" });
+    await useCase.execute({ userId: USER_ID, sourceUrl: "https://youtu.be/dQw4w9WgXcQ" });
 
     expect(saved).toHaveLength(1);
     expect(saved[0]).toMatchObject({
@@ -57,7 +57,7 @@ describe("SaveItemUseCase", () => {
     const queue = queueRecording();
     const useCase = new SaveItemUseCase(repository, queue);
 
-    await useCase.execute({ userId: USER_ID, url: "https://example.com/post" });
+    await useCase.execute({ userId: USER_ID, sourceUrl: "https://example.com/post" });
 
     expect(queue.enqueueProcessItem).toHaveBeenCalledOnce();
     expect(queue.enqueueProcessItem).toHaveBeenCalledWith({
@@ -70,7 +70,7 @@ describe("SaveItemUseCase", () => {
     const { repository } = itemsInMemory();
     const useCase = new SaveItemUseCase(repository, queueRecording());
 
-    const card = await useCase.execute({ userId: USER_ID, url: "https://example.com/post" });
+    const card = await useCase.execute({ userId: USER_ID, sourceUrl: "https://example.com/post" });
 
     expect(card).toEqual({
       id: "00000000-0000-4000-8000-000000000001",
@@ -92,8 +92,11 @@ describe("SaveItemUseCase", () => {
     const queue = queueRecording();
     const useCase = new SaveItemUseCase(repository, queue);
 
-    const first = await useCase.execute({ userId: USER_ID, url: "https://example.com/post" });
-    const second = await useCase.execute({ userId: USER_ID, url: "https://example.com/post" });
+    const first = await useCase.execute({ userId: USER_ID, sourceUrl: "https://example.com/post" });
+    const second = await useCase.execute({
+      userId: USER_ID,
+      sourceUrl: "https://example.com/post",
+    });
 
     expect(saved).toHaveLength(2);
     expect(first.id).not.toBe(second.id);
@@ -110,7 +113,7 @@ describe("SaveItemUseCase", () => {
     const useCase = new SaveItemUseCase(repository, queue);
 
     await expect(
-      useCase.execute({ userId: USER_ID, url: "https://example.com/post" }),
+      useCase.execute({ userId: USER_ID, sourceUrl: "https://example.com/post" }),
     ).rejects.toThrow("Redis is down");
   });
 });

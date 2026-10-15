@@ -6,6 +6,12 @@ export type ItemType = (typeof ITEM_TYPES)[number];
 export const ITEM_STATUSES = ["processing", "ready", "failed"] as const;
 export type ItemStatus = (typeof ITEM_STATUSES)[number];
 
+/** Which Item, and whose: every Item the worker reads or changes is scoped to its User. */
+export interface ItemRef {
+  itemId: string;
+  userId: string;
+}
+
 /** What Processing needs to know about an Item. */
 export interface Item {
   id: string;

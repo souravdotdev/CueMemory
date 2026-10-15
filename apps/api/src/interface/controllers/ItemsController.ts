@@ -17,7 +17,7 @@ export class ItemsController {
   ): Promise<ItemCardOutput> => {
     const card = await this.saveItemUseCase.execute({
       userId: signedInUser(request).id,
-      url: request.body.url,
+      sourceUrl: request.body.url,
     });
     reply.code(201);
     return card;

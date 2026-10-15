@@ -9,9 +9,9 @@ export const WORKER_TOKENS = {
   /** The shared Redis connection (`maxRetriesPerRequest: null`, as BullMQ needs) jobs arrive on. */
   RedisConnection: Symbol("RedisConnection"),
   /** `IItemRepository`: the Items Processing reads and finishes. */
-  ItemRepository: Symbol("ItemRepository"),
+  ItemRepository: Symbol("IItemRepository"),
   /** `IUrlFetcher`: the guarded fetch that classifies URLs no rule recognises. */
-  UrlFetcher: Symbol("UrlFetcher"),
+  UrlFetcher: Symbol("IUrlFetcher"),
   /** `ProcessItemUseCase`: what a Process Item job runs. */
   ProcessItemUseCase: Symbol("ProcessItemUseCase"),
   /** `FailItemUseCase`: what a Process Item job's last failed attempt runs. */

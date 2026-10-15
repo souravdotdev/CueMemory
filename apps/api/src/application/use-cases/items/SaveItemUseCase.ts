@@ -2,19 +2,13 @@ import { inject, injectable } from "inversify";
 import { toItemCardOutput, type ItemCardOutput } from "@/application/dto/items/ItemCardOutput";
 import { TOKENS } from "@/di/tokens";
 import type { IQueueProvider } from "@/domain/providers/IQueueProvider";
-import type { IThumbnailUrlProvider } from "@/domain/providers/IThumbnailUrlProvider";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 
 export interface SaveItemInput {
   userId: string;
   /** The Source URL, already trimmed and checked to be http(s). */
-  url: string;
+  sourceUrl: string;
 }
-
-// A just-saved Item has no Thumbnail key, so its card never resolves one.
-const noThumbnailYet: IThumbnailUrlProvider = {
-  resolve: () => Promise.reject(new Error("A just-saved Item has no Thumbnail")),
-};
 
 /**
  * Saves a pasted URL as a Processing Item for the User, then enqueues its
@@ -30,8 +24,9 @@ export class SaveItemUseCase {
   ) {}
 
   async execute(input: SaveItemInput): Promise<ItemCardOutput> {
-    const item = await this.items.create({ userId: input.userId, sourceUrl: input.url });
+    const item = await this.items.create({ userId: input.userId, sourceUrl: input.sourceUrl });
     await this.queue.enqueueProcessItem({ itemId: item.id, userId: item.userId });
-    return toItemCardOutput(item, [], noThumbnailYet);
+    // A just-saved Item has no Thumbnail key, so its card needs no Thumbnail provider.
+    return toItemCardOutput(item, []);
   }
 }

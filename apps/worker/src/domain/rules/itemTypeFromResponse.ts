@@ -1,5 +1,6 @@
 import type { ItemType } from "@/domain/entities/Item";
 import type { FetchedPage } from "@/domain/providers/IUrlFetcher";
+import { mediaTypeOf } from "@/domain/rules/mediaType";
 
 const META_TAG = /<meta\b[^>]*>/gi;
 const ATTRIBUTE = /([^\s"'=<>/]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
@@ -23,7 +24,7 @@ function openGraphType(htmlHead: string): string | null {
  * article, and a Link otherwise.
  */
 export function itemTypeFromResponse(page: FetchedPage): ItemType {
-  const mediaType = page.contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
+  const mediaType = mediaTypeOf(page.contentType);
   if (mediaType === "application/pdf") return "pdf";
   if (mediaType.startsWith("image/")) return "image";
   if (page.htmlHead !== null && openGraphType(page.htmlHead) === "article") return "article";

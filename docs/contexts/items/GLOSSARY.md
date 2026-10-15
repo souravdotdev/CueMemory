@@ -35,7 +35,7 @@ What kind of thing an Item is: Article, Tweet, Video, Image, PDF, or Link.
 _Avoid_: Category, kind
 
 **Article**:
-The Item type for a piece of writing to read, including Reddit threads.
+The Item type for a piece of writing to read, including Reddit threads and pages that declare themselves articles.
 _Avoid_: Post, page, blog
 
 **Tweet**:

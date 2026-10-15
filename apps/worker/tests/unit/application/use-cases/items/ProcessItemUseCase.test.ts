@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
 import { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
-import type { Item, ItemType } from "@/domain/entities/Item";
+import type { Item, ItemRef, ItemType } from "@/domain/entities/Item";
 import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 
@@ -12,12 +12,11 @@ const ITEM_ID = "00000000-0000-4000-8000-000000000001";
 // An in-memory Item repository holding one Processing Item for USER_ID.
 function itemsInMemory(sourceUrl: string) {
   const item: Item = { id: ITEM_ID, userId: USER_ID, sourceUrl, type: null, status: "processing" };
+  const owns = ({ itemId, userId }: ItemRef) => itemId === item.id && userId === item.userId;
   const repository: IItemRepository = {
-    findById: vi.fn(async (itemId: string, userId: string) =>
-      itemId === item.id && userId === item.userId ? { ...item } : null,
-    ),
-    markReady: vi.fn(async (itemId: string, userId: string, type: ItemType) => {
-      if (itemId === item.id && userId === item.userId) {
+    findById: vi.fn(async (ref: ItemRef) => (owns(ref) ? { ...item } : null)),
+    markReady: vi.fn(async (ref: ItemRef, type: ItemType) => {
+      if (owns(ref)) {
         item.status = "ready";
         item.type = type;
       }
@@ -29,7 +28,7 @@ function itemsInMemory(sourceUrl: string) {
 
 // A URL fetcher answering every fetch with the same page.
 function fetcherAnswering(page: FetchedPage) {
-  return { fetchPage: vi.fn(async (_url: string) => page) } satisfies IUrlFetcher;
+  return { fetchPage: vi.fn(async (_sourceUrl: string) => page) } satisfies IUrlFetcher;
 }
 
 const anHtmlPage: FetchedPage = { contentType: "text/html", htmlHead: "<head></head>" };

@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
 import { FailItemUseCase } from "@/application/use-cases/items/FailItemUseCase";
-import type { Item, ItemType } from "@/domain/entities/Item";
+import type { Item, ItemRef, ItemType } from "@/domain/entities/Item";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 
 const USER_ID = "7f1c2b9e-1a2b-4c3d-8e9f-0a1b2c3d4e5f";
@@ -17,14 +17,12 @@ function itemsInMemory(type: ItemType | null = null) {
     type,
     status: "processing",
   };
-  const owns = (itemId: string, userId: string) => itemId === item.id && userId === item.userId;
+  const owns = ({ itemId, userId }: ItemRef) => itemId === item.id && userId === item.userId;
   const repository: IItemRepository = {
-    findById: vi.fn(async (itemId: string, userId: string) =>
-      owns(itemId, userId) ? { ...item } : null,
-    ),
+    findById: vi.fn(async (ref: ItemRef) => (owns(ref) ? { ...item } : null)),
     markReady: vi.fn(async () => {}),
-    markFailed: vi.fn(async (itemId: string, userId: string, failedType: ItemType) => {
-      if (owns(itemId, userId)) {
+    markFailed: vi.fn(async (ref: ItemRef, failedType: ItemType) => {
+      if (owns(ref)) {
         item.status = "failed";
         item.type = failedType;
       }

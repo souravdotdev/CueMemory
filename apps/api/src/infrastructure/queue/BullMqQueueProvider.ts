@@ -6,7 +6,7 @@ import {
   type ProcessItemJob,
 } from "@cue-memory/shared/schemas/queue";
 import { TOKENS } from "@/di/tokens";
-import type { IQueueProvider } from "@/domain/providers/IQueueProvider";
+import type { IQueueProvider, ProcessItemRequest } from "@/domain/providers/IQueueProvider";
 
 /**
  * The part of a BullMQ `Queue` this provider uses. The container binds the
@@ -30,9 +30,13 @@ const PROCESS_ITEM_OPTIONS: JobsOptions = {
 export class BullMqQueueProvider implements IQueueProvider {
   constructor(@inject(TOKENS.ItemsQueue) private readonly queue: ItemsQueue) {}
 
-  async enqueueProcessItem(job: ProcessItemJob): Promise<void> {
-    // Parsed here too, so a payload the worker would refuse never reaches Redis.
-    const payload = ProcessItemJobSchema.parse(job);
+  async enqueueProcessItem(request: ProcessItemRequest): Promise<void> {
+    // Mapped to the shared job payload and parsed here, so a payload the worker
+    // would refuse never reaches Redis.
+    const payload: ProcessItemJob = ProcessItemJobSchema.parse({
+      itemId: request.itemId,
+      userId: request.userId,
+    });
     await this.queue.add(PROCESS_ITEM_JOB, payload, PROCESS_ITEM_OPTIONS);
   }
 }

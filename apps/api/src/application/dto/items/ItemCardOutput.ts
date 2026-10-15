@@ -24,11 +24,14 @@ void tagSourcesMatch;
 // Why an Item failed isn't stored; the worker logs it. Every Failed card gets the same message.
 const FAILURE_MESSAGE = "We couldn't process this link. Try again.";
 
-/** Builds the Item card for an Item and its applied Tags, signing the Thumbnail URL. */
+/**
+ * Builds the Item card for an Item and its applied Tags, signing the Thumbnail URL.
+ * The Thumbnail provider is only needed when the Item has a Thumbnail key.
+ */
 export async function toItemCardOutput(
   item: Item,
   tags: readonly AppliedTag[],
-  thumbnails: IThumbnailUrlProvider,
+  thumbnails?: IThumbnailUrlProvider,
 ): Promise<ItemCardOutput> {
   return {
     id: item.id,
@@ -37,9 +40,14 @@ export async function toItemCardOutput(
     status: item.status,
     title: item.title,
     description: item.description,
-    thumbnailUrl: item.thumbnailKey ? await thumbnails.resolve(item.thumbnailKey) : null,
+    thumbnailUrl: item.thumbnailKey ? await thumbnailUrl(item.thumbnailKey, thumbnails) : null,
     failureMessage: item.status === "failed" ? FAILURE_MESSAGE : null,
     createdAt: item.createdAt.toISOString(),
     tags: tags.map(({ tag, source }) => ({ id: tag.id, name: tag.name, source })),
   };
+}
+
+function thumbnailUrl(key: string, thumbnails: IThumbnailUrlProvider | undefined): Promise<string> {
+  if (!thumbnails) throw new Error("An Item with a Thumbnail key needs a Thumbnail provider");
+  return thumbnails.resolve(key);
 }

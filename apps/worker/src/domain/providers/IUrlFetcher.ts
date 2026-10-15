@@ -12,5 +12,5 @@ export interface FetchedPage {
  * a refused, failed or timed-out fetch rejects.
  */
 export interface IUrlFetcher {
-  fetchPage(url: string): Promise<FetchedPage>;
+  fetchPage(sourceUrl: string): Promise<FetchedPage>;
 }

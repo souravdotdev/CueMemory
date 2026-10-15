@@ -22,10 +22,17 @@ function testContainer() {
   return { container, useCase };
 }
 
-// A Process Item job after `attemptsMade` failed attempts out of 3.
+// When BullMQ moved a job to the failed set: it sets this only once no attempt is left.
+const FINISHED_ON = Date.parse("2026-04-01T00:00:00.000Z");
+
+// A Process Item job after `attemptsMade` failed attempts out of 3. BullMQ
+// retries it until the third, unless `finished` says no attempt is left.
 function processItemJob(
   attemptsMade: number,
-  data: unknown = { itemId: ITEM_ID, userId: USER_ID },
+  {
+    data = { itemId: ITEM_ID, userId: USER_ID },
+    finished = attemptsMade >= 3,
+  }: { data?: unknown; finished?: boolean } = {},
 ) {
   return {
     id: "42",
@@ -33,6 +40,7 @@ function processItemJob(
     data,
     attemptsMade,
     opts: { attempts: 3 },
+    ...(finished ? { finishedOn: FINISHED_ON } : {}),
   } satisfies FailedItemsJob;
 }
 
@@ -74,12 +82,49 @@ describe("a failed job on the Items queue", () => {
     expect(errorLog).toHaveBeenCalledWith(expect.stringContaining("fetch timed out"));
   });
 
+  it("marks the Item Failed when BullMQ fails a job that stalled too often", async () => {
+    const { container, useCase } = testContainer();
+
+    // BullMQ fails it with an UnrecoverableError on its next pick-up, attempts left or not.
+    await onItemsJobFailed(
+      container,
+      processItemJob(1, { finished: true }),
+      new UnrecoverableError("job stalled more than allowable limit"),
+    );
+
+    expect(useCase.execute).toHaveBeenCalledWith({ itemId: ITEM_ID, userId: USER_ID });
+  });
+
+  it("marks the Item Failed whenever BullMQ has no attempt left, whatever the count says", async () => {
+    const { container, useCase } = testContainer();
+
+    await onItemsJobFailed(
+      container,
+      processItemJob(1, { finished: true }),
+      new Error("Postgres is down"),
+    );
+
+    expect(useCase.execute).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the Item Processing while BullMQ will retry the job", async () => {
+    const { container, useCase } = testContainer();
+
+    await onItemsJobFailed(
+      container,
+      processItemJob(3, { finished: false }),
+      new Error("Postgres is down"),
+    );
+
+    expect(useCase.execute).not.toHaveBeenCalled();
+  });
+
   it("changes no Item when the job could never succeed (invalid payload)", async () => {
     const { container, useCase } = testContainer();
 
     await onItemsJobFailed(
       container,
-      processItemJob(1, { itemId: "42" }),
+      processItemJob(1, { data: { itemId: "42" }, finished: true }),
       new UnrecoverableError("Invalid Process Item payload"),
     );
 

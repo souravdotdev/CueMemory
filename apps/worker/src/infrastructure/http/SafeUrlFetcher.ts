@@ -4,7 +4,9 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import type { LookupFunction } from "node:net";
 import { isIP } from "node:net";
+import { injectable, unmanaged } from "inversify";
 import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
+import { mediaTypeOf } from "@/domain/rules/mediaType";
 import { isPublicAddress } from "@/infrastructure/http/publicAddress";
 
 export const USER_AGENT = "CueMemory/1.0 (+link preview; classifies saved links)";
@@ -45,7 +47,10 @@ const systemResolve = async (hostname: string): Promise<ResolvedAddress[]> =>
  * internal one); redirects are followed by hand, each hop checked the same
  * way, at most 5; the whole fetch times out after 10 s; at most ~1 MB of an
  * HTML body is read, and only up to `</head>`. Other bodies aren't read.
+ * The container builds it with the defaults; tests construct it directly to
+ * pass options.
  */
+@injectable()
 export class SafeUrlFetcher implements IUrlFetcher {
   private readonly resolve: (hostname: string) => Promise<ResolvedAddress[]>;
   private readonly isAllowedAddress: (address: string) => boolean;
@@ -53,7 +58,8 @@ export class SafeUrlFetcher implements IUrlFetcher {
   private readonly maxBytes: number;
   private readonly maxRedirects: number;
 
-  constructor(options: SafeUrlFetcherOptions = {}) {
+  // Not injected: the container leaves it undefined, so the defaults apply.
+  constructor(@unmanaged() options: SafeUrlFetcherOptions = {}) {
     this.resolve = options.resolve ?? systemResolve;
     this.isAllowedAddress = options.isAllowedAddress ?? isPublicAddress;
     this.timeoutMs = options.timeoutMs ?? 10_000;
@@ -61,13 +67,15 @@ export class SafeUrlFetcher implements IUrlFetcher {
     this.maxRedirects = options.maxRedirects ?? 5;
   }
 
-  async fetchPage(url: string): Promise<FetchedPage> {
+  async fetchPage(sourceUrl: string): Promise<FetchedPage> {
     const signal = AbortSignal.timeout(this.timeoutMs);
     try {
-      return await this.follow(new URL(url), signal);
+      return await this.follow(new URL(sourceUrl), signal);
     } catch (error) {
       if (signal.aborted && !(error instanceof UrlRefusedError)) {
-        throw new Error(`Fetching ${url} timed out after ${this.timeoutMs} ms`, { cause: error });
+        throw new Error(`Fetching ${sourceUrl} timed out after ${this.timeoutMs} ms`, {
+          cause: error,
+        });
       }
       throw error;
     }
@@ -149,8 +157,7 @@ export class SafeUrlFetcher implements IUrlFetcher {
     }
 
     const contentType = response.headers["content-type"] ?? null;
-    const mediaType = contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
-    if (!HTML_TYPES.has(mediaType)) {
+    if (!HTML_TYPES.has(mediaTypeOf(contentType))) {
       response.destroy();
       return { contentType, htmlHead: null };
     }

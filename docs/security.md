@@ -37,7 +37,7 @@ A Source URL is whatever a User pasted, and when no URL rule recognises it the w
 - **Pins the connection to the checked addresses.** The request's `lookup` answers only with the addresses just checked, so the socket can't connect anywhere else; a DNS answer that changes between the check and the connect (DNS rebinding) never reaches the socket. `agent: false` keeps it from reusing a pooled socket. TLS still verifies the certificate against the hostname.
 - **Follows redirects by hand**, at most 5, resolving and checking each hop like the first; a redirect to a non-HTTP(S) scheme is refused.
 - **Bounds the work**: one 10-second timeout covers the whole fetch (every hop and the body), only an HTML body is read, at most ~1 MB and only up to `</head>`, and `Accept-Encoding: identity` means nothing is decompressed. It sends `User-Agent: CueMemory/1.0 (…)`.
-- **Fails the attempt** on a refusal, a network error, a timeout or a 5xx/429 answer: the error propagates, so the job retries and, after its last attempt, the Item is Failed. No response body ever reaches the User or the logs beyond the classified Item type.
+- **Fails the attempt** on a refusal, a network error, a timeout or a 5xx/429 answer: the error propagates, so the job retries and, once no attempt is left, the Item is Failed. No response body ever reaches the User or the logs beyond the classified Item type.
 
 Not covered: there's no outbound proxy or egress firewall behind this; the guard is in-process. Tests: `tests/unit/infrastructure/http/` (see [Testing](./testing.md)).
 

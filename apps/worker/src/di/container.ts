@@ -22,8 +22,11 @@ export function createContainer(): Container {
 
   container.bind<Database>(WORKER_TOKENS.Database).toConstantValue(db);
   container.bind<Redis>(WORKER_TOKENS.RedisConnection).toConstantValue(redisConnection);
-  container.bind<IItemRepository>(WORKER_TOKENS.ItemRepository).to(DrizzleItemRepository);
-  container.bind<IUrlFetcher>(WORKER_TOKENS.UrlFetcher).toConstantValue(new SafeUrlFetcher());
+  container
+    .bind<IItemRepository>(WORKER_TOKENS.ItemRepository)
+    .to(DrizzleItemRepository)
+    .inSingletonScope();
+  container.bind<IUrlFetcher>(WORKER_TOKENS.UrlFetcher).to(SafeUrlFetcher).inSingletonScope();
 
   container
     .bind<ProcessItemUseCase>(WORKER_TOKENS.ProcessItemUseCase)
