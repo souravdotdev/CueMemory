@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
 import { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
 import type { Item, ItemType } from "@/domain/entities/Item";
+import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 
 const USER_ID = "7f1c2b9e-1a2b-4c3d-8e9f-0a1b2c3d4e5f";
@@ -26,10 +27,17 @@ function itemsInMemory(sourceUrl: string) {
   return { repository, item };
 }
 
+// A URL fetcher answering every fetch with the same page.
+function fetcherAnswering(page: FetchedPage) {
+  return { fetchPage: vi.fn(async (_url: string) => page) } satisfies IUrlFetcher;
+}
+
+const anHtmlPage: FetchedPage = { contentType: "text/html", htmlHead: "<head></head>" };
+
 describe("ProcessItemUseCase", () => {
   it("marks a saved YouTube link Ready as a Video", async () => {
     const { repository, item } = itemsInMemory("https://youtu.be/dQw4w9WgXcQ");
-    const useCase = new ProcessItemUseCase(repository);
+    const useCase = new ProcessItemUseCase(repository, fetcherAnswering(anHtmlPage));
 
     const result = await useCase.execute({ itemId: ITEM_ID, userId: USER_ID });
 
@@ -37,19 +45,60 @@ describe("ProcessItemUseCase", () => {
     expect(item).toMatchObject({ status: "ready", type: "video" });
   });
 
-  it("marks a URL no rule recognises Ready as a Link", async () => {
-    const { repository, item } = itemsInMemory("https://example.com/blog/a-post");
-    const useCase = new ProcessItemUseCase(repository);
+  it("doesn't fetch a URL a rule recognises", async () => {
+    const { repository } = itemsInMemory("https://youtu.be/dQw4w9WgXcQ");
+    const fetcher = fetcherAnswering(anHtmlPage);
 
-    const result = await useCase.execute({ itemId: ITEM_ID, userId: USER_ID });
+    await new ProcessItemUseCase(repository, fetcher).execute({ itemId: ITEM_ID, userId: USER_ID });
 
-    expect(result).toEqual({ outcome: "ready", type: "link" });
-    expect(item).toMatchObject({ status: "ready", type: "link" });
+    expect(fetcher.fetchPage).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ contentType: "application/pdf", htmlHead: null }, "pdf"],
+    [{ contentType: "image/webp", htmlHead: null }, "image"],
+    [
+      {
+        contentType: "text/html",
+        htmlHead: '<head><meta property="og:type" content="article"></head>',
+      },
+      "article",
+    ],
+    [anHtmlPage, "link"],
+  ] as [FetchedPage, ItemType][])(
+    "fetches a URL no rule recognises and types it by the response (%o → %s)",
+    async (page, type) => {
+      const { repository, item } = itemsInMemory("https://arxiv.org/pdf/2401.00001");
+      const fetcher = fetcherAnswering(page);
+
+      const result = await new ProcessItemUseCase(repository, fetcher).execute({
+        itemId: ITEM_ID,
+        userId: USER_ID,
+      });
+
+      expect(fetcher.fetchPage).toHaveBeenCalledWith("https://arxiv.org/pdf/2401.00001");
+      expect(result).toEqual({ outcome: "ready", type });
+      expect(item).toMatchObject({ status: "ready", type });
+    },
+  );
+
+  it("fails when the fetch fails, so the job is retried", async () => {
+    const { repository, item } = itemsInMemory("http://127.0.0.1:4000/health");
+    const fetcher: IUrlFetcher = {
+      fetchPage: vi.fn(async () => {
+        throw new Error("127.0.0.1 isn't public");
+      }),
+    };
+
+    await expect(
+      new ProcessItemUseCase(repository, fetcher).execute({ itemId: ITEM_ID, userId: USER_ID }),
+    ).rejects.toThrow("127.0.0.1 isn't public");
+    expect(item).toMatchObject({ status: "processing", type: null });
   });
 
   it("does nothing for an Item that no longer exists", async () => {
     const { repository } = itemsInMemory("https://youtu.be/dQw4w9WgXcQ");
-    const useCase = new ProcessItemUseCase(repository);
+    const useCase = new ProcessItemUseCase(repository, fetcherAnswering(anHtmlPage));
 
     const result = await useCase.execute({
       itemId: "00000000-0000-4000-8000-000000000099",
@@ -62,7 +111,7 @@ describe("ProcessItemUseCase", () => {
 
   it("never touches another User's Item", async () => {
     const { repository, item } = itemsInMemory("https://youtu.be/dQw4w9WgXcQ");
-    const useCase = new ProcessItemUseCase(repository);
+    const useCase = new ProcessItemUseCase(repository, fetcherAnswering(anHtmlPage));
 
     const result = await useCase.execute({ itemId: ITEM_ID, userId: OTHER_USER_ID });
 
@@ -75,7 +124,7 @@ describe("ProcessItemUseCase", () => {
     repository.markReady = vi.fn(async () => {
       throw new Error("Postgres is down");
     });
-    const useCase = new ProcessItemUseCase(repository);
+    const useCase = new ProcessItemUseCase(repository, fetcherAnswering(anHtmlPage));
 
     await expect(useCase.execute({ itemId: ITEM_ID, userId: USER_ID })).rejects.toThrow(
       "Postgres is down",
