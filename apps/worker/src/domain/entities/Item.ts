@@ -31,3 +31,12 @@ export interface Item {
   type: ItemType | null;
   status: ItemStatus;
 }
+
+/** What the page says it is called and is about; written to the Item when it becomes Ready. */
+export interface ItemMetadata {
+  title: string | null;
+  description: string | null;
+}
+
+/** No title and no description: the page couldn't be read, or said nothing. */
+export const NO_METADATA: ItemMetadata = { title: null, description: null };

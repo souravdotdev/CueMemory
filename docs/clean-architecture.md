@@ -143,17 +143,20 @@ apps/worker/src/
   index.ts              reflect-metadata first; createContainer(), ping Redis, createItemsWorker
   di/                   tokens.ts (WORKER_TOKENS), container.ts
   domain/
-    entities/           Item.ts (the fields Processing needs; ItemRef; Item types and statuses)
+    entities/           Item.ts (the fields Processing needs; ItemRef; ItemMetadata; Item types and statuses),
+                        PageHead.ts (a page head's extracted tags)
     repositories/       IItemRepository.ts (findById, markReady, markFailed)
     providers/          IUrlFetcher.ts (fetchPage)
     rules/              itemTypeFromUrl.ts, knownSites.ts, itemTypeFromExtension.ts, itemTypeFromResponse.ts,
-                        itemTypeFromContentType.ts, itemTypeFromMagicBytes.ts, mediaType.ts (pure functions)
+                        itemTypeFromContentType.ts, itemTypeFromMagicBytes.ts, mediaType.ts,
+                        itemTypeFromJsonLd.ts, itemTypeFromOpenGraph.ts, itemTypeFromTwitterCard.ts,
+                        pageMetadata.ts (pure functions)
   application/
     use-cases/items/    ProcessItemUseCase, FailItemUseCase
     dto/items/          ProcessItemResult.ts, FailItemResult.ts
   infrastructure/
     database/           Database.ts, db.ts
-    http/               SafeUrlFetcher.ts, publicAddress.ts (the guarded fetch)
+    http/               SafeUrlFetcher.ts, publicAddress.ts (the guarded fetch), parsePageHead.ts (htmlparser2)
     repositories/       DrizzleItemRepository.ts
   interface/
     itemsJobs.ts        the job-name map: each name's processor and final-failure step

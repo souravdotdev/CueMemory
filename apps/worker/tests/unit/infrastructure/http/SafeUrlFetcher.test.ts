@@ -14,7 +14,9 @@ import {
   USER_AGENT,
 } from "@/infrastructure/http/SafeUrlFetcher";
 
-const ARTICLE_HEAD = '<html><head><meta property="og:type" content="article"></head>';
+const ARTICLE_HEAD =
+  '<html><head><title>An &amp; article</title><meta property="og:type" content="article">' +
+  '<link rel="alternate" type="application/json+oembed" href="oembed.json"></head>';
 const PNG_START = Buffer.from([
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
 ]);
@@ -33,6 +35,14 @@ function route(path: string, res: ServerResponse) {
   if (chain) {
     const left = Number(chain[1]);
     return left === 0 ? redirect("/article") : redirect(`/chain/${left - 1}`);
+  }
+  const titleAfter = /^\/title-after\/(\d+)$/.exec(path);
+  if (titleAfter) {
+    // A head whose <title> comes only after this many KiB of padding.
+    const padding = " ".repeat(Number(titleAfter[1]) * 1024);
+    return res
+      .writeHead(200, { "content-type": "text/html" })
+      .end(`<html><head>${padding}<title>Late</title></head><body></body></html>`);
   }
   switch (path) {
     case "/article":
@@ -80,7 +90,7 @@ function route(path: string, res: ServerResponse) {
       // An HTML head that never ends, streamed until the client hangs up.
       openResponses.add(res);
       res.writeHead(200, { "content-type": "text/html" });
-      res.write("<html><head>");
+      res.write("<html><head><title>Endless</title>");
       const chunk = "<!-- padding -->".repeat(4096);
       const pump = () => {
         while (!res.destroyed && res.write(chunk));
@@ -154,6 +164,15 @@ function localFetcher(options: { timeoutMs?: number; maxBytes?: number } = {}) {
 
 const at = (path: string, host = "site.test") => `http://${host}:${port}${path}`;
 
+// ARTICLE_HEAD's tags, parsed once by the fetcher (its oEmbed link resolved
+// against the page it was read from, after any redirects).
+const ARTICLE_TAGS = () => ({
+  meta: [{ key: "og:type", content: "article" }],
+  title: "An & article",
+  jsonLd: [],
+  oEmbedLinks: [{ url: at("/oembed.json"), format: "json" }],
+});
+
 describe("SafeUrlFetcher, allowed fetches", () => {
   it("fetches an HTML page's head and sends the CueMemory User-Agent", async () => {
     const page = await localFetcher().fetchPage(at("/article"));
@@ -161,7 +180,7 @@ describe("SafeUrlFetcher, allowed fetches", () => {
     expect(page).toEqual({
       finalUrl: at("/article"),
       contentType: "text/html; charset=utf-8",
-      htmlHead: ARTICLE_HEAD,
+      head: ARTICLE_TAGS(),
       firstBytes: null,
     });
     expect(lastHeaders["user-agent"]).toBe(USER_AGENT);
@@ -171,7 +190,7 @@ describe("SafeUrlFetcher, allowed fetches", () => {
     await expect(localFetcher().fetchPage(at("/pdf"))).resolves.toEqual({
       finalUrl: at("/pdf"),
       contentType: "application/pdf",
-      htmlHead: null,
+      head: null,
       firstBytes: new Uint8Array(Buffer.from("%PDF-1.7")),
     });
     expect(hits).toEqual(["/pdf"]);
@@ -180,7 +199,7 @@ describe("SafeUrlFetcher, allowed fetches", () => {
   it("follows a redirect", async () => {
     const page = await localFetcher().fetchPage(at("/to-article"));
 
-    expect(page.htmlHead).toBe(ARTICLE_HEAD);
+    expect(page.head).toEqual(ARTICLE_TAGS());
     expect(page.finalUrl).toBe(at("/article"));
     expect(hits).toEqual(["/to-article", "/article"]);
   });
@@ -199,7 +218,7 @@ describe("SafeUrlFetcher, allowed fetches", () => {
     expect(page).toEqual({
       finalUrl: at("/download"),
       contentType: "application/octet-stream",
-      htmlHead: null,
+      head: null,
       firstBytes: new Uint8Array(PNG_START),
     });
   });
@@ -221,7 +240,7 @@ describe("SafeUrlFetcher, allowed fetches", () => {
   it("follows up to 5 redirects", async () => {
     const page = await localFetcher().fetchPage(at("/chain/4"));
 
-    expect(page.htmlHead).toBe(ARTICLE_HEAD);
+    expect(page.head).toEqual(ARTICLE_TAGS());
     expect(hits).toHaveLength(6);
   });
 
@@ -231,16 +250,26 @@ describe("SafeUrlFetcher, allowed fetches", () => {
   });
 
   it("stops reading after the size cap", async () => {
-    const page = await localFetcher({ maxBytes: 64 * 1024 }).fetchPage(at("/endless"));
+    const fetcher = localFetcher({ maxBytes: 64 * 1024 });
 
-    expect(page.htmlHead).toMatch(/^<html><head>/);
-    expect(page.htmlHead!.length).toBeLessThanOrEqual(64 * 1024);
+    expect((await fetcher.fetchPage(at("/title-after/60"))).head?.title).toBe("Late");
+    expect((await fetcher.fetchPage(at("/title-after/70"))).head).toEqual({
+      meta: [],
+      title: null,
+      jsonLd: [],
+      oEmbedLinks: [],
+    });
   });
 
   it("stops reading the default ~1 MB in", async () => {
-    const page = await localFetcher().fetchPage(at("/endless"));
+    expect((await localFetcher().fetchPage(at("/title-after/1000"))).head?.title).toBe("Late");
+    expect((await localFetcher().fetchPage(at("/title-after/1030"))).head?.title).toBeNull();
+  });
 
-    expect(page.htmlHead!.length).toBe(1024 * 1024);
+  it("reads what a head that never ends declared before the cap", async () => {
+    const page = await localFetcher({ maxBytes: 64 * 1024 }).fetchPage(at("/endless"));
+
+    expect(page.head?.title).toBe("Endless");
   });
 
   it("times out when the server never answers", async () => {
@@ -259,7 +288,7 @@ describe("SafeUrlFetcher, allowed fetches", () => {
     await expect(localFetcher().fetchPage(at("/gone"))).resolves.toEqual({
       finalUrl: at("/gone"),
       contentType: null,
-      htmlHead: null,
+      head: null,
       firstBytes: null,
     });
   });

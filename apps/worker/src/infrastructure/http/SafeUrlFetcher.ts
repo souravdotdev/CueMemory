@@ -8,6 +8,7 @@ import { injectable, unmanaged } from "inversify";
 import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
 import { MAGIC_BYTES_LENGTH } from "@/domain/rules/itemTypeFromMagicBytes";
 import { mediaTypeOf } from "@/domain/rules/mediaType";
+import { parsePageHead } from "@/infrastructure/http/parsePageHead";
 import { isPublicAddress } from "@/infrastructure/http/publicAddress";
 
 export const USER_AGENT = "CueMemory/1.0 (+link preview; classifies saved links)";
@@ -48,7 +49,8 @@ const systemResolve = async (hostname: string): Promise<ResolvedAddress[]> =>
  * internal one); redirects are followed by hand, each hop checked the same
  * way, at most 5; the whole fetch times out after 10 s; at most ~1 MB of an
  * HTML body is read, and only up to `</head>`; of any other body only the
- * first 16 bytes are read. It reports the URL it ended at.
+ * first 16 bytes are read. It reports the URL it ended at, and parses an
+ * HTML head once into its tags (`parsePageHead`).
  * The container builds it with the defaults; tests construct it directly to
  * pass options.
  */
@@ -155,16 +157,16 @@ export class SafeUrlFetcher implements IUrlFetcher {
     // Any other unsuccessful answer says nothing about the page: it stays a Link.
     if (status < 200 || status >= 300) {
       response.destroy();
-      return { finalUrl: url.href, contentType: null, htmlHead: null, firstBytes: null };
+      return { finalUrl: url.href, contentType: null, head: null, firstBytes: null };
     }
 
     const contentType = response.headers["content-type"] ?? null;
     if (!HTML_TYPES.has(mediaTypeOf(contentType))) {
       const firstBytes = await this.readFirstBytes(response, signal);
-      return { finalUrl: url.href, contentType, htmlHead: null, firstBytes };
+      return { finalUrl: url.href, contentType, head: null, firstBytes };
     }
-    const htmlHead = await this.readHead(response, signal);
-    return { finalUrl: url.href, contentType, htmlHead, firstBytes: null };
+    const head = parsePageHead(await this.readHead(response, signal), url.href);
+    return { finalUrl: url.href, contentType, head, firstBytes: null };
   }
 
   /** The body's first bytes (its magic bytes), then hangs up. */

@@ -6,13 +6,16 @@ import { PROCESS_ITEM_JOB } from "@cue-memory/shared/schemas/queue";
 import type { ProcessItemResult } from "@/application/dto/items/ProcessItemResult";
 import type { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
 import { WORKER_TOKENS } from "@/di/tokens";
+import { NO_METADATA } from "@/domain/entities/Item";
 import { runItemsJob } from "@/interface/itemsWorker";
 
 const ITEM_ID = "00000000-0000-4000-8000-000000000001";
 const USER_ID = "7f1c2b9e-1a2b-4c3d-8e9f-0a1b2c3d4e5f";
 
 // A test container whose Process Item use case is a stand-in reporting `result`.
-function testContainer(result: ProcessItemResult = { outcome: "ready", type: "video" }) {
+function testContainer(
+  result: ProcessItemResult = { outcome: "ready", type: "video", metadata: NO_METADATA },
+) {
   const useCase = { execute: vi.fn(async () => result) };
   const container = new Container();
   container
