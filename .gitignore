@@ -7,6 +7,8 @@ node_modules/
 ## Build outputs
 dist/
 .next/
+# Rewritten by next dev/build/typegen (dev and build write different paths)
+next-env.d.ts
 out/
 *.tsbuildinfo
 

@@ -11,6 +11,9 @@ const origin = httpUrl.refine((value) => URL.canParse(value) && new URL(value).o
 
 const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
+  // The interface the server binds to. 0.0.0.0 (every interface) suits containers and hosts;
+  // set 127.0.0.1 locally so only this machine can reach the dev server.
+  HOST: z.string().min(1).default("0.0.0.0"),
   // Signs and encrypts Sessions and OAuth tokens. Generate with `openssl rand -base64 32`.
   BETTER_AUTH_SECRET: z.string().min(32),
   // The API's own public URL; Google redirects back to `${BETTER_AUTH_URL}/api/auth/callback/google`.

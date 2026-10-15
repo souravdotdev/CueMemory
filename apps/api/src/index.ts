@@ -8,7 +8,9 @@ import type { Env } from "@/env";
 const container = createContainer();
 const app = await buildApp(container, { logger: true });
 
-app.listen({ port: container.get<Env>(TOKENS.Env).PORT, host: "0.0.0.0" }).catch((err) => {
+const { PORT, HOST } = container.get<Env>(TOKENS.Env);
+
+app.listen({ port: PORT, host: HOST }).catch((err) => {
   app.log.error(err);
   process.exit(1);
 });
