@@ -51,6 +51,16 @@ describe("fetchItems", () => {
     expect(await fetchItems()).toEqual({ items: [card], nextCursor: "eyJpZCI6Iml0ZW0tMSJ9" });
   });
 
+  it("sends the Session cookie, not a development User header", async () => {
+    respond(200, { items: [], nextCursor: null });
+
+    await fetchItems();
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init?.credentials).toBe("include");
+    expect(new Headers(init?.headers).has("x-user-id")).toBe(false);
+  });
+
   it("returns each card's tags with who applied them", async () => {
     respond(200, { items: [taggedCard], nextCursor: null });
 
@@ -96,6 +106,16 @@ describe("createItem", () => {
     const [, init] = fetchMock.mock.calls[0]!;
     expect(init?.method).toBe("POST");
     expect(JSON.parse(String(init?.body))).toEqual({ url: "https://example.com/article" });
+  });
+
+  it("sends the Session cookie, not a development User header", async () => {
+    respond(201, card);
+
+    await createItem("https://example.com/article");
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init?.credentials).toBe("include");
+    expect(new Headers(init?.headers).has("x-user-id")).toBe(false);
   });
 
   it("throws when the saved Item breaks the card contract", async () => {

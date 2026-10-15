@@ -4,9 +4,12 @@ import { Container } from "inversify";
 import { z } from "zod";
 import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
 import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
+import { CreateItemResponseSchema } from "@cue-memory/shared/schemas/items";
 import { buildApp } from "@/app";
 import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
 import { ResolveSignedInUserUseCase } from "@/application/use-cases/auth/ResolveSignedInUserUseCase";
+import { SaveItemUseCase } from "@/application/use-cases/items/SaveItemUseCase";
+import type { Item } from "@/domain/entities/Item";
 import type { User } from "@/domain/entities/User";
 import {
   NotFoundError,
@@ -14,10 +17,13 @@ import {
   UnauthorizedError,
   UserPermanentlyDeletedError,
 } from "@/domain/errors";
+import type { IQueueProvider } from "@/domain/providers/IQueueProvider";
 import type { ISessionProvider } from "@/domain/providers/ISessionProvider";
+import type { IItemRepository, NewItem } from "@/domain/repositories/IItemRepository";
 import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";
 import { IN_MEMORY_RATE_LIMITS, type RateLimitRedis } from "@/rate-limit-store";
+import { ItemsController } from "@/interface/controllers/ItemsController";
 import { MeController } from "@/interface/controllers/MeController";
 import { authMiddleware, signedInUser } from "@/interface/middleware/auth.middleware";
 import type { AuthRequestHandler } from "@/interface/routes/auth.routes";
@@ -48,10 +54,46 @@ const sessionsReturning = (found: User | null): ISessionProvider => ({
   resolve: vi.fn(async () => found),
 });
 
+// An in-memory Item repository: every save is a new Processing Item with the next id.
+function itemsInMemory() {
+  const saved: Item[] = [];
+  const repository: IItemRepository = {
+    create: async ({ userId, sourceUrl }: NewItem) => {
+      const createdAt = new Date("2026-04-01T00:00:00.000Z");
+      const item: Item = {
+        id: `00000000-0000-4000-8000-00000000000${saved.length + 1}`,
+        userId,
+        sourceUrl,
+        type: null,
+        status: "processing",
+        title: null,
+        description: null,
+        thumbnailKey: null,
+        extractedText: null,
+        createdAt,
+        updatedAt: createdAt,
+      };
+      saved.push(item);
+      return item;
+    },
+  };
+  return { repository, saved };
+}
+
+const queueRecording = (): IQueueProvider => ({ enqueueProcessItem: vi.fn(async () => {}) });
+
+interface TestDoubles {
+  items?: IItemRepository;
+  queue?: IQueueProvider;
+}
+
 // A test container: the real app, use cases and controllers, with fakes for
-// Better Auth and the Session lookup (by default no request has a valid Session).
-// The rate-limit store is explicitly in-memory (no Redis).
-function testContainer(sessions: ISessionProvider = sessionsReturning(null)) {
+// Better Auth, the Session lookup (by default no request has a valid Session),
+// the Item repository and the queue. The rate-limit store is explicitly in-memory (no Redis).
+function testContainer(
+  sessions: ISessionProvider = sessionsReturning(null),
+  { items = itemsInMemory().repository, queue = queueRecording() }: TestDoubles = {},
+) {
   const container = new Container();
   container.bind(TOKENS.Env).toConstantValue(env);
   container.bind<RateLimitRedis>(TOKENS.RateLimitRedis).toConstantValue(IN_MEMORY_RATE_LIMITS);
@@ -62,6 +104,10 @@ function testContainer(sessions: ISessionProvider = sessionsReturning(null)) {
   container.bind(TOKENS.ResolveSignedInUserUseCase).to(ResolveSignedInUserUseCase);
   container.bind(TOKENS.GetMeUseCase).to(GetMeUseCase);
   container.bind(TOKENS.MeController).to(MeController);
+  container.bind<IItemRepository>(TOKENS.ItemRepository).toConstantValue(items);
+  container.bind<IQueueProvider>(TOKENS.QueueProvider).toConstantValue(queue);
+  container.bind(TOKENS.SaveItemUseCase).to(SaveItemUseCase);
+  container.bind(TOKENS.ItemsController).to(ItemsController);
   return container;
 }
 
@@ -187,6 +233,121 @@ describe("GET /me", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json().avatarUrl).toBeNull();
+  });
+});
+
+describe("POST /items", () => {
+  const USER_ID = "7f1c2b9e-1a2b-4c3d-8e9f-0a1b2c3d4e5f";
+  const signedIn = () => sessionsReturning(user({ id: USER_ID }));
+  const save = (app: Awaited<ReturnType<typeof buildApp>>, payload: Record<string, unknown>) =>
+    app.inject({ method: "POST", url: "/items", headers: withSessionCookie, payload });
+
+  it("is 401 unauthorized without a valid Session, and saves nothing", async () => {
+    const { repository, saved } = itemsInMemory();
+    const queue = queueRecording();
+    const app = await buildApp(
+      testContainer(sessionsReturning(null), { items: repository, queue }),
+    );
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/items",
+      payload: { url: "https://example.com/post" },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("unauthorized");
+    expect(saved).toHaveLength(0);
+    expect(queue.enqueueProcessItem).not.toHaveBeenCalled();
+  });
+
+  it("answers 201 with the Item card: Processing, no Item type, the Source URL as pasted", async () => {
+    const app = await buildApp(testContainer(signedIn()));
+
+    const res = await save(app, { url: "  https://youtu.be/dQw4w9WgXcQ?t=42  " });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({
+      id: "00000000-0000-4000-8000-000000000001",
+      sourceUrl: "https://youtu.be/dQw4w9WgXcQ?t=42",
+      type: null,
+      status: "processing",
+      title: null,
+      description: null,
+      thumbnailUrl: null,
+      failureMessage: null,
+      createdAt: "2026-04-01T00:00:00.000Z",
+      tags: [],
+    });
+    expect(CreateItemResponseSchema.safeParse(res.json()).success).toBe(true);
+  });
+
+  it("stores the Item for the signed-in User, never one named in the body", async () => {
+    const { repository, saved } = itemsInMemory();
+    const app = await buildApp(testContainer(signedIn(), { items: repository }));
+
+    await save(app, { url: "https://example.com/post", userId: "someone-else" });
+
+    expect(saved).toEqual([expect.objectContaining({ userId: USER_ID })]);
+  });
+
+  it("enqueues a Process Item job with the new Item's id and the User's id", async () => {
+    const queue = queueRecording();
+    const app = await buildApp(testContainer(signedIn(), { queue }));
+
+    const res = await save(app, { url: "https://example.com/post" });
+
+    expect(queue.enqueueProcessItem).toHaveBeenCalledWith({
+      itemId: res.json().id,
+      userId: USER_ID,
+    });
+  });
+
+  it("saves the same URL twice as two Items", async () => {
+    const { repository, saved } = itemsInMemory();
+    const app = await buildApp(testContainer(signedIn(), { items: repository }));
+
+    const first = await save(app, { url: "https://example.com/post" });
+    const second = await save(app, { url: "https://example.com/post" });
+
+    expect([first.statusCode, second.statusCode]).toEqual([201, 201]);
+    expect(first.json().id).not.toBe(second.json().id);
+    expect(saved).toHaveLength(2);
+  });
+
+  it.each([
+    ["a missing URL", {}],
+    ["a non-http(s) URL", { url: "ftp://example.com/file" }],
+    ["something that isn't a URL", { url: "not a link" }],
+    ["a URL over 2048 characters", { url: `https://example.com/${"a".repeat(2048)}` }],
+  ])("is 400 validation_failed for %s, and saves nothing", async (_case, payload) => {
+    const { repository, saved } = itemsInMemory();
+    const queue = queueRecording();
+    const app = await buildApp(testContainer(signedIn(), { items: repository, queue }));
+
+    const res = await save(app, payload);
+
+    expect(res.statusCode).toBe(400);
+    const body = ErrorResponseSchema.parse(res.json());
+    expect(body.error.code).toBe("validation_failed");
+    expect(body.error.details).toEqual([expect.objectContaining({ path: "/url" })]);
+    expect(saved).toHaveLength(0);
+    expect(queue.enqueueProcessItem).not.toHaveBeenCalled();
+  });
+
+  it("is a generic 500 internal when the Processing can't be enqueued", async () => {
+    const queue: IQueueProvider = {
+      enqueueProcessItem: async () => {
+        throw new Error("connect ECONNREFUSED redis.internal:6379");
+      },
+    };
+    const app = await buildApp(testContainer(signedIn(), { queue }));
+
+    const res = await save(app, { url: "https://example.com/post" });
+
+    expect(res.statusCode).toBe(500);
+    expect(ErrorResponseSchema.parse(res.json()).error.code).toBe("internal");
+    expect(res.body).not.toContain("redis.internal");
   });
 });
 

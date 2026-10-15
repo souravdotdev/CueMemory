@@ -2,10 +2,11 @@ import "reflect-metadata";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TOKENS } from "@/di/tokens";
 
-// ioredis connects as soon as it's constructed, so the rate-limit Redis is a
-// stand-in. The Postgres client connects lazily, on its first query, which no
-// test here makes.
+// ioredis connects as soon as it's constructed, so the rate-limit Redis and the
+// BullMQ Items queue (on the shared Redis connection) are stand-ins. The Postgres
+// client connects lazily, on its first query, which no test here makes.
 vi.mock("@/rate-limit-redis", () => ({ rateLimitRedis: { stub: "rate-limit redis" } }));
+vi.mock("@/infrastructure/queue/itemsQueue", () => ({ itemsQueue: { stub: "items queue" } }));
 
 // A complete, valid environment for the API and the database package.
 const validEnv = {
