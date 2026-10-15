@@ -12,6 +12,7 @@ import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";
 import { registerErrorMiddleware } from "@/interface/middleware/error.middleware";
 import { authRoutes } from "@/interface/routes/auth.routes";
+import { itemsRoutes } from "@/interface/routes/items.routes";
 import { meRoutes } from "@/interface/routes/me.routes";
 import type { RateLimitRedis } from "@/rate-limit-store";
 
@@ -48,6 +49,7 @@ export async function buildApp(container: Container, options: FastifyServerOptio
   app.get("/health", async () => ({ status: "ok" }));
   // Protected routes: each one runs authMiddleware before its handler.
   await app.register(meRoutes, { container });
+  await app.register(itemsRoutes, { container });
 
   return app;
 }

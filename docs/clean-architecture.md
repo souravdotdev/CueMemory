@@ -67,7 +67,7 @@ An inner layer never imports an outer one. Domain and application code knows onl
 
 ### Lint guard
 
-In the API, lint enforces this rule. `apps/api/eslint.config.js` sets `no-restricted-imports` on `src/domain/**` and `src/application/**`. It blocks these imports: `drizzle-orm`, `fastify` (and `@fastify/*`, `fastify-*`), `better-auth`, `postgres`, `ioredis` and `@cue-memory/db`. Subpaths and `import type` are blocked too. If a domain or application file imports one of them, `pnpm lint` fails:
+In the API, lint enforces this rule. `apps/api/eslint.config.js` sets `no-restricted-imports` on `src/domain/**` and `src/application/**`. It blocks these imports: `drizzle-orm`, `fastify` (and `@fastify/*`, `fastify-*`), `better-auth`, `postgres`, `ioredis`, `bullmq` and `@cue-memory/db`. Subpaths and `import type` are blocked too. If a domain or application file imports one of them, `pnpm lint` fails:
 
 ```
 src/domain/zz-demo/bad.ts
@@ -120,7 +120,7 @@ Tests live in `apps/api/tests/unit/`, mirroring `src/`, and import through the `
 - **The HTTP seam** covers everything a client can observe. `tests/unit/app.test.ts` builds the real app with `buildApp(testContainer())` and drives it with Fastify `inject`. `testContainer()` binds the real use cases and controller, a fake `ISessionProvider`, a fake `Auth` handler and a literal `Env`. It binds `RateLimitRedis` to `IN_MEMORY_RATE_LIMITS`. Tests check statuses, bodies and headers: 401 envelopes, `GET /me` output, CORS, security headers, 404 and generic 500 envelopes. A test that needs an extra route (for example one that throws a domain error) adds it to the built app before calling `inject`. `tests/unit/interface/routes/auth.routes.test.ts` uses the same seam for the `/api/auth/*` mount.
 - **The use-case seam** covers business behaviour without the container: `new XUseCase(fake).execute(input)`. For example, `new ResolveSignedInUserUseCase(sessionsReturning(null))` rejects with `UnauthorizedError`. `AdmitSignInUseCase` is tested against a fake `IUserRepository`, checking the changes it records and the error it throws.
 
-Pure domain rules (`signInDecision`, `tagName`), mappers, output DTOs, infrastructure adapters (`createAuth` over a mocked database, `BetterAuthSessionProvider`, `googleProfile`, `signInHook`) and env validation are tested directly against their own inputs and outputs. `tests/unit/di/container.test.ts` resolves every token through the real `createContainer()`, with a stubbed environment and a stand-in rate-limit Redis (ioredis connects on construction; the Postgres client only on its first query, which the test never makes). No test needs a database or Redis.
+Pure domain rules (`signInDecision`, `tagName`), mappers, output DTOs, infrastructure adapters (`createAuth` over a mocked database, `BetterAuthSessionProvider`, `googleProfile`, `signInHook`) and env validation are tested directly against their own inputs and outputs. `tests/unit/di/container.test.ts` resolves every token through the real `createContainer()`, with a stubbed environment, a stand-in rate-limit Redis and a stand-in BullMQ Items queue (ioredis connects on construction; the Postgres client only on its first query, which the test never makes). No test needs a database or Redis.
 
 ## Where new code goes
 
@@ -146,9 +146,9 @@ Don't create empty layer folders ahead of time. A folder appears with its first 
 
 The planned shape:
 
-- **The API enqueues through a port.** A use case depends on an `IQueueProvider` in the domain, and a BullMQ adapter in infrastructure implements it. The use case never imports `bullmq`.
+- **The API enqueues through a port (built).** `SaveItemUseCase` depends on `IQueueProvider` in the domain, and `BullMqQueueProvider` in infrastructure implements it. The use case never imports `bullmq`; the lint guard blocks it.
 - **`worker.ts` routes by job name.** It creates the BullMQ `Worker` for a queue and switches on `job.name`, calling one processor per job type. An unknown name throws `UnrecoverableError`, so it is not retried.
 - **A processor is a thin controller.** It lives in the worker's `interface/processors/`. It parses `job.data` with the payload's zod schema, maps it to the use case's input, and calls `container.get<XUseCase>(WORKER_TOKENS.XUseCase).execute(input)`.
 - **The worker has its own `di/tokens.ts` and `di/container.ts`.** It never shares or mixes the API's `TOKENS`. The lint guard, the `reflect-metadata` rule and the two test seams apply as in the API: the processor seam drives a processor with a fake job and a test container, and use cases are tested with `new XUseCase(fake)`.
 
-Payload schemas and queue names go in `@cue-memory/shared` under a queue entry point. That entry point doesn't exist yet. It is added with the first queue, not before. See [Queue](./queue.md).
+Payload schemas and queue names go in `@cue-memory/shared/schemas/queue` (today `ITEMS_QUEUE`, `PROCESS_ITEM_JOB`, `ProcessItemJobSchema`). See [Queue](./queue.md).

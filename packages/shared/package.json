@@ -6,7 +6,8 @@
   "exports": {
     "./schemas/auth": "./src/schemas/auth/index.ts",
     "./schemas/common": "./src/schemas/common/index.ts",
-    "./schemas/items": "./src/schemas/items/index.ts"
+    "./schemas/items": "./src/schemas/items/index.ts",
+    "./schemas/queue": "./src/schemas/queue/index.ts"
   },
   "scripts": {
     "lint": "eslint .",
