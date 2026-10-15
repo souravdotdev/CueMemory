@@ -1,10 +1,11 @@
-import { mergeConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
+import { defineConfig, mergeConfig } from "vitest/config";
 import { nodeConfig } from "@cue-memory/vitest-config/node";
 
-export default mergeConfig(nodeConfig, {
-  test: {
-    // No logic here yet — index.ts is a placeholder pending the schema
-    // redesign. See docs/testing.md.
-    passWithNoTests: true,
-  },
-});
+export default mergeConfig(
+  nodeConfig,
+  defineConfig({
+    // The `@/` alias from tsconfig.json.
+    resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  }),
+);

@@ -51,7 +51,7 @@ See [Database](./database.md) for the schema itself and the full migration workf
 pnpm dev
 ```
 
-Runs `dev` in every app in parallel via Turborepo (`apps/web` on Next.js's default port, `apps/api` on `PORT` from its env, `apps/worker` with no HTTP server — it will consume the queue, and has nothing to consume yet). Turborepo's terminal UI (`"ui": "tui"` in `turbo.json`) shows all three side by side.
+Runs `dev` in every app in parallel via Turborepo (`apps/web` on Next.js's default port, `apps/api` on `PORT` from its env, `apps/worker` with no HTTP server, loading `apps/worker/.env` — it will consume the queue; today it connects to Redis and waits). Turborepo's terminal UI (`"ui": "tui"` in `turbo.json`) shows all three side by side.
 
 To run just one app: `pnpm --filter web dev` (or `api`, `worker`).
 

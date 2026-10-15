@@ -44,7 +44,7 @@ pnpm test   # vitest run in every package, via Turborepo
 
 **`packages/shared`** — pure schema tests next to each schema (`schemas/common/error.test.ts`, `schemas/common/pagination.test.ts`, `schemas/auth/me.test.ts`, `schemas/items/create-item.test.ts`, `schemas/items/create-item-response.test.ts`, `schemas/items/item-card.test.ts`, `schemas/items/list-items.test.ts`): what each schema accepts, rejects, defaults and strips.
 
-**`apps/worker`** — no test files: it has nothing to consume yet, and its `vitest.config.ts` sets `passWithNoTests: true` so the empty suite doesn't fail the task.
+**`apps/worker`** — tests live in `tests/unit/`, mirroring `src/`, with the same `@/` alias as the API (`vitest.config.ts`). `di/container.test.ts` resolves every `WORKER_TOKENS` entry through the real `createContainer()`, so removing a binding fails it. It stubs `DATABASE_URL`, mocks `@cue-memory/db/redis` (ioredis connects on construction) and re-imports after `vi.resetModules()`, like the API's container test.
 
 **`apps/web`** — `save-form.test.tsx` tests the `SaveForm` client component with `@testing-library/react` + `@testing-library/user-event`, mocking `next/navigation`'s `useRouter` and the `@/lib/api` module (so no real `fetch` call or `NEXT_PUBLIC_API_URL` env var is needed). `src/lib/api.test.ts` tests the API helpers themselves against a stubbed global `fetch` (`vi.stubGlobal`): a valid response returns the parsed shape, a response that breaks its schema throws, and a failure throws the error envelope's `message`.
 

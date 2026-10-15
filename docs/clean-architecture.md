@@ -1,6 +1,6 @@
 # Clean Architecture
 
-The backend follows Clean Architecture as a standing rule for every code change. Read this before you add or change code in `apps/api` (and, once it has a queue, `apps/worker`). Why the shape is layer-first, with use-case classes and a container, is in [ADR 0004](./adr/0004-layer-first-apps-with-use-case-classes-and-a-di-container.md). Why wire shapes are shared zod schemas, separate from the entities, is in [ADR 0001](./adr/0001-shared-zod-contracts-package.md). This doc describes the code as it is.
+The backend follows Clean Architecture as a standing rule for every code change. Read this before you add or change code in `apps/api` or `apps/worker`. Why the shape is layer-first, with use-case classes and a container, is in [ADR 0004](./adr/0004-layer-first-apps-with-use-case-classes-and-a-di-container.md). Why wire shapes are shared zod schemas, separate from the entities, is in [ADR 0001](./adr/0001-shared-zod-contracts-package.md). This doc describes the code as it is.
 
 ## The four layers
 
@@ -134,7 +134,7 @@ Don't create empty layer folders ahead of time. A folder appears with its first 
 
 ## The worker (documented, not yet built)
 
-`apps/worker` has no queue today: its `index.ts` only logs that there is nothing to consume. When the first queue lands, the worker becomes a small app with the same four layers. Only the front door differs: a job arrives instead of an HTTP request, and a processor replaces the controller.
+`apps/worker` has no queue today, but it already has the API's tooling: its own `WORKER_TOKENS` (`src/di/tokens.ts`) and `createContainer()` (`src/di/container.ts`, binding the Drizzle `Database` and the shared Redis connection), `reflect-metadata` loaded first in `index.ts`, `experimentalDecorators` and the `@/` alias in its `tsconfig.json` (mirrored in `vitest.config.ts`), tests in `tests/unit/`, and the same lint guard in its `eslint.config.js` (Drizzle, BullMQ, Postgres, Redis and `@cue-memory/db` are refused in `src/domain/` and `src/application/`). `index.ts` builds the container, connects to Redis and waits. When the first queue lands, the worker fills in the same four layers. Only the front door differs: a job arrives instead of an HTTP request, and a processor replaces the controller.
 
 | Part           | In the API                    | In the worker                                                   |
 | -------------- | ----------------------------- | --------------------------------------------------------------- |

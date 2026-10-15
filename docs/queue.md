@@ -4,7 +4,7 @@ Async processing will be handled with [BullMQ](https://docs.bullmq.io) backed by
 
 ## Current state: no queue
 
-There is no queue today. The first Item-processing pipeline was torn down pending the schema redesign, and `apps/worker/src/index.ts` only logs `[worker] nothing to consume yet`. `apps/api` enqueues nothing.
+There is no queue today. The first Item-processing pipeline was torn down pending the schema redesign, and `apps/worker/src/index.ts` only builds its container, connects to Redis and logs `[worker] connected; waiting for work`. `apps/api` enqueues nothing.
 
 What already exists for it:
 
