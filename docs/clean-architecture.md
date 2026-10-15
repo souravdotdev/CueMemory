@@ -146,17 +146,19 @@ apps/worker/src/
     entities/           Item.ts (the fields Processing needs; ItemRef; ItemMetadata; Item types and statuses),
                         PageHead.ts (a page head's extracted tags)
     repositories/       IItemRepository.ts (findById, markReady, markFailed)
-    providers/          IUrlFetcher.ts (fetchPage)
+    providers/          IUrlFetcher.ts (fetchPage), IOEmbedProvider.ts (fetchOEmbed)
     rules/              itemTypeFromUrl.ts, knownSites.ts, itemTypeFromExtension.ts, itemTypeFromResponse.ts,
                         itemTypeFromContentType.ts, itemTypeFromMagicBytes.ts, mediaType.ts,
                         itemTypeFromJsonLd.ts, itemTypeFromOpenGraph.ts, itemTypeFromTwitterCard.ts,
-                        pageMetadata.ts (pure functions)
+                        oEmbed.ts (known providers, which endpoint to ask, oEmbed types), pageMetadata.ts
+                        (pure functions)
   application/
     use-cases/items/    ProcessItemUseCase, FailItemUseCase
     dto/items/          ProcessItemResult.ts, FailItemResult.ts
   infrastructure/
     database/           Database.ts, db.ts
-    http/               SafeUrlFetcher.ts, publicAddress.ts (the guarded fetch), parsePageHead.ts (htmlparser2)
+    http/               SafeUrlFetcher.ts, publicAddress.ts (the guarded fetch), parsePageHead.ts (htmlparser2),
+                        GuardedOEmbedProvider.ts (oEmbed over the same guard)
     repositories/       DrizzleItemRepository.ts
   interface/
     itemsJobs.ts        the job-name map: each name's processor and final-failure step

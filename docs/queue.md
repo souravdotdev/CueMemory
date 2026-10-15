@@ -4,7 +4,7 @@ Async processing is handled with [BullMQ](https://docs.bullmq.io) backed by Redi
 
 ## Current state: the API produces, the worker detects the Item type, title and description
 
-`POST /items` (see [API](./api.md#post-items)) stores a Processing Item, then enqueues one **Process Item** job on the **Items queue**. The worker consumes it: it fetches the Source URL once (guarded), works out the Item type from the URL's shape, then the response, then the page's own declarations, reads the page's title and description, and marks the Item Ready with them; once the job fails with no attempt left (its last retry, or a stall), it marks the Item Failed.
+`POST /items` (see [API](./api.md#post-items)) stores a Processing Item, then enqueues one **Process Item** job on the **Items queue**. The worker consumes it: it fetches the Source URL once (guarded), works out the Item type from the URL's shape, then the response, then oEmbed and the page's own declarations, reads the page's title and description, and marks the Item Ready with them; once the job fails with no attempt left (its last retry, or a stall), it marks the Item Failed.
 
 - **Shared names and payload.** `@cue-memory/shared/schemas/queue` exports `ITEMS_QUEUE` (`"items"`), `PROCESS_ITEM_JOB` (`"process-item"`) and `ProcessItemJobSchema` / `ProcessItemJob`: `{ itemId, userId }`, both UUIDs. Only ids travel through Redis; the worker loads the Item itself, scoped to its User. Both apps use these constants and the schema, never typed-out strings.
 - **Producer (`apps/api`).** `SaveItemUseCase` depends only on the `IQueueProvider` port (`domain/providers/IQueueProvider.ts`, `enqueueProcessItem({ itemId, userId })`, typed by the port's own `ProcessItemRequest`, since the domain imports nothing outside itself). `BullMqQueueProvider` (`infrastructure/queue/`) implements it: it maps the request to the shared payload and parses it with `ProcessItemJobSchema`, so a payload the worker would refuse never reaches Redis, then adds the job with the defaults below. The BullMQ `Queue` itself is built once in `infrastructure/queue/itemsQueue.ts` on the shared Redis connection and bound as `TOKENS.ItemsQueue`; only the container imports it. The lint guard keeps `bullmq` out of domain and application code.
@@ -47,10 +47,10 @@ Async processing is handled with [BullMQ](https://docs.bullmq.io) backed by Redi
 
 1. the URL rules on the Source URL as pasted, then on the final URL ([URL rules](#url-rules));
 2. a non-HTML response's Content-Type, then its magic bytes ([Response rules](#response-rules));
-3. the page's JSON-LD, then its Open Graph tags, then its Twitter Card ([Page rules](#page-rules));
+3. oEmbed ([oEmbed](#oembed)), then the page's JSON-LD, then its Open Graph tags, then its Twitter Card ([Page rules](#page-rules));
 4. Link (anything else, including a 4xx answer).
 
-oEmbed (a known provider endpoint or the page's discovery link) will slot in at the head of step 3 and of the title order (#78); the head parser already extracts discovery links.
+Why this order, and why Item types are content forms rather than sites: [Items ADR 0001](./contexts/items/adr/0001-item-types-are-content-forms-detected-in-a-fixed-order.md).
 
 ### Response rules
 
@@ -67,6 +67,24 @@ oEmbed (a known provider endpoint or the page's discovery link) will slot in at 
 `itemTypeFromMagicBytes` (`domain/rules/itemTypeFromMagicBytes.ts`), for a server that is vague about what it sends: `%PDF-` → PDF; PNG, JPEG, GIF, WebP, TIFF, and ISO media files branded `avif`/`heic` → Image; ID3 or an MPEG frame (MP3), OGG, WAV, FLAC, and ISO media files branded `M4A` → Audio; other ISO media files (MP4, MOV), WebM/MKV, AVI → Video; ZIP (and so docx/xlsx/jar), gzip, 7z, RAR → File.
 
 A 5xx or 429 answer fails the fetch instead (see Processing above). Of an HTML body at most ~1 MB is read, only up to `</head>`; of any other body only the first 16 bytes.
+
+### oEmbed
+
+oEmbed gives a clean type and title in one small JSON call, even for pages behind a login wall (an X post, a Reddit thread). For an HTML page, or a page that answered 4xx, Processing asks **at most one** oEmbed endpoint, through the `IOEmbedProvider` port (`domain/providers/IOEmbedProvider.ts`). `oEmbedRequestFor` (`domain/rules/oEmbed.ts`, pure) picks it:
+
+1. a **known provider's endpoint**, chosen from the final URL (`KNOWN_OEMBED_PROVIDERS`, one row per provider, hosts and paths as in the known-site table): YouTube, Vimeo, X (`publish.twitter.com`), Spotify, SoundCloud, Reddit and TikTok, asked with `?url=<final URL>&format=json`;
+2. otherwise the page's first **discovery link** of JSON format (`<link rel="alternate" type="application/json+oembed">`), used as written. It's an untrusted URL like any Source URL, so the guard checks it the same way.
+
+`GuardedOEmbedProvider` (`infrastructure/http/`) implements the port over `SafeUrlFetcher.fetchJson`: the same guard, redirect checks and 10-second timeout as the page fetch, JSON only, at most 64 KB (see [Security](./security.md#the-workers-url-fetch)). It reads only the answer's `type` and `title` (entities decoded); an answer without a title (X's) is titled by the text of the post its embed HTML quotes. `itemTypeFromOEmbed` types the answer:
+
+| oEmbed `type` | Item type                                                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `video`       | Video                                                                                                                              |
+| `photo`       | Image                                                                                                                              |
+| `rich`        | the known provider's: Post (X, Reddit), Audio (Spotify, SoundCloud), Video (YouTube, Vimeo, TikTok); none from an unknown provider |
+| `link`, other | none                                                                                                                               |
+
+A discovery link pointing at a known provider's endpoint counts as that provider. A refused, failed, timed-out, non-JSON, oversized or unreadable answer never fails Processing: the page's other signals decide, as if there were no oEmbed. A response that isn't HTML (a file) and a failed page fetch ask nothing.
 
 ### Page rules
 
@@ -88,7 +106,7 @@ The fetcher parses an HTML head once, in infrastructure (`parsePageHead.ts`, htm
 
 JSON-LD nodes are read at the top level, in arrays and in `@graph`, in document order (the first recognised type wins), never inside properties; `schema:Article` and `https://schema.org/Article` count as `Article`.
 
-**Title and description** (`domain/rules/pageMetadata.ts`), each field on its own, from the first source with a non-blank value: Open Graph (`og:title`, `og:description`), then Twitter Card (`twitter:title`, `twitter:description`), then the page (`<title>`, `<meta name="description">`). Whitespace is collapsed; the title is capped at 300 characters and the description at 1000 (cut with an ellipsis). A response that isn't HTML, a 4xx answer and a failed fetch give neither. They are written to the Item's `title` and `description` columns as it becomes Ready.
+**Title and description** (`domain/rules/pageMetadata.ts`), each field on its own, from the first source with a non-blank value: the oEmbed title (oEmbed has no description), then Open Graph (`og:title`, `og:description`), then Twitter Card (`twitter:title`, `twitter:description`), then the page (`<title>`, `<meta name="description">`). Whitespace is collapsed; the title is capped at 300 characters and the description at 1000 (cut with an ellipsis). A response that isn't HTML and a failed fetch give neither; a 4xx answer gives only what a known oEmbed provider says. They are written to the Item's `title` and `description` columns as it becomes Ready.
 
 What else it builds on:
 
@@ -97,4 +115,4 @@ What else it builds on:
 
 ## Not yet built
 
-The worker follows the same layering as the API (see [Clean Architecture](./clean-architecture.md#the-worker)). oEmbed (#78), thumbnails, text extraction (PDFs, article bodies) and the AI tag-suggestion call are not implemented; see product plan section 6 for the intended scope. Why an Item failed is logged by the worker with the Item id, not stored (see [Database](./database.md#schema)).
+The worker follows the same layering as the API (see [Clean Architecture](./clean-architecture.md#the-worker)). Thumbnails, text extraction (PDFs, article bodies) and the AI tag-suggestion call are not implemented; see product plan section 6 for the intended scope. Why an Item failed is logged by the worker with the Item id, not stored (see [Database](./database.md#schema)).

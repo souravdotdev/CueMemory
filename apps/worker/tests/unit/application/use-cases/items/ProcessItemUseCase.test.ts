@@ -8,7 +8,8 @@ import {
   type ItemType,
   NO_METADATA,
 } from "@/domain/entities/Item";
-import type { PageHead } from "@/domain/entities/PageHead";
+import type { OEmbedLink, PageHead } from "@/domain/entities/PageHead";
+import type { IOEmbedProvider, OEmbed } from "@/domain/providers/IOEmbedProvider";
 import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 
@@ -51,6 +52,26 @@ function fetcherFailing(error: Error) {
   } satisfies IUrlFetcher;
 }
 
+// An oEmbed provider answering every request with the same answer.
+function oEmbedsAnswering(answer: Partial<OEmbed>) {
+  return {
+    fetchOEmbed: vi.fn(async (_endpointUrl: string): Promise<OEmbed> => ({
+      type: null,
+      title: null,
+      ...answer,
+    })),
+  } satisfies IOEmbedProvider;
+}
+
+// An oEmbed provider whose every request fails (refused, not JSON, too big …).
+function oEmbedsFailing() {
+  return {
+    fetchOEmbed: vi.fn(async (_endpointUrl: string): Promise<OEmbed> => {
+      throw new Error("oEmbed answered 404");
+    }),
+  } satisfies IOEmbedProvider;
+}
+
 // A fetched page that ended at `finalUrl`, with nothing else to go on unless given.
 const fetched = (fields: Partial<FetchedPage> = {}): FetchedPage => ({
   finalUrl: "https://example.com/page",
@@ -63,7 +84,11 @@ const fetched = (fields: Partial<FetchedPage> = {}): FetchedPage => ({
 // An HTML page whose head declares these meta tags, title and JSON-LD.
 const htmlPage = (
   meta: Record<string, string> = {},
-  { title = null, jsonLd = [] }: Partial<Pick<PageHead, "title" | "jsonLd">> = {},
+  {
+    title = null,
+    jsonLd = [],
+    oEmbedLinks = [],
+  }: Partial<Pick<PageHead, "title" | "jsonLd">> & { oEmbedLinks?: OEmbedLink[] } = {},
 ) =>
   fetched({
     contentType: "text/html; charset=utf-8",
@@ -71,13 +96,17 @@ const htmlPage = (
       meta: Object.entries(meta).map(([key, content]) => ({ key, content })),
       title,
       jsonLd,
-      oEmbedLinks: [],
+      oEmbedLinks,
     },
   });
 
-const run = (sourceUrl: string, fetcher: IUrlFetcher) => {
+const run = (
+  sourceUrl: string,
+  fetcher: IUrlFetcher,
+  oEmbeds: IOEmbedProvider = oEmbedsFailing(),
+) => {
   const { repository, item } = itemsInMemory(sourceUrl);
-  const useCase = new ProcessItemUseCase(repository, fetcher);
+  const useCase = new ProcessItemUseCase(repository, fetcher, oEmbeds);
   return { item, repository, result: useCase.execute(REF) };
 };
 
@@ -248,6 +277,153 @@ describe("ProcessItemUseCase, title and description", () => {
   });
 });
 
+const DISCOVERY = {
+  url: "https://example.com/oembed?url=page&format=json",
+  format: "json",
+} as const;
+
+describe("ProcessItemUseCase, oEmbed", () => {
+  it("asks the page's oEmbed discovery link, once", async () => {
+    const oEmbeds = oEmbedsAnswering({ type: "video" });
+
+    const { result } = run(
+      "https://example.com/page",
+      fetcherAnswering(
+        htmlPage({}, { oEmbedLinks: [DISCOVERY, { ...DISCOVERY, url: "https://example.com/2" }] }),
+      ),
+      oEmbeds,
+    );
+
+    await expect(result).resolves.toMatchObject({ type: "video" });
+    expect(oEmbeds.fetchOEmbed).toHaveBeenCalledTimes(1);
+    expect(oEmbeds.fetchOEmbed).toHaveBeenCalledWith(DISCOVERY.url);
+  });
+
+  it("asks a known provider's endpoint, chosen from the final URL, even behind a login wall", async () => {
+    const oEmbeds = oEmbedsAnswering({ type: "rich", title: "A post on X" });
+    const page = fetched({ finalUrl: "https://x.com/someone/status/1234567890" });
+
+    const { result } = run("https://t.co/abc123", fetcherAnswering(page), oEmbeds);
+
+    await expect(result).resolves.toEqual({
+      outcome: "ready",
+      type: "post",
+      metadata: { title: "A post on X", description: null },
+    });
+    expect(oEmbeds.fetchOEmbed).toHaveBeenCalledTimes(1);
+    const endpoint = new URL(oEmbeds.fetchOEmbed.mock.calls[0]![0]);
+    expect(endpoint.origin + endpoint.pathname).toBe("https://publish.twitter.com/oembed");
+    expect(endpoint.searchParams.get("url")).toBe("https://x.com/someone/status/1234567890");
+  });
+
+  it.each([
+    ["video", {}, "video"],
+    ["photo", {}, "image"],
+    ["rich", { url: "https://open.spotify.com/oembed?url=x", format: "json" as const }, "audio"],
+  ] as const)("types a %s answer ahead of the page's JSON-LD", async (type, link, itemType) => {
+    const page = htmlPage(
+      { "og:type": "article" },
+      { jsonLd: [{ "@type": "Article" }], oEmbedLinks: [{ ...DISCOVERY, ...link }] },
+    );
+
+    const { result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      oEmbedsAnswering({ type }),
+    );
+
+    await expect(result).resolves.toMatchObject({ type: itemType });
+  });
+
+  it.each([
+    ["a link answer", oEmbedsAnswering({ type: "link" })],
+    ["a rich answer from an unknown provider", oEmbedsAnswering({ type: "rich" })],
+    ["a failed or refused call", oEmbedsFailing()],
+  ])("falls through to the page's JSON-LD on %s", async (_case, oEmbeds) => {
+    const page = htmlPage({}, { jsonLd: [{ "@type": "NewsArticle" }], oEmbedLinks: [DISCOVERY] });
+
+    const { result } = run("https://example.com/page", fetcherAnswering(page), oEmbeds);
+
+    await expect(result).resolves.toMatchObject({ outcome: "ready", type: "article" });
+  });
+
+  it("never lets a rule on the URL be overruled by oEmbed", async () => {
+    const page = htmlPage({}, { oEmbedLinks: [DISCOVERY] });
+
+    const { result } = run(
+      "https://github.com/vercel/next.js",
+      fetcherAnswering(page),
+      oEmbedsAnswering({ type: "video" }),
+    );
+
+    await expect(result).resolves.toMatchObject({ type: "code" });
+  });
+
+  it("prefers the oEmbed title, with the page's description", async () => {
+    const page = htmlPage(
+      { "og:title": "OG title", "og:description": "OG description" },
+      { title: "Page title", oEmbedLinks: [DISCOVERY] },
+    );
+
+    const { result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      oEmbedsAnswering({ type: "link", title: "  oEmbed   title " }),
+    );
+
+    await expect(result).resolves.toMatchObject({
+      metadata: { title: "oEmbed title", description: "OG description" },
+    });
+  });
+
+  it.each([
+    ["has no title", oEmbedsAnswering({ type: "video", title: " " })],
+    ["fails", oEmbedsFailing()],
+  ])("reads the page's title when oEmbed %s", async (_case, oEmbeds) => {
+    const page = htmlPage({ "og:title": "OG title" }, { oEmbedLinks: [DISCOVERY] });
+
+    const { result } = run("https://example.com/page", fetcherAnswering(page), oEmbeds);
+
+    await expect(result).resolves.toMatchObject({ metadata: { title: "OG title" } });
+  });
+
+  it("asks nothing when the page names no endpoint and no provider is known", async () => {
+    const oEmbeds = oEmbedsAnswering({ type: "video" });
+
+    const { result } = run("https://example.com/page", fetcherAnswering(htmlPage()), oEmbeds);
+
+    await expect(result).resolves.toMatchObject({ type: "link" });
+    expect(oEmbeds.fetchOEmbed).not.toHaveBeenCalled();
+  });
+
+  it("asks nothing about a response that isn't HTML", async () => {
+    const oEmbeds = oEmbedsAnswering({ type: "video", title: "A title" });
+    const page = fetched({
+      finalUrl: "https://www.youtube.com/watch?v=abc",
+      contentType: "application/pdf",
+      firstBytes: new Uint8Array(),
+    });
+
+    const { result } = run("https://example.com/paper", fetcherAnswering(page), oEmbeds);
+
+    await expect(result).resolves.toMatchObject({ metadata: NO_METADATA });
+    expect(oEmbeds.fetchOEmbed).not.toHaveBeenCalled();
+  });
+
+  it("asks nothing when the page fetch fails", async () => {
+    const oEmbeds = oEmbedsAnswering({ type: "video", title: "A title" });
+
+    const { result } = run(
+      "https://youtu.be/dQw4w9WgXcQ",
+      fetcherFailing(new Error("offline")),
+      oEmbeds,
+    );
+
+    await expect(result).resolves.toMatchObject({ type: "video", metadata: NO_METADATA });
+    expect(oEmbeds.fetchOEmbed).not.toHaveBeenCalled();
+  });
+});
+
 describe("ProcessItemUseCase, failed fetches", () => {
   it.each([
     ["fails", new Error("Fetching https://youtu.be/dQw4w9WgXcQ answered 503")],
@@ -290,7 +466,11 @@ describe("ProcessItemUseCase, failed fetches", () => {
     repository.markReady = vi.fn(async () => {
       throw new Error("Postgres is down");
     });
-    const useCase = new ProcessItemUseCase(repository, fetcherFailing(new Error("offline")));
+    const useCase = new ProcessItemUseCase(
+      repository,
+      fetcherFailing(new Error("offline")),
+      oEmbedsFailing(),
+    );
 
     await expect(useCase.execute(REF)).rejects.toThrow("Postgres is down");
   });
@@ -300,7 +480,7 @@ describe("ProcessItemUseCase, missing Items", () => {
   it("does nothing for an Item that no longer exists", async () => {
     const { repository } = itemsInMemory("https://youtu.be/dQw4w9WgXcQ");
     const fetcher = fetcherAnswering(htmlPage());
-    const useCase = new ProcessItemUseCase(repository, fetcher);
+    const useCase = new ProcessItemUseCase(repository, fetcher, oEmbedsFailing());
 
     const result = await useCase.execute({
       itemId: "00000000-0000-4000-8000-000000000099",
@@ -314,7 +494,11 @@ describe("ProcessItemUseCase, missing Items", () => {
 
   it("never touches another User's Item", async () => {
     const { repository, item } = itemsInMemory("https://youtu.be/dQw4w9WgXcQ");
-    const useCase = new ProcessItemUseCase(repository, fetcherAnswering(htmlPage()));
+    const useCase = new ProcessItemUseCase(
+      repository,
+      fetcherAnswering(htmlPage()),
+      oEmbedsFailing(),
+    );
 
     const result = await useCase.execute({ itemId: ITEM_ID, userId: OTHER_USER_ID });
 

@@ -2,12 +2,18 @@ import type { ItemType } from "@/domain/entities/Item";
 import { itemTypeFromExtension } from "@/domain/rules/itemTypeFromExtension";
 import { KNOWN_SITES, type KnownSite } from "@/domain/rules/knownSites";
 
-function hostMatches(site: KnownSite, host: string): boolean {
-  return site.hosts.some((pattern) => {
+/** Whether a host (as `siteHost` gives it) is one of these host patterns (see `KnownSite.hosts`). */
+export function hostMatches(hosts: KnownSite["hosts"], host: string): boolean {
+  return hosts.some((pattern) => {
     if (pattern === "*") return true;
     if (pattern.startsWith("*.")) return host.endsWith(pattern.slice(1));
     return host === pattern;
   });
+}
+
+/** A URL's host as the site tables compare it: lower-case, without a leading `www.` or `m.`. */
+export function siteHost(url: URL): string {
+  return url.hostname.toLowerCase().replace(/^(www|m)\./, "");
 }
 
 /**
@@ -24,10 +30,10 @@ export function itemTypeFromUrl(rawUrl: string): ItemType | null {
   } catch {
     return null;
   }
-  const host = url.hostname.toLowerCase().replace(/^(www|m)\./, "");
+  const host = siteHost(url);
   const path = url.pathname;
   const site = KNOWN_SITES.find(
-    (candidate) => hostMatches(candidate, host) && (candidate.path?.test(path) ?? true),
+    (candidate) => hostMatches(candidate.hosts, host) && (candidate.path?.test(path) ?? true),
   );
   return site?.type ?? itemTypeFromExtension(path);
 }

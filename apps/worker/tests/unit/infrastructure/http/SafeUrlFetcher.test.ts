@@ -6,6 +6,7 @@ import {
 } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { GuardedOEmbedProvider } from "@/infrastructure/http/GuardedOEmbedProvider";
 import { isPublicAddress } from "@/infrastructure/http/publicAddress";
 import {
   type ResolvedAddress,
@@ -44,7 +45,53 @@ function route(path: string, res: ServerResponse) {
       .writeHead(200, { "content-type": "text/html" })
       .end(`<html><head>${padding}<title>Late</title></head><body></body></html>`);
   }
+  const json = (body: string, contentType = "application/json; charset=utf-8") =>
+    res.writeHead(200, { "content-type": contentType }).end(body);
   switch (path) {
+    case "/oembed.json":
+      return json('{"version":"1.0","type":"video","title":"A video","html":"<iframe></iframe>"}');
+    case "/oembed-post":
+      // X's shape: no title, the post's text quoted in the embed's HTML.
+      return json(
+        JSON.stringify({
+          type: "rich",
+          author_name: "Someone",
+          html:
+            '<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Hello &amp;  welcome ' +
+            '<a href="https://t.co/x">pic.twitter.com/x</a></p>&mdash; Someone (@someone) ' +
+            '<a href="https://x.com/someone/status/1">October 1, 2026</a></blockquote>' +
+            '<script async src="https://platform.twitter.com/widgets.js"></script>',
+        }),
+      );
+    case "/oembed-encoded":
+      // WordPress encodes entities in its JSON titles.
+      return json('{"type":"rich","title":"WordPress 6.7 &#8220;Rollins&#8221; &amp; more"}');
+    case "/oembed-plus-json":
+      return json('{"type":"photo","title":7}', "application/json+oembed");
+    case "/oembed-html":
+      return json('{"type":"video","title":"Sneaky"}', "text/html");
+    case "/oembed-big":
+      return json(`{"type":"video","title":"${"x".repeat(70 * 1024)}"}`);
+    case "/oembed-endless": {
+      openResponses.add(res);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.write('{"type":"video","title":"');
+      const chunk = "x".repeat(64 * 1024);
+      const pump = () => {
+        while (!res.destroyed && res.write(chunk));
+        if (!res.destroyed) res.once("drain", pump);
+      };
+      pump();
+      return;
+    }
+    case "/oembed-not-json":
+      return json("{not json");
+    case "/oembed-array":
+      return json("[1, 2]");
+    case "/oembed-missing":
+      return res.writeHead(404, { "content-type": "application/json" }).end("{}");
+    case "/to-oembed":
+      return redirect("/oembed.json");
     case "/article":
       return res
         .writeHead(200, { "content-type": "text/html; charset=utf-8" })
@@ -120,7 +167,8 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     hits.push(req.url ?? "");
     lastHeaders = req.headers;
-    route(req.url ?? "/", res);
+    // Routes by path only: oEmbed requests carry a query.
+    route(new URL(req.url ?? "/", "http://site.test").pathname, res);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   port = (server.address() as AddressInfo).port;
@@ -349,5 +397,87 @@ describe("SafeUrlFetcher, refusals", () => {
 
   it("refuses a URL that isn't http(s)", async () => {
     await expect(localFetcher().fetchPage("ftp://site.test/file")).rejects.toThrow(UrlRefusedError);
+  });
+});
+
+describe("GuardedOEmbedProvider, JSON through the same guard", () => {
+  const oEmbeds = (options: { timeoutMs?: number } = {}) =>
+    new GuardedOEmbedProvider(localFetcher(options));
+
+  it("reads an oEmbed answer's type and title, asking for JSON", async () => {
+    await expect(oEmbeds().fetchOEmbed(at("/oembed.json?url=x&format=json"))).resolves.toEqual({
+      type: "video",
+      title: "A video",
+    });
+    expect(lastHeaders.accept).toBe("application/json");
+    expect(lastHeaders["user-agent"]).toBe(USER_AGENT);
+    expect(hits).toEqual(["/oembed.json?url=x&format=json"]);
+  });
+
+  it("titles an embedded post without a title by the text it quotes", async () => {
+    await expect(oEmbeds().fetchOEmbed(at("/oembed-post"))).resolves.toEqual({
+      type: "rich",
+      title: "Hello & welcome pic.twitter.com/x",
+    });
+  });
+
+  it("decodes entities in a title", async () => {
+    await expect(oEmbeds().fetchOEmbed(at("/oembed-encoded"))).resolves.toEqual({
+      type: "rich",
+      title: "WordPress 6.7 “Rollins” & more",
+    });
+  });
+
+  it("accepts a +json Content-Type and ignores fields of the wrong kind", async () => {
+    await expect(oEmbeds().fetchOEmbed(at("/oembed-plus-json"))).resolves.toEqual({
+      type: "photo",
+      title: null,
+    });
+  });
+
+  it("follows a redirect", async () => {
+    await expect(oEmbeds().fetchOEmbed(at("/to-oembed"))).resolves.toMatchObject({
+      type: "video",
+    });
+    expect(hits).toEqual(["/to-oembed", "/oembed.json"]);
+  });
+
+  it.each([
+    ["/oembed-html", /isn't JSON/],
+    ["/oembed-big", /more than 65536 bytes/],
+    ["/oembed-endless", /more than 65536 bytes/],
+    ["/oembed-not-json", SyntaxError],
+    ["/oembed-array", /isn't an oEmbed object/],
+    ["/oembed-missing", /answered 404/],
+    ["/broken", /answered 503/],
+  ])("rejects %s", async (path, reason) => {
+    await expect(oEmbeds({ timeoutMs: 2000 }).fetchOEmbed(at(path))).rejects.toThrow(reason);
+  });
+
+  it("times out like the page fetch", async () => {
+    await expect(oEmbeds({ timeoutMs: 200 }).fetchOEmbed(at("/hang"))).rejects.toThrow(
+      /timed out after 200 ms/,
+    );
+  });
+
+  it("refuses an endpoint inside the network with the real guard, never connecting", async () => {
+    const real = new GuardedOEmbedProvider(new SafeUrlFetcher());
+
+    await expect(real.fetchOEmbed(at("/oembed.json", "127.0.0.1"))).rejects.toThrow(
+      UrlRefusedError,
+    );
+    await expect(real.fetchOEmbed("http://169.254.169.254/oembed")).rejects.toThrow(
+      UrlRefusedError,
+    );
+    expect(hits).toEqual([]);
+  });
+
+  it("refuses a redirect into the network", async () => {
+    await expect(oEmbeds().fetchOEmbed(at("/to-metadata"))).rejects.toThrow(/169\.254\.169\.254/);
+    expect(hits).toEqual(["/to-metadata"]);
+  });
+
+  it("refuses an endpoint that isn't http(s)", async () => {
+    await expect(oEmbeds().fetchOEmbed("file:///etc/passwd")).rejects.toThrow(UrlRefusedError);
   });
 });
