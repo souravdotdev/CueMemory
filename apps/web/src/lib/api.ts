@@ -9,9 +9,6 @@ import { env } from "../env";
 
 const API_URL = env.NEXT_PUBLIC_API_URL;
 
-// TODO: replace with the authenticated user's id once auth is wired up.
-const DEV_USER_ID = "00000000-0000-0000-0000-000000000000";
-
 // Every non-2xx response should carry the common error envelope; surface its message.
 async function toApiError(res: Response, fallback: string): Promise<Error> {
   const body: unknown = await res.json().catch(() => null);
@@ -22,7 +19,8 @@ async function toApiError(res: Response, fallback: string): Promise<Error> {
 /** The newest page of the User's Item cards. Throws if the response breaks the contract. */
 export async function fetchItems(): Promise<ListItemsResponse> {
   const res = await fetch(`${API_URL}/items`, {
-    headers: { "x-user-id": DEV_USER_ID },
+    // The API knows the User from the Session cookie (ADR 0003).
+    credentials: "include",
     cache: "no-store",
   });
 
@@ -34,10 +32,9 @@ export async function fetchItems(): Promise<ListItemsResponse> {
 export async function createItem(url: string): Promise<CreateItemResponse> {
   const res = await fetch(`${API_URL}/items`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-user-id": DEV_USER_ID,
-    },
+    // The API knows the User from the Session cookie (ADR 0003).
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
   });
 

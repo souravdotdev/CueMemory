@@ -1,6 +1,6 @@
 # Security
 
-`apps/api` (the only HTTP-facing service besides `apps/web`) registers three plugins in `buildApp` (`src/app.ts`), all before any route: [`@fastify/cors`](https://github.com/fastify/fastify-cors), [`@fastify/helmet`](https://github.com/fastify/fastify-helmet), [`@fastify/rate-limit`](https://github.com/fastify/fastify-rate-limit). Errors are sent through one error middleware (`src/interface/middleware/error.middleware.ts`) that never puts a domain message, stack trace or internal detail in a response (see [API](./api.md#error-envelope)). `apps/worker` has no HTTP surface (it will only consume queue jobs), so no middleware applies there.
+`apps/api` (the only HTTP-facing service besides `apps/web`) registers three plugins in `buildApp` (`src/app.ts`), all before any route: [`@fastify/cors`](https://github.com/fastify/fastify-cors), [`@fastify/helmet`](https://github.com/fastify/fastify-helmet), [`@fastify/rate-limit`](https://github.com/fastify/fastify-rate-limit). Errors are sent through one error middleware (`src/interface/middleware/error.middleware.ts`) that never puts a domain message, stack trace or internal detail in a response (see [API](./api.md#error-envelope)). `apps/worker` has no HTTP surface (it only consumes queue jobs), so no middleware applies there; it does make one outbound request per unrecognised Source URL, which is guarded (see [The worker's URL fetch](#the-workers-url-fetch)).
 
 ## CORS
 
@@ -28,6 +28,18 @@ export const rateLimitRedis: Redis = redisConnection.duplicate({
 ```
 
 `.duplicate()` shares the same connection config (host, port, credentials) but overrides these two options — giving rate-limit checks fail-fast behavior without touching BullMQ's own connection semantics. Verified live: the API boots cleanly against real Redis, and the `x-ratelimit-remaining` counter correctly decrements across real requests, proving the dedicated connection is actually the one being used.
+
+## The worker's URL fetch
+
+A Source URL is whatever a User pasted, and when no URL rule recognises it the worker fetches it once to classify it (see [Queue](./queue.md#response-rules)). Unguarded, that is server-side request forgery: a User could point the worker at `http://169.254.169.254/` (cloud metadata and credentials), `http://localhost:6379`, or anything else on the private network. `SafeUrlFetcher` (`apps/worker/src/infrastructure/http/SafeUrlFetcher.ts`) is the only way the worker fetches, and it:
+
+- **Refuses non-public addresses**, checking every address the host resolves to (one bad answer refuses the URL): loopback, private, carrier-grade NAT, link-local (incl. `169.254.169.254`), unspecified, multicast, documentation and reserved IPv4; and IPv6 loopback, unspecified, unique-local (`fc00::/7`, incl. `fd00:ec2::254`), link-local, site-local, multicast, and the ranges that embed an IPv4 address (IPv4-mapped `::ffff:0:0/96` judged by the IPv4 inside, IPv4-compatible, NAT64, 6to4, Teredo). The list is `publicAddress.ts`, built on Node's `net.BlockList`. IP-literal hosts in any spelling (`2130706433`, `0x7f.1`, `[::ffff:7f00:1]`) are normalised by the WHATWG URL parser first and checked the same way.
+- **Pins the connection to the checked addresses.** The request's `lookup` answers only with the addresses just checked, so the socket can't connect anywhere else; a DNS answer that changes between the check and the connect (DNS rebinding) never reaches the socket. `agent: false` keeps it from reusing a pooled socket. TLS still verifies the certificate against the hostname.
+- **Follows redirects by hand**, at most 5, resolving and checking each hop like the first; a redirect to a non-HTTP(S) scheme is refused.
+- **Bounds the work**: one 10-second timeout covers the whole fetch (every hop and the body), only an HTML body is read, at most ~1 MB and only up to `</head>`, and `Accept-Encoding: identity` means nothing is decompressed. It sends `User-Agent: CueMemory/1.0 (…)`.
+- **Fails the attempt** on a refusal, a network error, a timeout or a 5xx/429 answer: the error propagates, so the job retries and, once no attempt is left, the Item is Failed. No response body ever reaches the User or the logs beyond the classified Item type.
+
+Not covered: there's no outbound proxy or egress firewall behind this; the guard is in-process. Tests: `tests/unit/infrastructure/http/` (see [Testing](./testing.md)).
 
 ## `apps/web` response headers
 

@@ -85,6 +85,16 @@ describe("toItemCardOutput", () => {
     expect(card.thumbnailUrl).toBeNull();
   });
 
+  it("needs no Thumbnail provider when the Item has no Thumbnail key", async () => {
+    const card = await toItemCardOutput(item(), []);
+
+    expect(card.thumbnailUrl).toBeNull();
+  });
+
+  it("refuses an Item with a Thumbnail key when no Thumbnail provider is given", async () => {
+    await expect(toItemCardOutput(readyItem, [])).rejects.toThrow("Thumbnail provider");
+  });
+
   it("gives a Failed Item the generic failure message", async () => {
     const card = await toItemCardOutput(item({ type: "link", status: "failed" }), [], thumbnails);
 

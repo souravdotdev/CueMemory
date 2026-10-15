@@ -4,7 +4,7 @@ Fastify server in `apps/api`, organised by layer (see [Clean Architecture](./cle
 
 Base URL locally: `http://localhost:4000` (from `PORT` in `apps/api/.env`).
 
-Today the API serves `GET /health`, Better Auth's routes under `/api/auth/*`, and `GET /me`. The Item endpoints (save, list, search, retry, delete) come in a later spec. They will be built on the schema wiring described below.
+Today the API serves `GET /health`, Better Auth's routes under `/api/auth/*`, `GET /me` and `POST /items` (save a URL). The other Item endpoints (list, search, retry, delete) come in later specs, built on the same schema wiring described below.
 
 ## Shared schemas: one definition of every request and response
 
@@ -13,10 +13,11 @@ Every request and response between `apps/web` and `apps/api` is defined once, as
 - `@cue-memory/shared/schemas/common`: shared shapes, such as the error envelope (`ErrorResponseSchema`).
 - `@cue-memory/shared/schemas/auth`: the signed-in User (`MeResponseSchema`).
 - `@cue-memory/shared/schemas/items`: Item shapes, such as the create-Item input (`CreateItemSchema`) and the Item card (`ItemCardSchema`).
+- `@cue-memory/shared/schemas/queue`: not HTTP, but the API ↔ worker contract: the Items queue name, the Process Item job name and its payload (see [Queue](./queue.md)).
 
 Naming: zod schemas end in `Schema` and their inferred TypeScript types drop the suffix (for example `CreateItemSchema` / `CreateItemInput`, `ItemCardSchema` / `ItemCard`). A plain `Item` is always the domain entity in `apps/api/src/domain/entities`, never a wire shape.
 
-The same schema is used on both sides. For example, the web save form validates a pasted link with `CreateItemSchema` before it calls the API, and the API will validate the request body with that schema too. So the form and the server never disagree. That schema trims the link, requires a valid `http` or `https` URL, and allows at most 2048 characters.
+The same schema is used on both sides. For example, the web save form validates a pasted link with `CreateItemSchema` before it calls the API, and `POST /items` validates the request body with that schema too. So the form and the server never disagree. That schema trims the link, requires a valid `http` or `https` URL, and allows at most 2048 characters.
 
 ### How the API uses the schemas
 
@@ -114,7 +115,7 @@ The use case throws `UnauthorizedError`, which the error middleware sends as 401
 { "error": { "code": "unauthorized", "message": "You need to sign in to do that" } }
 ```
 
-The web app still sends a fixed dev user id in an `x-user-id` header until its sign-in lands; no API route reads it.
+The web app's requests (`apps/web/src/lib/api.ts`) send the Session cookie with `credentials: "include"`; no identity header is sent or read.
 
 ### `GET /me`
 
@@ -132,6 +133,39 @@ The signed-in User, in `MeResponseSchema` (`@cue-memory/shared/schemas/auth`). P
 ```
 
 `avatarUrl` is null when the User has no Google photo. Without a valid Session it's `401 unauthorized`.
+
+## Items
+
+### `POST /items`
+
+Saves a pasted URL as an Item for the signed-in User and answers straight away with its Item card, still Processing and with no Item type. Protected by the auth middleware. Served by `itemsRoutes` → `ItemsController` → `SaveItemUseCase`, which:
+
+1. stores the Item through the `IItemRepository` port (`DrizzleItemRepository`): status `processing`, type null, the Source URL exactly as pasted after trimming. Source URLs aren't unique, so saving the same one twice creates two Items;
+2. enqueues its Processing through the `IQueueProvider` port (`BullMqQueueProvider`): a Process Item job with `{ itemId, userId }` on the Items queue (see [Queue](./queue.md));
+3. returns the Item card (`CreateItemResponseSchema`, the same shape as `ItemCardSchema`).
+
+```
+POST /items
+{ "url": "https://youtu.be/dQw4w9WgXcQ" }
+
+201 Created
+{
+  "id": "3b241101-e2bb-4255-8caf-4136c566a962",
+  "sourceUrl": "https://youtu.be/dQw4w9WgXcQ",
+  "type": null,
+  "status": "processing",
+  "title": null,
+  "description": null,
+  "thumbnailUrl": null,
+  "failureMessage": null,
+  "createdAt": "2026-04-01T00:00:00.000Z",
+  "tags": []
+}
+```
+
+- No valid Session → `401 unauthorized`. The User always comes from the Session, never from the body.
+- A missing URL, one that isn't `http`/`https`, or one over 2048 characters → `400 validation_failed` with the issue at `/url`.
+- If the job can't be enqueued (Redis is down), the request fails with `500 internal`. The Item is already stored and stays Processing; there is no retry endpoint yet.
 
 ## `GET /health`
 

@@ -13,7 +13,12 @@ apps/
               src/interface/       Fastify routes, controllers and middleware
               src/infrastructure/  adapters: Better Auth, Drizzle repositories, row mappers
               src/di/              tokens.ts and container.ts (the InversifyJS container)
-  worker/   Background-job process (nothing to consume yet)
+  worker/   Background-job process consuming the Items queue, the same layers as the API
+              src/domain/          the Item entity, the Item repository port, the URL rules
+              src/application/     ProcessItemUseCase, FailItemUseCase
+              src/interface/       itemsWorker.ts (BullMQ Worker + job switch), itemsJobFailed.ts (failed handler), processors/
+              src/infrastructure/  adapters: the Drizzle database and Item repository
+              src/di/              tokens.ts (WORKER_TOKENS) and container.ts
 
 packages/
   shared/             zod request/response schemas for web <-> api; depends only on zod
@@ -50,9 +55,9 @@ That's fine for anything bundler-based — but plain `node` cannot execute raw T
 
 **Backend API** (`apps/api`): Fastify, `@fastify/cors`, `@fastify/helmet`, `@fastify/rate-limit`, Zod (validation via `fastify-type-provider-zod`), Better Auth, `tsx` (dev runtime), `tsup` (build)
 
-**Worker** (`apps/worker`): `tsx`, `tsup` (no queue consumer yet)
+**Worker** (`apps/worker`): BullMQ (consumes the Items queue), InversifyJS + `reflect-metadata`, `tsx` (dev runtime), `tsup` (build)
 
-**Dependency injection** (`apps/api`): InversifyJS + `reflect-metadata`, one container in `apps/api/src/di/container.ts` — see [Clean Architecture](./clean-architecture.md)
+**Dependency injection** (`apps/api`, `apps/worker`): InversifyJS + `reflect-metadata`, one container per app in `src/di/container.ts` — see [Clean Architecture](./clean-architecture.md)
 
 **Database** (schema and migrations in `packages/db`, queries in `apps/api`'s infrastructure layer): Drizzle ORM, drizzle-kit (migrations/studio CLI), `postgres` (postgres.js driver), PostgreSQL 16 (Docker)
 

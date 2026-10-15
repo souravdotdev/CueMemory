@@ -3,8 +3,11 @@ import { Container } from "inversify";
 import { AdmitSignInUseCase } from "@/application/use-cases/auth/AdmitSignInUseCase";
 import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
 import { ResolveSignedInUserUseCase } from "@/application/use-cases/auth/ResolveSignedInUserUseCase";
+import { SaveItemUseCase } from "@/application/use-cases/items/SaveItemUseCase";
 import { TOKENS } from "@/di/tokens";
+import type { IQueueProvider } from "@/domain/providers/IQueueProvider";
 import type { ISessionProvider } from "@/domain/providers/ISessionProvider";
+import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 import type { IUserRepository } from "@/domain/repositories/IUserRepository";
 import { env, type Env } from "@/env";
 import {
@@ -14,7 +17,11 @@ import {
 import { createAuth, type Auth } from "@/infrastructure/auth/createAuth";
 import type { Database } from "@/infrastructure/database/Database";
 import { db } from "@/infrastructure/database/db";
+import { BullMqQueueProvider, type ItemsQueue } from "@/infrastructure/queue/BullMqQueueProvider";
+import { itemsQueue } from "@/infrastructure/queue/itemsQueue";
+import { DrizzleItemRepository } from "@/infrastructure/repositories/DrizzleItemRepository";
 import { DrizzleUserRepository } from "@/infrastructure/repositories/DrizzleUserRepository";
+import { ItemsController } from "@/interface/controllers/ItemsController";
 import { MeController } from "@/interface/controllers/MeController";
 import { rateLimitRedis } from "@/rate-limit-redis";
 import type { RateLimitRedis } from "@/rate-limit-store";
@@ -30,11 +37,17 @@ export function createContainer(): Container {
   container.bind<Env>(TOKENS.Env).toConstantValue(env);
   container.bind<Database>(TOKENS.Database).toConstantValue(db);
   container.bind<RateLimitRedis>(TOKENS.RateLimitRedis).toConstantValue(rateLimitRedis);
+  container.bind<ItemsQueue>(TOKENS.ItemsQueue).toConstantValue(itemsQueue);
 
   container
     .bind<IUserRepository>(TOKENS.UserRepository)
     .to(DrizzleUserRepository)
     .inSingletonScope();
+  container
+    .bind<IItemRepository>(TOKENS.ItemRepository)
+    .to(DrizzleItemRepository)
+    .inSingletonScope();
+  container.bind<IQueueProvider>(TOKENS.QueueProvider).to(BullMqQueueProvider).inSingletonScope();
 
   container
     .bind<Auth>(TOKENS.Auth)
@@ -72,8 +85,10 @@ export function createContainer(): Container {
     .to(ResolveSignedInUserUseCase)
     .inTransientScope();
   container.bind(TOKENS.GetMeUseCase).to(GetMeUseCase).inTransientScope();
+  container.bind(TOKENS.SaveItemUseCase).to(SaveItemUseCase).inTransientScope();
 
   container.bind(TOKENS.MeController).to(MeController).inSingletonScope();
+  container.bind(TOKENS.ItemsController).to(ItemsController).inSingletonScope();
 
   return container;
 }

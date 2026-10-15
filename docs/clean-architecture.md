@@ -1,6 +1,6 @@
 # Clean Architecture
 
-The backend follows Clean Architecture as a standing rule for every code change. Read this before you add or change code in `apps/api` (and, once it has a queue, `apps/worker`). Why the shape is layer-first, with use-case classes and a container, is in [ADR 0004](./adr/0004-layer-first-apps-with-use-case-classes-and-a-di-container.md). Why wire shapes are shared zod schemas, separate from the entities, is in [ADR 0001](./adr/0001-shared-zod-contracts-package.md). This doc describes the code as it is.
+The backend follows Clean Architecture as a standing rule for every code change. Read this before you add or change code in `apps/api` or `apps/worker`. Why the shape is layer-first, with use-case classes and a container, is in [ADR 0004](./adr/0004-layer-first-apps-with-use-case-classes-and-a-di-container.md). Why wire shapes are shared zod schemas, separate from the entities, is in [ADR 0001](./adr/0001-shared-zod-contracts-package.md). This doc describes the code as it is.
 
 ## The four layers
 
@@ -18,22 +18,24 @@ apps/api/src/
     container.ts        createContainer(): the only place concrete classes are bound
   domain/
     entities/           User.ts (User, SignInProfile), Item.ts, Tag.ts
-    repositories/       IUserRepository.ts
-    providers/          ISessionProvider.ts, IThumbnailUrlProvider.ts
+    repositories/       IUserRepository.ts, IItemRepository.ts
+    providers/          ISessionProvider.ts, IThumbnailUrlProvider.ts, IQueueProvider.ts
     errors/             AppError and its subclasses (barrel: @/domain/errors)
     rules/              signInDecision.ts, tagName.ts (pure functions)
   application/
     use-cases/auth/     AdmitSignInUseCase, ResolveSignedInUserUseCase, GetMeUseCase
+    use-cases/items/    SaveItemUseCase
     dto/auth/           MeOutput.ts
     dto/items/          ItemCardOutput.ts (toItemCardOutput)
   infrastructure/
     auth/               createAuth.ts, signInHook.ts, googleProfile.ts, BetterAuthSessionProvider.ts
     database/           Database.ts (the handle type), db.ts (the runtime Drizzle instance)
-    repositories/       DrizzleUserRepository.ts
+    queue/              BullMqQueueProvider.ts, itemsQueue.ts (the BullMQ Items queue)
+    repositories/       DrizzleUserRepository.ts, DrizzleItemRepository.ts
     mappers/            userMapper.ts, itemMapper.ts, tagMapper.ts (row -> entity)
   interface/
-    routes/             auth.routes.ts, me.routes.ts (Fastify plugins)
-    controllers/        MeController.ts
+    routes/             auth.routes.ts, me.routes.ts, items.routes.ts (Fastify plugins)
+    controllers/        MeController.ts, ItemsController.ts
     middleware/         auth.middleware.ts, error.middleware.ts
     http/               toWebHeaders.ts
 ```
@@ -48,7 +50,7 @@ What each layer holds:
 
 `di/` sits outside the four layers. It is the composition root: the only code that knows every concrete class.
 
-Items has a domain (`Item`, `Tag`, the Tag name rule), an output DTO and row mappers, but no use case, repository or route yet. `IThumbnailUrlProvider` has no adapter and no token yet. They get wired the same way as Auth when the first Items use case lands.
+Items has a domain (`Item`, `Tag`, the Tag name rule), the `IItemRepository` and `IQueueProvider` ports with their adapters, the Item card output DTO, row mappers, and one use case and route: `SaveItemUseCase` behind `POST /items`. `IThumbnailUrlProvider` has no adapter and no token yet; a just-saved Item has no Thumbnail key, so `toItemCardOutput` needs no provider for it.
 
 ## The dependency rule
 
@@ -67,7 +69,7 @@ An inner layer never imports an outer one. Domain and application code knows onl
 
 ### Lint guard
 
-In the API, lint enforces this rule. `apps/api/eslint.config.js` sets `no-restricted-imports` on `src/domain/**` and `src/application/**`. It blocks these imports: `drizzle-orm`, `fastify` (and `@fastify/*`, `fastify-*`), `better-auth`, `postgres`, `ioredis` and `@cue-memory/db`. Subpaths and `import type` are blocked too. If a domain or application file imports one of them, `pnpm lint` fails:
+In the API, lint enforces this rule. `apps/api/eslint.config.js` sets `no-restricted-imports` on `src/domain/**` and `src/application/**`. It blocks these imports: `drizzle-orm`, `fastify` (and `@fastify/*`, `fastify-*`), `better-auth`, `postgres`, `ioredis`, `bullmq` and `@cue-memory/db`. Subpaths and `import type` are blocked too. If a domain or application file imports one of them, `pnpm lint` fails:
 
 ```
 src/domain/zz-demo/bad.ts
@@ -80,13 +82,13 @@ To fix it, define a port in the domain and put the tool code in an infrastructur
 
 ## Tokens, the container and scopes
 
-Interfaces don't exist at runtime, so the container looks each dependency up by a token. `di/tokens.ts` exports `TOKENS`, one `Symbol` per bound dependency. A port's symbol is named after its interface (`TOKENS.UserRepository = Symbol("IUserRepository")`). Today the tokens are `Env`, `Database`, `UserRepository`, `Auth`, `SessionProvider`, `AdmitSignInUseCase`, `ResolveSignedInUserUseCase`, `GetMeUseCase`, `MeController` and `RateLimitRedis`.
+Interfaces don't exist at runtime, so the container looks each dependency up by a token. `di/tokens.ts` exports `TOKENS`, one `Symbol` per bound dependency. A port's symbol is named after its interface (`TOKENS.UserRepository = Symbol("IUserRepository")`). Today the tokens are `Env`, `Database`, `UserRepository`, `Auth`, `SessionProvider`, `AdmitSignInUseCase`, `ResolveSignedInUserUseCase`, `GetMeUseCase`, `MeController`, `ItemRepository`, `ItemsQueue`, `QueueProvider`, `SaveItemUseCase`, `ItemsController` and `RateLimitRedis`.
 
 `di/container.ts` exports `createContainer()`, an InversifyJS `Container`. It is the only place in application code that creates an application class. It binds:
 
-- **Constants** (`toConstantValue`): the validated `Env`, the `Database` (`db` from `infrastructure/database/db.ts`) and the rate-limit Redis.
+- **Constants** (`toConstantValue`): the validated `Env`, the `Database` (`db` from `infrastructure/database/db.ts`), the rate-limit Redis and the BullMQ Items queue (`itemsQueue`).
 - **The Better Auth instance** (`toDynamicValue(...).inSingletonScope()`): built once, by `createAuth(database, config, { admitSignIn })` from the bound `Env` and `Database`. Its session-create hook gets `admitSignIn` as `{ execute }`, which asks the container for a fresh `AdmitSignInUseCase` on every sign-in. The binding ends `satisfies { api: SessionApi }`, so tsc checks that the instance still fits what `BetterAuthSessionProvider` needs.
-- **Adapters and controllers as singletons** (`.to(Class).inSingletonScope()`): `DrizzleUserRepository`, `BetterAuthSessionProvider`, `MeController`. One instance lives for the life of the process.
+- **Adapters and controllers as singletons** (`.to(Class).inSingletonScope()`): `DrizzleUserRepository`, `DrizzleItemRepository`, `BetterAuthSessionProvider`, `BullMqQueueProvider`, `MeController`, `ItemsController`. One instance lives for the life of the process.
 - **Use cases as transient** (`.to(Class).inTransientScope()`): each `container.get` builds a new one, so a use case never carries state from one request to the next.
 
 Setup rules that keep this working:
@@ -120,7 +122,7 @@ Tests live in `apps/api/tests/unit/`, mirroring `src/`, and import through the `
 - **The HTTP seam** covers everything a client can observe. `tests/unit/app.test.ts` builds the real app with `buildApp(testContainer())` and drives it with Fastify `inject`. `testContainer()` binds the real use cases and controller, a fake `ISessionProvider`, a fake `Auth` handler and a literal `Env`. It binds `RateLimitRedis` to `IN_MEMORY_RATE_LIMITS`. Tests check statuses, bodies and headers: 401 envelopes, `GET /me` output, CORS, security headers, 404 and generic 500 envelopes. A test that needs an extra route (for example one that throws a domain error) adds it to the built app before calling `inject`. `tests/unit/interface/routes/auth.routes.test.ts` uses the same seam for the `/api/auth/*` mount.
 - **The use-case seam** covers business behaviour without the container: `new XUseCase(fake).execute(input)`. For example, `new ResolveSignedInUserUseCase(sessionsReturning(null))` rejects with `UnauthorizedError`. `AdmitSignInUseCase` is tested against a fake `IUserRepository`, checking the changes it records and the error it throws.
 
-Pure domain rules (`signInDecision`, `tagName`), mappers, output DTOs, infrastructure adapters (`createAuth` over a mocked database, `BetterAuthSessionProvider`, `googleProfile`, `signInHook`) and env validation are tested directly against their own inputs and outputs. `tests/unit/di/container.test.ts` resolves every token through the real `createContainer()`, with a stubbed environment and a stand-in rate-limit Redis (ioredis connects on construction; the Postgres client only on its first query, which the test never makes). No test needs a database or Redis.
+Pure domain rules (`signInDecision`, `tagName`), mappers, output DTOs, infrastructure adapters (`createAuth` over a mocked database, `BetterAuthSessionProvider`, `googleProfile`, `signInHook`) and env validation are tested directly against their own inputs and outputs. `tests/unit/di/container.test.ts` resolves every token through the real `createContainer()`, with a stubbed environment, a stand-in rate-limit Redis and a stand-in BullMQ Items queue (ioredis connects on construction; the Postgres client only on its first query, which the test never makes). No test needs a database or Redis.
 
 ## Where new code goes
 
@@ -132,23 +134,45 @@ Pure domain rules (`signInDecision`, `tagName`), mappers, output DTOs, infrastru
 
 Don't create empty layer folders ahead of time. A folder appears with its first file.
 
-## The worker (documented, not yet built)
+## The worker
 
-`apps/worker` has no queue today: its `index.ts` only logs that there is nothing to consume. When the first queue lands, the worker becomes a small app with the same four layers. Only the front door differs: a job arrives instead of an HTTP request, and a processor replaces the controller.
+`apps/worker` has the API's tooling: its own `WORKER_TOKENS` (`src/di/tokens.ts`) and `createContainer()` (`src/di/container.ts`), `reflect-metadata` loaded first in `index.ts`, `experimentalDecorators` and the `@/` alias in its `tsconfig.json` (mirrored in `vitest.config.ts`), tests in `tests/unit/`, and the same lint guard in its `eslint.config.js` (Drizzle, BullMQ, Postgres, Redis and `@cue-memory/db` are refused in `src/domain/` and `src/application/`). It fills in the same four layers; only the front door differs: a job arrives instead of an HTTP request, and a processor replaces the controller.
+
+```
+apps/worker/src/
+  index.ts              reflect-metadata first; createContainer(), ping Redis, createItemsWorker
+  di/                   tokens.ts (WORKER_TOKENS), container.ts
+  domain/
+    entities/           Item.ts (the fields Processing needs; ItemRef; Item types and statuses)
+    repositories/       IItemRepository.ts (findById, markReady, markFailed)
+    providers/          IUrlFetcher.ts (fetchPage)
+    rules/              itemTypeFromUrl.ts, itemTypeFromResponse.ts, mediaType.ts (pure functions)
+  application/
+    use-cases/items/    ProcessItemUseCase, FailItemUseCase
+    dto/items/          ProcessItemResult.ts, FailItemResult.ts
+  infrastructure/
+    database/           Database.ts, db.ts
+    http/               SafeUrlFetcher.ts, publicAddress.ts (the guarded fetch)
+    repositories/       DrizzleItemRepository.ts
+  interface/
+    itemsJobs.ts        the job-name map: each name's processor and final-failure step
+    itemsWorker.ts      createItemsWorker (the BullMQ Worker) and runItemsJob (the job switch)
+    itemsJobFailed.ts   onItemsJobFailed (the Worker's `failed` handler)
+    processors/         processItem.processor.ts, processItemFailed.processor.ts
+```
 
 | Part           | In the API                    | In the worker                                                   |
 | -------------- | ----------------------------- | --------------------------------------------------------------- |
-| Front door     | route + controller            | a `worker.ts` switch on `job.name` + a processor                |
-| Input check    | the route's zod schema        | `XPayloadSchema.parse(job.data)` in the processor               |
+| Front door     | route + controller            | a job switch on `job.name` (`runItemsJob`) + a processor        |
+| Input check    | the route's zod schema        | `XPayloadSchema.safeParse(job.data)` in the processor           |
 | Business logic | use case                      | use case                                                        |
 | Tokens         | `TOKENS` in `apps/api/src/di` | the worker's own `WORKER_TOKENS` and container                  |
 | Queue names    | n/a                           | constants from a shared queue entry point, no typed-out strings |
 
-The planned shape:
+- **The API enqueues through a port.** `SaveItemUseCase` depends on `IQueueProvider` in the domain, and `BullMqQueueProvider` in infrastructure implements it. The port takes its own `ProcessItemRequest`; the adapter maps it to the shared job payload. The use case never imports `bullmq`; the lint guard blocks it.
+- **One worker per queue, routing by job name.** `interface/itemsWorker.ts` creates the BullMQ `Worker` for the Items queue. `interface/itemsJobs.ts` maps each job name to `{ process, onFinalFailure }`. The job switch `runItemsJob(container, job)` runs the name's `process`; an unknown name throws `UnrecoverableError`, so it is not retried. The `failed` handler, `onItemsJobFailed`, logs each failed attempt and, once BullMQ has no attempt left (`job.finishedOn` is set: the last retry, or a stall), runs the name's `onFinalFailure` (`processItemFailed`), which runs a use case like any processor.
+- **A processor is a thin controller.** It lives in `interface/processors/`. It parses `job.data` with the payload's zod schema (an invalid payload throws `UnrecoverableError`), maps it to the use case's input, and calls `container.get<XUseCase>(WORKER_TOKENS.XUseCase).execute(input)`. Errors from the use case pass through, so BullMQ retries.
+- **The worker has its own `di/tokens.ts` and `di/container.ts`.** It never shares or mixes the API's `TOKENS`. Its port symbols are named after their interfaces too (`WORKER_TOKENS.ItemRepository = Symbol("IItemRepository")`). Adapters (`DrizzleItemRepository`, `SafeUrlFetcher`) are `@injectable()` singletons bound with `.to(...).inSingletonScope()`; use cases are transient. `SafeUrlFetcher`'s options parameter is `@unmanaged()`, so the container builds it with the defaults and tests construct it directly with their own. Use-case results sit in `application/dto/items/`, as in the API. The worker's `Item` entity is its own (the domain can't import the API's); `tests/unit/domain/schema-agreement.test.ts` keeps its Item types and statuses equal to the database enums.
+- **Two test seams, as in the API.** The processor seam drives `runItemsJob` with a fake job and a test container whose use case is a stand-in; use cases are tested with `new XUseCase(fake)`.
 
-- **The API enqueues through a port.** A use case depends on an `IQueueProvider` in the domain, and a BullMQ adapter in infrastructure implements it. The use case never imports `bullmq`.
-- **`worker.ts` routes by job name.** It creates the BullMQ `Worker` for a queue and switches on `job.name`, calling one processor per job type. An unknown name throws `UnrecoverableError`, so it is not retried.
-- **A processor is a thin controller.** It lives in the worker's `interface/processors/`. It parses `job.data` with the payload's zod schema, maps it to the use case's input, and calls `container.get<XUseCase>(WORKER_TOKENS.XUseCase).execute(input)`.
-- **The worker has its own `di/tokens.ts` and `di/container.ts`.** It never shares or mixes the API's `TOKENS`. The lint guard, the `reflect-metadata` rule and the two test seams apply as in the API: the processor seam drives a processor with a fake job and a test container, and use cases are tested with `new XUseCase(fake)`.
-
-Payload schemas and queue names go in `@cue-memory/shared` under a queue entry point. That entry point doesn't exist yet. It is added with the first queue, not before. See [Queue](./queue.md).
+Payload schemas and queue names go in `@cue-memory/shared/schemas/queue` (today `ITEMS_QUEUE`, `PROCESS_ITEM_JOB`, `ProcessItemJobSchema`). See [Queue](./queue.md).

@@ -51,7 +51,7 @@ See [Database](./database.md) for the schema itself and the full migration workf
 pnpm dev
 ```
 
-Runs `dev` in every app in parallel via Turborepo (`apps/web` on Next.js's default port, `apps/api` on `PORT` from its env, `apps/worker` with no HTTP server — it will consume the queue, and has nothing to consume yet). Turborepo's terminal UI (`"ui": "tui"` in `turbo.json`) shows all three side by side.
+Runs `dev` in every app in parallel via Turborepo (`apps/web` on Next.js's default port, `apps/api` on `PORT` from its env, `apps/worker` with no HTTP server, loading `apps/worker/.env` and consuming the Items queue). Turborepo's terminal UI (`"ui": "tui"` in `turbo.json`) shows all three side by side.
 
 To run just one app: `pnpm --filter web dev` (or `api`, `worker`).
 
@@ -74,10 +74,11 @@ These same checks (plus commit-message linting) also run automatically in CI on 
 
 ## Smoke-testing the API
 
-The save flow (Item endpoints and the worker's queue) isn't built yet (see [Queue](./queue.md)); what runs today is auth:
+What runs today is auth, saving a URL and detecting its Item type from the URL (see [Queue](./queue.md)):
 
 1. `docker compose up -d`
 2. Configure and apply `.env` + migrations as above, including the Google OAuth client from [Environment Variables](./environment-variables.md)
 3. `pnpm --filter api dev`
 4. `curl http://localhost:4000/health` returns `{ "status": "ok" }`, and `curl http://localhost:4000/me` returns `401` in the `unauthorized` error envelope — see [API](./api.md)
 5. Sign in with Google through `POST /api/auth/sign-in/social`, then `GET /me` with the Session cookie returns the signed-in User
+6. `POST /items` with the Session cookie and `{ "url": "https://youtu.be/dQw4w9WgXcQ" }` returns `201` with a Processing Item card. With the worker running (`pnpm --filter worker dev`), the Item is `ready` with type `video` within seconds and the worker logs `[worker] Item <id> is Ready as video`
