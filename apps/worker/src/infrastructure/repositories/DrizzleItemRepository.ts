@@ -32,4 +32,11 @@ export class DrizzleItemRepository implements IItemRepository {
       .set({ status: "ready", type, updatedAt: new Date() })
       .where(and(eq(items.id, itemId), eq(items.userId, userId)));
   }
+
+  async markFailed(itemId: string, userId: string, type: ItemType): Promise<void> {
+    await this.db
+      .update(items)
+      .set({ status: "failed", type, updatedAt: new Date() })
+      .where(and(eq(items.id, itemId), eq(items.userId, userId)));
+  }
 }

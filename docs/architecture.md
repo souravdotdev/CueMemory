@@ -15,8 +15,8 @@ apps/
               src/di/              tokens.ts and container.ts (the InversifyJS container)
   worker/   Background-job process consuming the Items queue, the same layers as the API
               src/domain/          the Item entity, the Item repository port, the URL rules
-              src/application/     ProcessItemUseCase
-              src/interface/       itemsWorker.ts (BullMQ Worker + job switch) and processors/
+              src/application/     ProcessItemUseCase, FailItemUseCase
+              src/interface/       itemsWorker.ts (BullMQ Worker + job switch), itemsJobFailed.ts (failed handler), processors/
               src/infrastructure/  adapters: the Drizzle database and Item repository
               src/di/              tokens.ts (WORKER_TOKENS) and container.ts
 

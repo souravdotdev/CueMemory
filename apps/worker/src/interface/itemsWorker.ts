@@ -1,6 +1,7 @@
 import { UnrecoverableError, Worker, type ConnectionOptions } from "bullmq";
 import type { Container } from "inversify";
 import { ITEMS_QUEUE, PROCESS_ITEM_JOB } from "@cue-memory/shared/schemas/queue";
+import { onItemsJobFailed } from "@/interface/itemsJobFailed";
 import { processItem } from "@/interface/processors/processItem.processor";
 
 /** What the job switch reads from a BullMQ job. */
@@ -22,7 +23,13 @@ export async function runItemsJob(container: Container, job: ItemsJob): Promise<
   }
 }
 
-/** The BullMQ worker that consumes the Items queue, on the given Redis connection. */
+/**
+ * The BullMQ worker that consumes the Items queue, on the given Redis
+ * connection. A failed attempt goes to `onItemsJobFailed`, which logs it and
+ * marks the Item Failed after the last one.
+ */
 export function createItemsWorker(container: Container, connection: ConnectionOptions): Worker {
-  return new Worker(ITEMS_QUEUE, (job) => runItemsJob(container, job), { connection });
+  const worker = new Worker(ITEMS_QUEUE, (job) => runItemsJob(container, job), { connection });
+  worker.on("failed", (job, error) => void onItemsJobFailed(container, job, error));
+  return worker;
 }

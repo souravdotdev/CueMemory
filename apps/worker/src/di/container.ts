@@ -2,6 +2,7 @@ import "reflect-metadata";
 import type { Redis } from "ioredis";
 import { Container } from "inversify";
 import { redisConnection } from "@cue-memory/db/redis";
+import { FailItemUseCase } from "@/application/use-cases/items/FailItemUseCase";
 import { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
 import { WORKER_TOKENS } from "@/di/tokens";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
@@ -24,6 +25,10 @@ export function createContainer(): Container {
   container
     .bind<ProcessItemUseCase>(WORKER_TOKENS.ProcessItemUseCase)
     .to(ProcessItemUseCase)
+    .inTransientScope();
+  container
+    .bind<FailItemUseCase>(WORKER_TOKENS.FailItemUseCase)
+    .to(FailItemUseCase)
     .inTransientScope();
 
   return container;

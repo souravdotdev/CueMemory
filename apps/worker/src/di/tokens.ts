@@ -12,4 +12,6 @@ export const WORKER_TOKENS = {
   ItemRepository: Symbol("ItemRepository"),
   /** `ProcessItemUseCase`: what a Process Item job runs. */
   ProcessItemUseCase: Symbol("ProcessItemUseCase"),
+  /** `FailItemUseCase`: what a Process Item job's last failed attempt runs. */
+  FailItemUseCase: Symbol("FailItemUseCase"),
 } as const;

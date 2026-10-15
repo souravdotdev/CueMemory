@@ -6,4 +6,6 @@ export interface IItemRepository {
   findById(itemId: string, userId: string): Promise<Item | null>;
   /** Marks the User's Item Ready with its Item type. */
   markReady(itemId: string, userId: string, type: ItemType): Promise<void>;
+  /** Marks the User's Item Failed with this Item type. */
+  markFailed(itemId: string, userId: string, type: ItemType): Promise<void>;
 }

@@ -21,6 +21,7 @@ function itemsInMemory(sourceUrl: string) {
         item.type = type;
       }
     }),
+    markFailed: vi.fn(async () => {}),
   };
   return { repository, item };
 }

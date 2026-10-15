@@ -142,16 +142,17 @@ apps/worker/src/
   di/                   tokens.ts (WORKER_TOKENS), container.ts
   domain/
     entities/           Item.ts (the fields Processing needs; Item types and statuses)
-    repositories/       IItemRepository.ts (findById, markReady)
+    repositories/       IItemRepository.ts (findById, markReady, markFailed)
     rules/              itemTypeFromUrl.ts (pure URL rules)
   application/
-    use-cases/items/    ProcessItemUseCase
+    use-cases/items/    ProcessItemUseCase, FailItemUseCase
   infrastructure/
     database/           Database.ts, db.ts
     repositories/       DrizzleItemRepository.ts
   interface/
     itemsWorker.ts      createItemsWorker (the BullMQ Worker) and runItemsJob (the job switch)
-    processors/         processItem.processor.ts
+    itemsJobFailed.ts   onItemsJobFailed (the Worker's `failed` handler)
+    processors/         processItem.processor.ts, processItemFailed.processor.ts
 ```
 
 | Part           | In the API                    | In the worker                                                   |
@@ -163,7 +164,7 @@ apps/worker/src/
 | Queue names    | n/a                           | constants from a shared queue entry point, no typed-out strings |
 
 - **The API enqueues through a port.** `SaveItemUseCase` depends on `IQueueProvider` in the domain, and `BullMqQueueProvider` in infrastructure implements it. The use case never imports `bullmq`; the lint guard blocks it.
-- **One worker per queue, routing by job name.** `interface/itemsWorker.ts` creates the BullMQ `Worker` for the Items queue; its job switch `runItemsJob(container, job)` calls one processor per job name. An unknown name throws `UnrecoverableError`, so it is not retried.
+- **One worker per queue, routing by job name.** `interface/itemsWorker.ts` creates the BullMQ `Worker` for the Items queue; its job switch `runItemsJob(container, job)` calls one processor per job name. An unknown name throws `UnrecoverableError`, so it is not retried. Its `failed` handler, `onItemsJobFailed`, logs each failed attempt and, after the final one, calls the job's failure processor (`processItemFailed`), which runs a use case like any processor.
 - **A processor is a thin controller.** It lives in `interface/processors/`. It parses `job.data` with the payload's zod schema (an invalid payload throws `UnrecoverableError`), maps it to the use case's input, and calls `container.get<XUseCase>(WORKER_TOKENS.XUseCase).execute(input)`. Errors from the use case pass through, so BullMQ retries.
 - **The worker has its own `di/tokens.ts` and `di/container.ts`.** It never shares or mixes the API's `TOKENS`. Repositories are singletons; use cases are transient. The worker's `Item` entity is its own (the domain can't import the API's); `tests/unit/domain/schema-agreement.test.ts` keeps its Item types and statuses equal to the database enums.
 - **Two test seams, as in the API.** The processor seam drives `runItemsJob` with a fake job and a test container whose use case is a stand-in; use cases are tested with `new XUseCase(fake)`.
