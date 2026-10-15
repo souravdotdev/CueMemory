@@ -10,6 +10,7 @@ import type { AuthRequestHandler } from "@/interface/routes/auth.routes";
 
 const env: Env = {
   PORT: 4000,
+  HOST: "127.0.0.1",
   BETTER_AUTH_SECRET: "a".repeat(32),
   BETTER_AUTH_URL: "http://localhost:4000",
   GOOGLE_CLIENT_ID: "google-client-id",
