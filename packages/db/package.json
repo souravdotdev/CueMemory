@@ -18,20 +18,20 @@
     "db:reset": "tsx --env-file=.env scripts/reset.ts"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.2",
+    "drizzle-orm": "^0.45.4",
     "ioredis": "^6.0.0",
     "postgres": "^3.4.9",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cue-memory/eslint-config": "workspace:*",
     "@cue-memory/typescript-config": "workspace:*",
     "@cue-memory/vitest-config": "workspace:*",
-    "@types/node": "^26.5.1",
-    "drizzle-kit": "^0.31.10",
+    "@types/node": "^26.6.5",
+    "drizzle-kit": "^0.31.11",
     "eslint": "^9.39.5",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.5"
   }
 }
