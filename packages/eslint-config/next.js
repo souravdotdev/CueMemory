@@ -35,6 +35,7 @@ export const nextJsConfig = tseslint.config(
     },
   },
   {
-    ignores: ["dist/**", ".next/**", "node_modules/**"],
+    // next-env.d.ts is generated, and rewritten by `next build` and `next typegen` while lint may run.
+    ignores: ["dist/**", ".next/**", "node_modules/**", "next-env.d.ts"],
   },
 );

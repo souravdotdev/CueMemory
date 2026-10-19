@@ -1,32 +1,20 @@
 import type { ItemType } from "@/domain/entities/Item";
-import type { FetchedPage } from "@/domain/providers/IUrlFetcher";
+import type { FetchedFile } from "@/domain/providers/IUrlFetcher";
+import { itemTypeFromContentType } from "@/domain/rules/itemTypeFromContentType";
+import { itemTypeFromMagicBytes } from "@/domain/rules/itemTypeFromMagicBytes";
 import { mediaTypeOf } from "@/domain/rules/mediaType";
 
-const META_TAG = /<meta\b[^>]*>/gi;
-const ATTRIBUTE = /([^\s"'=<>/]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
-
-/** The value of the page's `og:type` meta tag, lower-case, or null without one. */
-function openGraphType(htmlHead: string): string | null {
-  for (const [tag] of htmlHead.matchAll(META_TAG)) {
-    const attributes = new Map<string, string>();
-    for (const [, name, doubleQuoted, singleQuoted, bare] of tag.matchAll(ATTRIBUTE)) {
-      attributes.set(name!.toLowerCase(), doubleQuoted ?? singleQuoted ?? bare ?? "");
-    }
-    const key = (attributes.get("property") ?? attributes.get("name"))?.toLowerCase();
-    if (key === "og:type") return attributes.get("content")?.trim().toLowerCase() ?? null;
-  }
-  return null;
-}
+// Content-Types that say only "some bytes": the first bytes decide instead.
+const VAGUE_TYPES = new Set(["", "application/octet-stream", "binary/octet-stream"]);
 
 /**
- * Works out an Item type from a fetched page: a PDF or an image by its
- * Content-Type, an Article when an HTML page's head declares `og:type`
- * article, and a Link otherwise.
+ * Works out an Item type from a fetched file (a 2xx answer that isn't HTML):
+ * its Content-Type, or its magic bytes when the Content-Type is missing or
+ * vague. Null for anything it doesn't recognise.
  */
-export function itemTypeFromResponse(page: FetchedPage): ItemType {
-  const mediaType = mediaTypeOf(page.contentType);
-  if (mediaType === "application/pdf") return "pdf";
-  if (mediaType.startsWith("image/")) return "image";
-  if (page.htmlHead !== null && openGraphType(page.htmlHead) === "article") return "article";
-  return "link";
+export function itemTypeFromResponse(file: FetchedFile): ItemType | null {
+  const byContentType = itemTypeFromContentType(file.contentType);
+  if (byContentType) return byContentType;
+  const vague = VAGUE_TYPES.has(mediaTypeOf(file.contentType));
+  return vague ? itemTypeFromMagicBytes(file.firstBytes) : null;
 }

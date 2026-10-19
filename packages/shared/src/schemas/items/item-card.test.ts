@@ -42,12 +42,15 @@ describe("ItemCardSchema", () => {
     expect(ItemCardSchema.parse(card)).toEqual(card);
   });
 
-  it.each(["tweet", "video", "image", "pdf", "link"])("accepts the %s Item type", (type) => {
-    expect(ItemCardSchema.safeParse({ ...readyCard, type }).success).toBe(true);
-  });
+  it.each(["article", "post", "video", "image", "audio", "pdf", "code", "file", "link"])(
+    "accepts the %s Item type",
+    (type) => {
+      expect(ItemCardSchema.safeParse({ ...readyCard, type }).success).toBe(true);
+    },
+  );
 
   it("rejects an unknown Item type", () => {
-    expect(ItemCardSchema.safeParse({ ...readyCard, type: "podcast" }).success).toBe(false);
+    expect(ItemCardSchema.safeParse({ ...readyCard, type: "tweet" }).success).toBe(false);
   });
 
   it("rejects an unknown status", () => {

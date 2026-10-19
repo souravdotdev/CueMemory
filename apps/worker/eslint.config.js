@@ -9,6 +9,10 @@ const toolImports = [
   { group: ["postgres", "postgres/*"], message: "Postgres belongs in infrastructure." },
   { group: ["ioredis", "ioredis/*"], message: "Redis belongs in infrastructure." },
   {
+    group: ["htmlparser2", "htmlparser2/*"],
+    message: "HTML parsing belongs in infrastructure; rules read the extracted PageHead.",
+  },
+  {
     group: ["@cue-memory/db", "@cue-memory/db/*"],
     message: "The database package belongs in infrastructure.",
   },

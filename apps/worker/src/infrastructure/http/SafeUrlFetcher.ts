@@ -5,9 +5,14 @@ import { request as httpsRequest } from "node:https";
 import type { LookupFunction } from "node:net";
 import { isIP } from "node:net";
 import { injectable, unmanaged } from "inversify";
+import type { IJsonFetcher } from "@/domain/providers/IJsonFetcher";
 import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
+import { MAGIC_BYTES_LENGTH } from "@/domain/rules/itemTypeFromMagicBytes";
 import { mediaTypeOf } from "@/domain/rules/mediaType";
+import { looksLikeHtml, SNIFF_BYTES } from "@/infrastructure/http/looksLikeHtml";
+import { parsePageHead } from "@/infrastructure/http/parsePageHead";
 import { isPublicAddress } from "@/infrastructure/http/publicAddress";
+import { readBody } from "@/infrastructure/http/readBody";
 
 export const USER_AGENT = "CueMemory/1.0 (+link preview; classifies saved links)";
 
@@ -36,9 +41,17 @@ export class UrlRefusedError extends Error {
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const HTML_TYPES = new Set(["text/html", "application/xhtml+xml"]);
 const HEAD_END = /<\/head\s*>/i;
+// application/json, application/<x>+json, and the oEmbed spelling application/json+oembed.
+const JSON_TYPE = /^application\/([a-z0-9.+-]+\+)?json(\+oembed)?$/;
+const PAGE_ACCEPT = "text/html,application/xhtml+xml,*/*;q=0.8";
+/** The most of a JSON (oEmbed) answer read: 64 KB. */
+export const JSON_MAX_BYTES = 64 * 1024;
 
 const systemResolve = async (hostname: string): Promise<ResolvedAddress[]> =>
   dnsLookup(hostname, { all: true, verbatim: true });
+
+/** Whether a chunk closes the head (a `</head>` split across chunks is missed; the size cap still ends the read). */
+const closesHead = (latest: Buffer) => HEAD_END.test(latest.toString("latin1"));
 
 /**
  * Fetches a Source URL once, guarded against server-side request forgery:
@@ -46,12 +59,16 @@ const systemResolve = async (hostname: string): Promise<ResolvedAddress[]> =>
  * pinned to those checked addresses (so a second DNS answer can't swap in an
  * internal one); redirects are followed by hand, each hop checked the same
  * way, at most 5; the whole fetch times out after 10 s; at most ~1 MB of an
- * HTML body is read, and only up to `</head>`. Other bodies aren't read.
- * The container builds it with the defaults; tests construct it directly to
- * pass options.
+ * HTML body is read, and only up to `</head>`; of any other body only the
+ * first 16 bytes are read. A body sent without a Content-Type is HTML when it
+ * starts like HTML (`looksLikeHtml`). It reports the URL it ended at, and
+ * parses an HTML head once into its tags (`parsePageHead`). `fetchJson` reads
+ * a small JSON answer (an oEmbed endpoint's) through the same guard, capped
+ * at 64 KB. The container builds it with the defaults; tests construct it
+ * directly to pass options.
  */
 @injectable()
-export class SafeUrlFetcher implements IUrlFetcher {
+export class SafeUrlFetcher implements IUrlFetcher, IJsonFetcher {
   private readonly resolve: (hostname: string) => Promise<ResolvedAddress[]>;
   private readonly isAllowedAddress: (address: string) => boolean;
   private readonly timeoutMs: number;
@@ -68,12 +85,37 @@ export class SafeUrlFetcher implements IUrlFetcher {
   }
 
   async fetchPage(sourceUrl: string): Promise<FetchedPage> {
+    return this.guarded(sourceUrl, PAGE_ACCEPT, (url, response, signal) =>
+      this.readPage(url, response, signal),
+    );
+  }
+
+  /**
+   * Fetches a small JSON document (an oEmbed answer) through the same guard,
+   * redirects and timeout as a page, and parses it. Rejects unless the answer
+   * is a 2xx with a JSON Content-Type (`application/json`, `…+json` or
+   * `application/json+oembed`) and a body of at most `maxBytes`; a body that
+   * grows past it is cut off.
+   */
+  async fetchJson(url: string, maxBytes = JSON_MAX_BYTES): Promise<unknown> {
+    return this.guarded(url, "application/json", (finalUrl, response, signal) =>
+      this.readJson(finalUrl, response, signal, maxBytes),
+    );
+  }
+
+  /** Follows `startUrl` through the guard to its final response, then reads it, all within one timeout. */
+  private async guarded<T>(
+    startUrl: string,
+    accept: string,
+    read: (url: URL, response: IncomingMessage, signal: AbortSignal) => Promise<T>,
+  ): Promise<T> {
     const signal = AbortSignal.timeout(this.timeoutMs);
     try {
-      return await this.follow(new URL(sourceUrl), signal);
+      const { url, response } = await this.follow(new URL(startUrl), accept, signal);
+      return await read(url, response, signal);
     } catch (error) {
       if (signal.aborted && !(error instanceof UrlRefusedError)) {
-        throw new Error(`Fetching ${sourceUrl} timed out after ${this.timeoutMs} ms`, {
+        throw new Error(`Fetching ${startUrl} timed out after ${this.timeoutMs} ms`, {
           cause: error,
         });
       }
@@ -81,13 +123,18 @@ export class SafeUrlFetcher implements IUrlFetcher {
     }
   }
 
-  private async follow(start: URL, signal: AbortSignal): Promise<FetchedPage> {
+  /** The final response, after following redirects by hand (each hop checked). */
+  private async follow(
+    start: URL,
+    accept: string,
+    signal: AbortSignal,
+  ): Promise<{ url: URL; response: IncomingMessage }> {
     let url = start;
     for (let redirects = 0; ; redirects++) {
-      const response = await this.get(url, signal);
+      const response = await this.get(url, accept, signal);
       const location = response.headers.location;
       if (!REDIRECT_STATUSES.has(response.statusCode ?? 0) || !location) {
-        return this.read(url, response, signal);
+        return { url, response };
       }
       response.destroy();
       if (redirects >= this.maxRedirects) {
@@ -98,7 +145,7 @@ export class SafeUrlFetcher implements IUrlFetcher {
   }
 
   /** One GET, sent only to addresses the guard has checked. */
-  private async get(url: URL, signal: AbortSignal): Promise<IncomingMessage> {
+  private async get(url: URL, accept: string, signal: AbortSignal): Promise<IncomingMessage> {
     if (url.protocol !== "http:" && url.protocol !== "https:") {
       throw new UrlRefusedError(`Only http and https URLs are fetched, not ${url.protocol}`);
     }
@@ -111,7 +158,7 @@ export class SafeUrlFetcher implements IUrlFetcher {
       agent: false,
       headers: {
         "user-agent": USER_AGENT,
-        accept: "text/html,application/xhtml+xml,*/*;q=0.8",
+        accept,
         "accept-encoding": "identity",
       },
       // Connect only to the addresses just checked. (An IP-literal host is
@@ -139,49 +186,88 @@ export class SafeUrlFetcher implements IUrlFetcher {
     return addresses;
   }
 
-  private async read(
+  private async readPage(
     url: URL,
     response: IncomingMessage,
     signal: AbortSignal,
   ): Promise<FetchedPage> {
+    const finalUrl = url.href;
     const status = response.statusCode ?? 0;
     // A server error or rate limit may pass: fail the attempt so the job retries.
     if (status >= 500 || status === 429) {
       response.destroy();
-      throw new Error(`Fetching ${url.href} answered ${status}`);
+      throw new Error(`Fetching ${finalUrl} answered ${status}`);
     }
-    // Any other unsuccessful answer says nothing about the page: it stays a Link.
+    // Any other unsuccessful answer says nothing about the page.
     if (status < 200 || status >= 300) {
       response.destroy();
-      return { contentType: null, htmlHead: null };
+      return { kind: "unsuccessful", finalUrl, status };
     }
 
     const contentType = response.headers["content-type"] ?? null;
-    if (!HTML_TYPES.has(mediaTypeOf(contentType))) {
-      response.destroy();
-      return { contentType, htmlHead: null };
+    const mediaType = mediaTypeOf(contentType);
+    const html = (body: Buffer): FetchedPage => ({
+      kind: "html",
+      finalUrl,
+      contentType,
+      head: parsePageHead(headOf(body), finalUrl),
+    });
+    const file = (body: Buffer): FetchedPage => ({
+      kind: "file",
+      finalUrl,
+      contentType,
+      firstBytes: new Uint8Array(body.subarray(0, MAGIC_BYTES_LENGTH)),
+    });
+
+    if (HTML_TYPES.has(mediaType)) {
+      return html(await readBody(response, signal, this.maxBytes, closesHead));
     }
-    return { contentType, htmlHead: await this.readHead(response, signal) };
+    if (mediaType !== "") return file(await readBody(response, signal, MAGIC_BYTES_LENGTH));
+
+    // No Content-Type: the body's start decides whether it is HTML.
+    let isHtml: boolean | null = null;
+    const body = await readBody(response, signal, this.maxBytes, (latest, length, chunks) => {
+      if (isHtml === null) {
+        if (length < SNIFF_BYTES) return false;
+        isHtml = looksLikeHtml(Buffer.concat(chunks));
+      }
+      return !isHtml || closesHead(latest);
+    });
+    return (isHtml ?? looksLikeHtml(body)) ? html(body) : file(body);
   }
 
-  /** The body up to `</head>`, reading at most `maxBytes`. */
-  private async readHead(response: IncomingMessage, signal: AbortSignal): Promise<string> {
-    const chunks: Buffer[] = [];
-    let length = 0;
-    try {
-      for await (const chunk of response as AsyncIterable<Buffer>) {
-        if (signal.aborted) throw signal.reason;
-        chunks.push(chunk);
-        length += chunk.length;
-        if (length >= this.maxBytes || HEAD_END.test(chunk.toString("latin1"))) break;
-      }
-    } finally {
+  /** A 2xx JSON answer of at most `maxBytes`, parsed; anything else rejects. */
+  private async readJson(
+    url: URL,
+    response: IncomingMessage,
+    signal: AbortSignal,
+    maxBytes: number,
+  ): Promise<unknown> {
+    const status = response.statusCode ?? 0;
+    const mediaType = mediaTypeOf(response.headers["content-type"] ?? null);
+    const declaredLength = Number(response.headers["content-length"] ?? 0);
+    let refusal: string | null = null;
+    if (status < 200 || status >= 300) refusal = `answered ${status}`;
+    else if (!JSON_TYPE.test(mediaType)) refusal = `isn't JSON (${mediaType || "no Content-Type"})`;
+    else if (declaredLength > maxBytes) refusal = `is more than ${maxBytes} bytes`;
+    if (refusal) {
       response.destroy();
+      throw new Error(`Fetching ${url.href} ${refusal}`);
     }
-    const text = Buffer.concat(chunks).subarray(0, this.maxBytes).toString("utf8");
-    const end = HEAD_END.exec(text);
-    return end ? text.slice(0, end.index + end[0].length) : text;
+
+    // One byte over the cap is enough to know the body is too big.
+    const body = await readBody(response, signal, maxBytes + 1);
+    if (body.length > maxBytes)
+      throw new Error(`Fetching ${url.href} is more than ${maxBytes} bytes`);
+    return JSON.parse(body.toString("utf8")) as unknown;
   }
+}
+
+/** An HTML body's text up to and including `</head>` (all of it without one). */
+function headOf(body: Buffer): string {
+  const text = body.toString("utf8");
+  const end = HEAD_END.exec(text);
+  return end ? text.slice(0, end.index + end[0].length) : text;
 }
 
 /** A `lookup` for `http.request` that answers only with already-checked addresses. */

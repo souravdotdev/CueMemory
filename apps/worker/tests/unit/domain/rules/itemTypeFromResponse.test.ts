@@ -1,44 +1,53 @@
 import { describe, expect, it } from "vitest";
+import type { FetchedFile } from "@/domain/providers/IUrlFetcher";
 import { itemTypeFromResponse } from "@/domain/rules/itemTypeFromResponse";
 
-const html = (head: string) => ({
-  contentType: "text/html; charset=utf-8",
-  htmlHead: `<!doctype html><html><head>${head}</head>`,
+const PDF_BYTES = Uint8Array.from(Buffer.from("%PDF-1.7\n"));
+const PNG_BYTES = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+const file = (fields: Partial<FetchedFile>): FetchedFile => ({
+  kind: "file",
+  finalUrl: "https://example.com/download",
+  contentType: null,
+  firstBytes: new Uint8Array(),
+  ...fields,
 });
 
 describe("itemTypeFromResponse", () => {
   it.each([
     ["application/pdf", "pdf"],
-    ["Application/PDF; qs=0.001", "pdf"],
     ["image/png", "image"],
-    ["image/jpeg", "image"],
-    ["application/json", "link"],
-    ["text/plain", "link"],
+    ["audio/mpeg", "audio"],
+    ["video/mp4", "video"],
+    ["application/zip", "file"],
+    ["application/json", null],
+    ["text/plain", null],
   ] as const)("types a %s response as %s", (contentType, type) => {
-    expect(itemTypeFromResponse({ contentType, htmlHead: null })).toBe(type);
+    expect(itemTypeFromResponse(file({ contentType }))).toBe(type);
   });
 
-  it("types an HTML page declaring og:type article as an Article", () => {
-    expect(itemTypeFromResponse(html('<meta property="og:type" content="article" />'))).toBe(
-      "article",
+  it("trusts a specific Content-Type over the bytes", () => {
+    expect(itemTypeFromResponse(file({ contentType: "video/mp4", firstBytes: PDF_BYTES }))).toBe(
+      "video",
     );
   });
 
   it.each([
-    ["content first", `<meta content="article" property="og:type">`],
-    ["single quotes", `<meta property='og:type' content='Article'>`],
-    ["unquoted", `<meta property=og:type content=article>`],
-    ["name instead of property", `<meta name="og:type" content="article">`],
-  ])("reads og:type with %s", (_case, tag) => {
-    expect(itemTypeFromResponse(html(tag))).toBe("article");
+    ["application/octet-stream", PDF_BYTES, "pdf"],
+    ["binary/octet-stream", PNG_BYTES, "image"],
+    [null, PNG_BYTES, "image"],
+    ["application/octet-stream", Uint8Array.from(Buffer.from("just text")), null],
+  ] as const)("sniffs the bytes of a %s response", (contentType, firstBytes, type) => {
+    expect(itemTypeFromResponse(file({ contentType, firstBytes }))).toBe(type);
   });
 
-  it("types any other HTML page as a Link", () => {
-    expect(itemTypeFromResponse(html('<meta property="og:type" content="website">'))).toBe("link");
-    expect(itemTypeFromResponse(html("<title>No Open Graph</title>"))).toBe("link");
+  it("doesn't sniff the bytes of a response that names another type", () => {
+    expect(
+      itemTypeFromResponse(file({ contentType: "text/plain", firstBytes: PDF_BYTES })),
+    ).toBeNull();
   });
 
-  it("types a response without a Content-Type as a Link", () => {
-    expect(itemTypeFromResponse({ contentType: null, htmlHead: null })).toBe("link");
+  it("says nothing about a response with nothing to go on", () => {
+    expect(itemTypeFromResponse(file({}))).toBeNull();
   });
 });

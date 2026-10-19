@@ -1,177 +1,120 @@
-import {
-  createServer,
-  type IncomingHttpHeaders,
-  type Server,
-  type ServerResponse,
-} from "node:http";
-import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { isPublicAddress } from "@/infrastructure/http/publicAddress";
-import {
-  type ResolvedAddress,
-  SafeUrlFetcher,
-  UrlRefusedError,
-  USER_AGENT,
-} from "@/infrastructure/http/SafeUrlFetcher";
+import { describe, expect, it } from "vitest";
+import type { FetchedPage } from "@/domain/providers/IUrlFetcher";
+import { SafeUrlFetcher, UrlRefusedError, USER_AGENT } from "@/infrastructure/http/SafeUrlFetcher";
+import { at, local, localFetcher, PNG_START, useLocalServer } from "../../../support/localServer";
 
-const ARTICLE_HEAD = '<html><head><meta property="og:type" content="article"></head>';
+useLocalServer();
 
-// A local test server. It listens on loopback, which the real guard refuses,
-// so the fetchers under test treat 127.0.0.1 (and only it) as public too.
-let server: Server;
-let port: number;
-let hits: string[];
-let lastHeaders: IncomingHttpHeaders;
-const openResponses = new Set<ServerResponse>();
-
-function route(path: string, res: ServerResponse) {
-  const redirect = (location: string) => res.writeHead(302, { location }).end();
-  const chain = /^\/chain\/(\d+)$/.exec(path);
-  if (chain) {
-    const left = Number(chain[1]);
-    return left === 0 ? redirect("/article") : redirect(`/chain/${left - 1}`);
-  }
-  switch (path) {
-    case "/article":
-      return res
-        .writeHead(200, { "content-type": "text/html; charset=utf-8" })
-        .end(ARTICLE_HEAD + "<body>…</body></html>");
-    case "/pdf":
-      return res.writeHead(200, { "content-type": "application/pdf" }).end("%PDF-1.7");
-    case "/to-article":
-      return redirect("/article");
-    case "/to-private":
-      return redirect("http://10.0.0.1/admin");
-    case "/to-metadata":
-      return redirect("http://169.254.169.254/latest/meta-data/");
-    case "/to-loopback-name":
-      return redirect("http://loopback.test/");
-    case "/to-file":
-      return redirect("file:///etc/passwd");
-    case "/endless": {
-      // An HTML head that never ends, streamed until the client hangs up.
-      openResponses.add(res);
-      res.writeHead(200, { "content-type": "text/html" });
-      res.write("<html><head>");
-      const chunk = "<!-- padding -->".repeat(4096);
-      const pump = () => {
-        while (!res.destroyed && res.write(chunk));
-        if (!res.destroyed) res.once("drain", pump);
-      };
-      pump();
-      return;
-    }
-    case "/hang":
-      openResponses.add(res);
-      return; // never answers
-    case "/hang-body":
-      openResponses.add(res);
-      res.writeHead(200, { "content-type": "text/html" });
-      res.write("<html><head>");
-      return; // never finishes the body
-    case "/gone":
-      return res.writeHead(404, { "content-type": "text/html" }).end(ARTICLE_HEAD);
-    case "/broken":
-      return res.writeHead(503).end();
-    default:
-      return res.writeHead(500).end();
-  }
-}
-
-beforeAll(async () => {
-  server = createServer((req, res) => {
-    hits.push(req.url ?? "");
-    lastHeaders = req.headers;
-    route(req.url ?? "/", res);
-  });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  port = (server.address() as AddressInfo).port;
+// ARTICLE_HEAD's tags, parsed once by the fetcher (its oEmbed link resolved
+// against the page it was read from, after any redirects).
+const ARTICLE_TAGS = () => ({
+  meta: [{ key: "og:type", content: "article" }],
+  title: "An & article",
+  jsonLd: [],
+  oEmbedLinks: [{ url: at("/oembed.json"), format: "json" }],
 });
 
-afterAll(async () => {
-  for (const res of openResponses) res.destroy();
-  server.closeAllConnections();
-  await new Promise((resolve) => server.close(resolve));
-});
-
-beforeEach(() => {
-  hits = [];
-});
-
-// Test DNS: names under .test, nothing from the real resolver.
-const TEST_DNS: Record<string, ResolvedAddress[]> = {
-  "site.test": [{ address: "127.0.0.1", family: 4 }],
-  "internal.test": [{ address: "10.0.0.5", family: 4 }],
-  "loopback.test": [{ address: "::1", family: 6 }],
-  // One public answer and one private: every address is checked.
-  "mixed.test": [
-    { address: "93.184.216.34", family: 4 },
-    { address: "192.168.0.10", family: 4 },
-  ],
-};
-async function testResolve(hostname: string): Promise<ResolvedAddress[]> {
-  const addresses = TEST_DNS[hostname];
-  if (!addresses)
-    throw Object.assign(new Error(`getaddrinfo ENOTFOUND ${hostname}`), { code: "ENOTFOUND" });
-  return addresses;
+/** The page's head, failing the test unless it is an HTML page. */
+function headOf(page: FetchedPage) {
+  if (page.kind !== "html") throw new Error(`Expected an HTML page, got ${page.kind}`);
+  return page.head;
 }
 
-function localFetcher(options: { timeoutMs?: number; maxBytes?: number } = {}) {
-  return new SafeUrlFetcher({
-    resolve: testResolve,
-    isAllowedAddress: (address) => address === "127.0.0.1" || isPublicAddress(address),
-    ...options,
-  });
+/** The file's first bytes, failing the test unless it is a file. */
+function firstBytesOf(page: FetchedPage) {
+  if (page.kind !== "file") throw new Error(`Expected a file, got ${page.kind}`);
+  return page.firstBytes;
 }
-
-const at = (path: string, host = "site.test") => `http://${host}:${port}${path}`;
 
 describe("SafeUrlFetcher, allowed fetches", () => {
   it("fetches an HTML page's head and sends the CueMemory User-Agent", async () => {
     const page = await localFetcher().fetchPage(at("/article"));
 
-    expect(page).toEqual({ contentType: "text/html; charset=utf-8", htmlHead: ARTICLE_HEAD });
-    expect(lastHeaders["user-agent"]).toBe(USER_AGENT);
+    expect(page).toEqual({
+      kind: "html",
+      finalUrl: at("/article"),
+      contentType: "text/html; charset=utf-8",
+      head: ARTICLE_TAGS(),
+    });
+    expect(local.lastHeaders["user-agent"]).toBe(USER_AGENT);
   });
 
   it("connects only to the checked address (site.test isn't in the real DNS)", async () => {
     await expect(localFetcher().fetchPage(at("/pdf"))).resolves.toEqual({
+      kind: "file",
+      finalUrl: at("/pdf"),
       contentType: "application/pdf",
-      htmlHead: null,
+      firstBytes: new Uint8Array(Buffer.from("%PDF-1.7")),
     });
-    expect(hits).toEqual(["/pdf"]);
+    expect(local.hits).toEqual(["/pdf"]);
   });
 
   it("follows a redirect", async () => {
     const page = await localFetcher().fetchPage(at("/to-article"));
 
-    expect(page.htmlHead).toBe(ARTICLE_HEAD);
-    expect(hits).toEqual(["/to-article", "/article"]);
+    expect(headOf(page)).toEqual(ARTICLE_TAGS());
+    expect(page.finalUrl).toBe(at("/article"));
+    expect(local.hits).toEqual(["/to-article", "/article"]);
+  });
+
+  it("reports the final URL after a chain of redirects", async () => {
+    const page = await localFetcher().fetchPage(at("/short"));
+
+    expect(page).toMatchObject({ finalUrl: at("/pdf"), contentType: "application/pdf" });
+    expect(local.hits).toEqual(["/short", "/short-2", "/pdf"]);
+  });
+
+  it("reads only the first 16 bytes of a download", async () => {
+    const page = await localFetcher().fetchPage(at("/download"));
+
+    expect(page).toEqual({
+      kind: "file",
+      finalUrl: at("/download"),
+      contentType: "application/octet-stream",
+      firstBytes: new Uint8Array(PNG_START),
+    });
+  });
+
+  it("stops after the first bytes of a download that never ends", async () => {
+    const page = await localFetcher({ timeoutMs: 2000 }).fetchPage(at("/endless-binary"));
+
+    expect(firstBytesOf(page)).toHaveLength(16);
+    expect(Array.from(firstBytesOf(page).subarray(0, 4))).toEqual([0x1a, 0x45, 0xdf, 0xdf]);
   });
 
   it("follows up to 5 redirects", async () => {
     const page = await localFetcher().fetchPage(at("/chain/4"));
 
-    expect(page.htmlHead).toBe(ARTICLE_HEAD);
-    expect(hits).toHaveLength(6);
+    expect(headOf(page)).toEqual(ARTICLE_TAGS());
+    expect(local.hits).toHaveLength(6);
   });
 
   it("refuses a sixth redirect", async () => {
     await expect(localFetcher().fetchPage(at("/chain/5"))).rejects.toThrow(UrlRefusedError);
-    expect(hits).toHaveLength(6);
+    expect(local.hits).toHaveLength(6);
   });
 
   it("stops reading after the size cap", async () => {
-    const page = await localFetcher({ maxBytes: 64 * 1024 }).fetchPage(at("/endless"));
+    const fetcher = localFetcher({ maxBytes: 64 * 1024 });
 
-    expect(page.htmlHead).toMatch(/^<html><head>/);
-    expect(page.htmlHead!.length).toBeLessThanOrEqual(64 * 1024);
+    expect(headOf(await fetcher.fetchPage(at("/title-after/60"))).title).toBe("Late");
+    expect(headOf(await fetcher.fetchPage(at("/title-after/70")))).toEqual({
+      meta: [],
+      title: null,
+      jsonLd: [],
+      oEmbedLinks: [],
+    });
   });
 
   it("stops reading the default ~1 MB in", async () => {
-    const page = await localFetcher().fetchPage(at("/endless"));
+    expect(headOf(await localFetcher().fetchPage(at("/title-after/1000"))).title).toBe("Late");
+    expect(headOf(await localFetcher().fetchPage(at("/title-after/1030"))).title).toBeNull();
+  });
 
-    expect(page.htmlHead!.length).toBe(1024 * 1024);
+  it("reads what a head that never ends declared before the cap", async () => {
+    const page = await localFetcher({ maxBytes: 64 * 1024 }).fetchPage(at("/endless"));
+
+    expect(headOf(page).title).toBe("Endless");
   });
 
   it("times out when the server never answers", async () => {
@@ -188,13 +131,57 @@ describe("SafeUrlFetcher, allowed fetches", () => {
 
   it("says nothing about a page that isn't there", async () => {
     await expect(localFetcher().fetchPage(at("/gone"))).resolves.toEqual({
-      contentType: null,
-      htmlHead: null,
+      kind: "unsuccessful",
+      finalUrl: at("/gone"),
+      status: 404,
     });
   });
 
   it("fails on a server error, so the job retries", async () => {
     await expect(localFetcher().fetchPage(at("/broken"))).rejects.toThrow(/answered 503/);
+  });
+});
+
+describe("SafeUrlFetcher, a response without a Content-Type", () => {
+  const UNTYPED_TAGS = {
+    meta: [{ key: "og:type", content: "video.other" }],
+    title: "Untyped",
+    jsonLd: [],
+    oEmbedLinks: [],
+  };
+
+  it.each([
+    ["a BOM, whitespace and a doctype", "/untyped-doctype"],
+    ["an <html> tag in capitals", "/untyped-html"],
+    ["a <head> tag", "/untyped-head"],
+  ])("reads the head of a body starting with %s", async (_case, path) => {
+    await expect(localFetcher().fetchPage(at(path))).resolves.toEqual({
+      kind: "html",
+      finalUrl: at(path),
+      contentType: null,
+      head: UNTYPED_TAGS,
+    });
+  });
+
+  it("reads past the sniffing window up to </head>", async () => {
+    const page = await localFetcher().fetchPage(at("/untyped-long-html"));
+
+    expect(headOf(page).title).toBe("Long");
+  });
+
+  it.each([
+    ["%PDF-1.4", "/untyped", "%PDF-1.4"],
+    ["<header>", "/untyped-header", "<header>Not a do"],
+    ["plain text", "/untyped-text", "plain text zzzzz"],
+  ])("reads only the first bytes of a body starting with %s", async (_case, path, start) => {
+    const page = await localFetcher().fetchPage(at(path));
+
+    expect(page).toEqual({
+      kind: "file",
+      finalUrl: at(path),
+      contentType: null,
+      firstBytes: new Uint8Array(Buffer.from(start)),
+    });
   });
 });
 
@@ -216,10 +203,10 @@ describe("SafeUrlFetcher, refusals", () => {
   ])("refuses %s (%s) with the real guard, never connecting", async (url) => {
     const fetcher = new SafeUrlFetcher();
 
-    await expect(fetcher.fetchPage(url.replace("PORT", String(port)))).rejects.toThrow(
+    await expect(fetcher.fetchPage(url.replace("PORT", String(local.port)))).rejects.toThrow(
       UrlRefusedError,
     );
-    expect(hits).toEqual([]);
+    expect(local.hits).toEqual([]);
   });
 
   it("refuses a host that resolves to a private address", async () => {
@@ -240,7 +227,7 @@ describe("SafeUrlFetcher, refusals", () => {
     ["/to-loopback-name", /loopback\.test resolves to ::1/],
   ])("refuses a redirect (%s) into the network", async (path, reason) => {
     await expect(localFetcher().fetchPage(at(path))).rejects.toThrow(reason);
-    expect(hits).toEqual([path]);
+    expect(local.hits).toEqual([path]);
   });
 
   it("refuses a redirect to anything but http(s)", async () => {

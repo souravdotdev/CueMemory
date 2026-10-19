@@ -1,61 +1,17 @@
 import type { ItemType } from "@/domain/entities/Item";
-
-interface UrlRule {
-  type: ItemType;
-  matches(host: string, path: string): boolean;
-}
-
-const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|svg|avif)$/i;
-
-// In order; the first match wins. Hosts are lower-case, without `www.` or `m.`.
-// Paths are the URL's path only, never its query or fragment.
-const URL_RULES: readonly UrlRule[] = [
-  {
-    // A post on X: /<user>/status/<id>
-    type: "tweet",
-    matches: (host, path) =>
-      (host === "x.com" || host === "twitter.com") && /^\/[^/]+\/status\/\d+(\/|$)/.test(path),
-  },
-  {
-    type: "video",
-    matches: (host, path) =>
-      (host === "youtube.com" && /^\/(watch\/?$|shorts\/|live\/)/.test(path)) ||
-      (host === "youtu.be" && /^\/[^/]+/.test(path)),
-  },
-  {
-    // Instagram reels
-    type: "video",
-    matches: (host, path) => host === "instagram.com" && /^\/reels?\//.test(path),
-  },
-  {
-    // Instagram posts
-    type: "image",
-    matches: (host, path) => host === "instagram.com" && path.startsWith("/p/"),
-  },
-  {
-    // Reddit threads
-    type: "article",
-    matches: (host, path) =>
-      (host === "reddit.com" && /^\/r\/[^/]+\/comments\//.test(path)) ||
-      (host === "redd.it" && /^\/[^/]+/.test(path)),
-  },
-  { type: "pdf", matches: (_host, path) => /\.pdf$/i.test(path) },
-  { type: "image", matches: (_host, path) => IMAGE_EXTENSIONS.test(path) },
-];
+import { itemTypeFromExtension } from "@/domain/rules/itemTypeFromExtension";
+import { knownSiteFor } from "@/domain/rules/knownSites";
+import { parsedUrl } from "@/domain/rules/parsedUrl";
 
 /**
- * Works out an Item type from the Source URL's shape alone, without fetching
- * it. Returns null when no rule recognises the URL: the caller decides what an
- * unrecognised URL becomes.
+ * The URL rules: works out an Item type from a URL's address alone, without
+ * fetching it. The known-site table (`knownSites.ts`) is tried first, then the
+ * extension ending the path. Works on any URL, the pasted Source URL or the
+ * final one after redirects. Returns null when no rule recognises the URL: the
+ * caller decides what an unrecognised URL becomes.
  */
-export function itemTypeFromUrl(sourceUrl: string): ItemType | null {
-  let url: URL;
-  try {
-    url = new URL(sourceUrl);
-  } catch {
-    return null;
-  }
-  const host = url.hostname.toLowerCase().replace(/^(www|m)\./, "");
-  const rule = URL_RULES.find((candidate) => candidate.matches(host, url.pathname));
-  return rule?.type ?? null;
+export function itemTypeFromUrl(rawUrl: string): ItemType | null {
+  const url = parsedUrl(rawUrl);
+  if (!url) return null;
+  return knownSiteFor(url)?.type ?? itemTypeFromExtension(url.pathname);
 }

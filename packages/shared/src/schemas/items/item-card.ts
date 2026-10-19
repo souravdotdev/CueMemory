@@ -2,7 +2,17 @@ import { z } from "zod";
 
 // Mirrors the domain's ITEM_TYPES / ITEM_STATUSES / TAG_SOURCES. The contract can't import
 // the domain, so the API's Item card output (toItemCardOutput) asserts at compile time that the lists match.
-export const ItemTypeSchema = z.enum(["article", "tweet", "video", "image", "pdf", "link"]);
+export const ItemTypeSchema = z.enum([
+  "article",
+  "post",
+  "video",
+  "image",
+  "audio",
+  "pdf",
+  "code",
+  "file",
+  "link",
+]);
 export type ItemType = z.infer<typeof ItemTypeSchema>;
 
 export const ItemStatusSchema = z.enum(["processing", "ready", "failed"]);

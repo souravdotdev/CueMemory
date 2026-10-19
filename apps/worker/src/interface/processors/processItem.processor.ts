@@ -22,7 +22,8 @@ export async function processItem(container: Container, data: unknown): Promise<
   const result = await useCase.execute(payload.data);
 
   if (result.outcome === "ready") {
-    console.log(`[worker] Item ${payload.data.itemId} is Ready as ${result.type}`);
+    const titled = result.metadata.title === null ? "without a title" : "with a title";
+    console.log(`[worker] Item ${payload.data.itemId} is Ready as ${result.type}, ${titled}`);
   } else {
     console.log(`[worker] Item ${payload.data.itemId} no longer exists; nothing to process`);
   }
