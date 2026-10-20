@@ -11,6 +11,9 @@ import {
 import type { OEmbedLink, PageHead } from "@/domain/entities/PageHead";
 import type { IOEmbedProvider, OEmbed } from "@/domain/providers/IOEmbedProvider";
 import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
+import type { IImageFetcher } from "@/domain/providers/IImageFetcher";
+import type { IThumbnailResizer } from "@/domain/providers/IThumbnailResizer";
+import type { IThumbnailStore } from "@/domain/providers/IThumbnailStore";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 
 const USER_ID = "7f1c2b9e-1a2b-4c3d-8e9f-0a1b2c3d4e5f";
@@ -20,7 +23,7 @@ const REF = { itemId: ITEM_ID, userId: USER_ID };
 
 // An in-memory Item repository holding one Processing Item for USER_ID.
 function itemsInMemory(sourceUrl: string) {
-  const item: Item & Partial<ItemMetadata> = {
+  const item: Item & Partial<ItemMetadata> & { thumbnailKey?: string | null } = {
     id: ITEM_ID,
     userId: USER_ID,
     sourceUrl,
@@ -30,9 +33,11 @@ function itemsInMemory(sourceUrl: string) {
   const owns = ({ itemId, userId }: ItemRef) => itemId === item.id && userId === item.userId;
   const repository: IItemRepository = {
     findById: vi.fn(async (ref: ItemRef) => (owns(ref) ? { ...item } : null)),
-    markReady: vi.fn(async (ref: ItemRef, type: ItemType, metadata: ItemMetadata) => {
-      if (owns(ref)) Object.assign(item, { status: "ready", type, ...metadata });
-    }),
+    markReady: vi.fn(
+      async (ref: ItemRef, type: ItemType, metadata: ItemMetadata, thumbnailKey: string | null) => {
+        if (owns(ref)) Object.assign(item, { status: "ready", type, ...metadata, thumbnailKey });
+      },
+    ),
     markFailed: vi.fn(async () => {}),
   };
   return { repository, item };
@@ -108,13 +113,97 @@ const htmlPage = (
   },
 });
 
+const IMAGE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
+const CARD_THUMBNAIL = new Uint8Array([0x52, 0x49, 0x46, 0x46, 9, 9]);
+
+// An image fetcher answering every download with IMAGE.
+function imagesAnswering() {
+  return { fetchImage: vi.fn(async (_url: string) => IMAGE) } satisfies IImageFetcher;
+}
+
+// An image fetcher whose every download fails (refused, not an image, over 5 MB …).
+function imagesFailing() {
+  return {
+    fetchImage: vi.fn(async (_url: string): Promise<Uint8Array> => {
+      throw new Error("Fetching the image isn't an accepted image (image/svg+xml)");
+    }),
+  } satisfies IImageFetcher;
+}
+
+// A resizer turning every image into CARD_THUMBNAIL.
+function resizerAnswering() {
+  return {
+    toCardThumbnail: vi.fn(async (_image: Uint8Array) => CARD_THUMBNAIL),
+  } satisfies IThumbnailResizer;
+}
+
+// A resizer that can't decode anything.
+function resizerFailing() {
+  return {
+    toCardThumbnail: vi.fn(async (_image: Uint8Array): Promise<Uint8Array> => {
+      throw new Error("Input buffer contains unsupported image format");
+    }),
+  } satisfies IThumbnailResizer;
+}
+
+// A Thumbnail store keeping objects in a Map, by key (so a second put overwrites).
+function thumbnailsInMemory() {
+  const objects = new Map<string, Uint8Array>();
+  const store = {
+    keepsThumbnails: true,
+    put: vi.fn(async (key: string, thumbnail: Uint8Array) => {
+      objects.set(key, thumbnail);
+    }),
+  } satisfies IThumbnailStore;
+  return { store, objects };
+}
+
+// A Thumbnail store whose every write fails.
+function thumbnailsFailing() {
+  return {
+    keepsThumbnails: true,
+    put: vi.fn(async (_key: string, _thumbnail: Uint8Array): Promise<void> => {
+      throw new Error("Storage answered 500");
+    }),
+  } satisfies IThumbnailStore;
+}
+
+// The stand-in without Supabase Storage configured.
+function noThumbnailStore() {
+  return {
+    keepsThumbnails: false,
+    put: vi.fn(async (_key: string, _thumbnail: Uint8Array): Promise<void> => {
+      throw new Error("No Thumbnail store");
+    }),
+  } satisfies IThumbnailStore;
+}
+
+interface ThumbnailPorts {
+  images?: IImageFetcher;
+  resizer?: IThumbnailResizer;
+  store?: IThumbnailStore;
+}
+
+// By default without a Thumbnail store, as the worker runs without Supabase Storage.
+const useCaseFor = (
+  repository: IItemRepository,
+  fetcher: IUrlFetcher,
+  oEmbeds: IOEmbedProvider = oEmbedsFailing(),
+  {
+    images = imagesFailing(),
+    resizer = resizerFailing(),
+    store = noThumbnailStore(),
+  }: ThumbnailPorts = {},
+) => new ProcessItemUseCase(repository, fetcher, oEmbeds, images, resizer, store);
+
 const run = (
   sourceUrl: string,
   fetcher: IUrlFetcher,
   oEmbeds: IOEmbedProvider = oEmbedsFailing(),
+  thumbnails: ThumbnailPorts = {},
 ) => {
   const { repository, item } = itemsInMemory(sourceUrl);
-  const useCase = new ProcessItemUseCase(repository, fetcher, oEmbeds);
+  const useCase = useCaseFor(repository, fetcher, oEmbeds, thumbnails);
   return { item, repository, result: useCase.execute(REF) };
 };
 
@@ -229,7 +318,7 @@ describe("ProcessItemUseCase, Item type", () => {
     await result;
 
     expect(item.sourceUrl).toBe("https://bit.ly/3xYz");
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "video", NO_METADATA);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, "video", NO_METADATA, null);
   });
 });
 
@@ -243,8 +332,13 @@ describe("ProcessItemUseCase, title and description", () => {
     const { item, repository, result } = run("https://example.com/page", fetcherAnswering(page));
 
     const metadata = { title: "The real title", description: "What it's about" };
-    await expect(result).resolves.toEqual({ outcome: "ready", type: "link", metadata });
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "link", metadata);
+    await expect(result).resolves.toEqual({
+      outcome: "ready",
+      type: "link",
+      metadata,
+      thumbnailKey: null,
+    });
+    expect(repository.markReady).toHaveBeenCalledWith(REF, "link", metadata, null);
     expect(item).toMatchObject({ status: "ready", ...metadata });
   });
 
@@ -257,6 +351,7 @@ describe("ProcessItemUseCase, title and description", () => {
       outcome: "ready",
       type: "video",
       metadata: { title: "Never Gonna Give You Up", description: null },
+      thumbnailKey: null,
     });
   });
 
@@ -279,7 +374,7 @@ describe("ProcessItemUseCase, title and description", () => {
     const { repository, result } = run("https://example.com/paper", fetcherAnswering(page));
 
     await result;
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "pdf", NO_METADATA);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, "pdf", NO_METADATA, null);
   });
 });
 
@@ -315,6 +410,7 @@ describe("ProcessItemUseCase, oEmbed", () => {
       outcome: "ready",
       type: "post",
       metadata: { title: "A post on X", description: null },
+      thumbnailKey: null,
     });
     expect(oEmbeds.fetchOEmbed).toHaveBeenCalledTimes(1);
     const endpoint = new URL(oEmbeds.fetchOEmbed.mock.calls[0]![0]);
@@ -431,7 +527,12 @@ describe("ProcessItemUseCase, oEmbed", () => {
 
     // The URL rule types it; oEmbed only titles it.
     const metadata = { title: "A post on X", description: null };
-    await expect(result).resolves.toEqual({ outcome: "ready", type: "post", metadata });
+    await expect(result).resolves.toEqual({
+      outcome: "ready",
+      type: "post",
+      metadata,
+      thumbnailKey: null,
+    });
     expect(item).toMatchObject({ status: "ready", type: "post", ...metadata });
     expect(oEmbeds.fetchOEmbed).toHaveBeenCalledTimes(1);
     const endpoint = new URL(oEmbeds.fetchOEmbed.mock.calls[0]![0]);
@@ -450,6 +551,7 @@ describe("ProcessItemUseCase, oEmbed", () => {
       outcome: "ready",
       type: "video",
       metadata: NO_METADATA,
+      thumbnailKey: null,
     });
   });
 
@@ -486,8 +588,9 @@ describe("ProcessItemUseCase, failed fetches", () => {
         outcome: "ready",
         type: "video",
         metadata: NO_METADATA,
+        thumbnailKey: null,
       });
-      expect(repository.markReady).toHaveBeenCalledWith(REF, "video", NO_METADATA);
+      expect(repository.markReady).toHaveBeenCalledWith(REF, "video", NO_METADATA, null);
       expect(item).toMatchObject({ status: "ready", type: "video", title: null });
     },
   );
@@ -508,11 +611,7 @@ describe("ProcessItemUseCase, failed fetches", () => {
     repository.markReady = vi.fn(async () => {
       throw new Error("Postgres is down");
     });
-    const useCase = new ProcessItemUseCase(
-      repository,
-      fetcherFailing(new Error("offline")),
-      oEmbedsFailing(),
-    );
+    const useCase = useCaseFor(repository, fetcherFailing(new Error("offline")));
 
     await expect(useCase.execute(REF)).rejects.toThrow("Postgres is down");
   });
@@ -522,7 +621,7 @@ describe("ProcessItemUseCase, missing Items", () => {
   it("does nothing for an Item that no longer exists", async () => {
     const { repository } = itemsInMemory("https://youtu.be/dQw4w9WgXcQ");
     const fetcher = fetcherAnswering(htmlPage());
-    const useCase = new ProcessItemUseCase(repository, fetcher, oEmbedsFailing());
+    const useCase = useCaseFor(repository, fetcher);
 
     const result = await useCase.execute({
       itemId: "00000000-0000-4000-8000-000000000099",
@@ -536,15 +635,137 @@ describe("ProcessItemUseCase, missing Items", () => {
 
   it("never touches another User's Item", async () => {
     const { repository, item } = itemsInMemory("https://youtu.be/dQw4w9WgXcQ");
-    const useCase = new ProcessItemUseCase(
-      repository,
-      fetcherAnswering(htmlPage()),
-      oEmbedsFailing(),
-    );
+    const useCase = useCaseFor(repository, fetcherAnswering(htmlPage()));
 
     const result = await useCase.execute({ itemId: ITEM_ID, userId: OTHER_USER_ID });
 
     expect(result).toEqual({ outcome: "missing" });
     expect(item).toMatchObject({ status: "processing", type: null });
+  });
+});
+
+describe("ProcessItemUseCase, Thumbnail", () => {
+  const KEY = `${USER_ID}/${ITEM_ID}.webp`;
+  const PHOTO_URL = "https://cdn.example.com/photos/sunset.png";
+  const photo = () =>
+    fetcherAnswering(file("image/png", new Uint8Array([0x89, 0x50, 0x4e, 0x47]), PHOTO_URL));
+
+  it("keeps an Image Item's image, resized, as its Thumbnail at {userId}/{itemId}.webp", async () => {
+    const images = imagesAnswering();
+    const resizer = resizerAnswering();
+    const { store, objects } = thumbnailsInMemory();
+
+    const { item, repository, result } = run("https://example.com/sunset", photo(), undefined, {
+      images,
+      resizer,
+      store,
+    });
+
+    await expect(result).resolves.toEqual({
+      outcome: "ready",
+      type: "image",
+      metadata: NO_METADATA,
+      thumbnailKey: KEY,
+    });
+    // Downloaded from where the Source URL led, then resized, then stored.
+    expect(images.fetchImage).toHaveBeenCalledWith(PHOTO_URL);
+    expect(resizer.toCardThumbnail).toHaveBeenCalledWith(IMAGE);
+    expect(objects).toEqual(new Map([[KEY, CARD_THUMBNAIL]]));
+    // In the same update as its type, title and description.
+    expect(repository.markReady).toHaveBeenCalledTimes(1);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, "image", NO_METADATA, KEY);
+    expect(item).toMatchObject({ status: "ready", type: "image", thumbnailKey: KEY });
+  });
+
+  it("overwrites the Thumbnail when the same Item is processed again", async () => {
+    const { repository } = itemsInMemory("https://example.com/sunset");
+    const { store, objects } = thumbnailsInMemory();
+    const useCase = useCaseFor(repository, photo(), undefined, {
+      images: imagesAnswering(),
+      resizer: resizerAnswering(),
+      store,
+    });
+
+    await useCase.execute(REF);
+    await useCase.execute(REF);
+
+    expect(store.put).toHaveBeenCalledTimes(2);
+    expect([...objects.keys()]).toEqual([KEY]);
+  });
+
+  it.each([
+    ["a PDF", file("application/pdf", Buffer.from("%PDF-1.7"))],
+    ["an HTML page", htmlPage({ "og:type": "article" })],
+    ["an unsuccessful answer", unsuccessful()],
+  ])("keeps no Thumbnail for %s (not an Image)", async (_case, page) => {
+    const images = imagesAnswering();
+
+    const { result } = run("https://example.com/page", fetcherAnswering(page), undefined, {
+      images,
+      resizer: resizerAnswering(),
+      store: thumbnailsInMemory().store,
+    });
+
+    await expect(result).resolves.toMatchObject({ outcome: "ready", thumbnailKey: null });
+    expect(images.fetchImage).not.toHaveBeenCalled();
+  });
+
+  it("downloads no image for an Image Item whose fetch failed", async () => {
+    const images = imagesAnswering();
+
+    const { result } = run(
+      "https://example.com/sunset.png",
+      fetcherFailing(new Error("offline")),
+      undefined,
+      { images, resizer: resizerAnswering(), store: thumbnailsInMemory().store },
+    );
+
+    await expect(result).resolves.toMatchObject({
+      outcome: "ready",
+      type: "image",
+      thumbnailKey: null,
+    });
+    expect(images.fetchImage).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["the download is refused or fails", { images: imagesFailing() }],
+    ["the image can't be decoded or resized", { resizer: resizerFailing() }],
+    ["the upload fails", { store: thumbnailsFailing() }],
+  ])("still marks an Image Item Ready, without a Thumbnail, when %s", async (_case, failing) => {
+    const { item, repository, result } = run("https://example.com/sunset", photo(), undefined, {
+      images: imagesAnswering(),
+      resizer: resizerAnswering(),
+      store: thumbnailsInMemory().store,
+      ...failing,
+    });
+
+    await expect(result).resolves.toEqual({
+      outcome: "ready",
+      type: "image",
+      metadata: NO_METADATA,
+      thumbnailKey: null,
+    });
+    expect(repository.markReady).toHaveBeenCalledWith(REF, "image", NO_METADATA, null);
+    expect(item).toMatchObject({ status: "ready", thumbnailKey: null });
+  });
+
+  it("downloads no image without a Thumbnail store", async () => {
+    const images = imagesAnswering();
+    const store = noThumbnailStore();
+
+    const { result } = run("https://example.com/sunset", photo(), undefined, {
+      images,
+      resizer: resizerAnswering(),
+      store,
+    });
+
+    await expect(result).resolves.toMatchObject({
+      outcome: "ready",
+      type: "image",
+      thumbnailKey: null,
+    });
+    expect(images.fetchImage).not.toHaveBeenCalled();
+    expect(store.put).not.toHaveBeenCalled();
   });
 });

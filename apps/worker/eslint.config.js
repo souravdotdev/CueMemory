@@ -12,6 +12,8 @@ const toolImports = [
     group: ["htmlparser2", "htmlparser2/*"],
     message: "HTML parsing belongs in infrastructure; rules read the extracted PageHead.",
   },
+  { group: ["sharp", "sharp/*"], message: "Image decoding belongs in infrastructure." },
+  { group: ["@supabase/*"], message: "Supabase Storage belongs in infrastructure." },
   {
     group: ["@cue-memory/db", "@cue-memory/db/*"],
     message: "The database package belongs in infrastructure.",

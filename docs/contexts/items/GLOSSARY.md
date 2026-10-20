@@ -15,7 +15,7 @@ The address the User pasted to create an Item.
 _Avoid_: Link, original URL
 
 **Thumbnail**:
-The preview image CueMemory keeps for an Item.
+The picture CueMemory keeps for an Item, copied from what its page or provider offers as its preview; for an Image, the image itself. Some Items have none.
 _Avoid_: Cover, preview image, OG image
 
 ### Tags

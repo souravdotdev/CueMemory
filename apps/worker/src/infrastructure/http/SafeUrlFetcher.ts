@@ -5,10 +5,17 @@ import { request as httpsRequest } from "node:https";
 import type { LookupFunction } from "node:net";
 import { isIP } from "node:net";
 import { injectable, unmanaged } from "inversify";
+import type { IImageFetcher } from "@/domain/providers/IImageFetcher";
 import type { IJsonFetcher } from "@/domain/providers/IJsonFetcher";
 import type { FetchedPage, IUrlFetcher } from "@/domain/providers/IUrlFetcher";
 import { MAGIC_BYTES_LENGTH } from "@/domain/rules/itemTypeFromMagicBytes";
 import { mediaTypeOf } from "@/domain/rules/mediaType";
+import {
+  startsLike,
+  THUMBNAIL_IMAGE_ACCEPT,
+  THUMBNAIL_IMAGE_MAX_BYTES,
+  thumbnailImageFormatOfContentType,
+} from "@/domain/rules/thumbnailImage";
 import { looksLikeHtml, SNIFF_BYTES } from "@/infrastructure/http/looksLikeHtml";
 import { parsePageHead } from "@/infrastructure/http/parsePageHead";
 import { isPublicAddress } from "@/infrastructure/http/publicAddress";
@@ -64,11 +71,12 @@ const closesHead = (latest: Buffer) => HEAD_END.test(latest.toString("latin1"));
  * starts like HTML (`looksLikeHtml`). It reports the URL it ended at, and
  * parses an HTML head once into its tags (`parsePageHead`). `fetchJson` reads
  * a small JSON answer (an oEmbed endpoint's) through the same guard, capped
- * at 64 KB. The container builds it with the defaults; tests construct it
- * directly to pass options.
+ * at 64 KB, and `fetchImage` downloads an image a Thumbnail could be made
+ * from, at most 5 MB. The container builds it with the defaults; tests
+ * construct it directly to pass options.
  */
 @injectable()
-export class SafeUrlFetcher implements IUrlFetcher, IJsonFetcher {
+export class SafeUrlFetcher implements IUrlFetcher, IJsonFetcher, IImageFetcher {
   private readonly resolve: (hostname: string) => Promise<ResolvedAddress[]>;
   private readonly isAllowedAddress: (address: string) => boolean;
   private readonly timeoutMs: number;
@@ -100,6 +108,19 @@ export class SafeUrlFetcher implements IUrlFetcher, IJsonFetcher {
   async fetchJson(url: string, maxBytes = JSON_MAX_BYTES): Promise<unknown> {
     return this.guarded(url, "application/json", (finalUrl, response, signal) =>
       this.readJson(finalUrl, response, signal, maxBytes),
+    );
+  }
+
+  /**
+   * Downloads an image a Thumbnail could be made from, through the same
+   * guard, redirects and timeout as a page. Rejects unless the answer is a
+   * 2xx JPEG, PNG, WebP, GIF or AVIF whose Content-Type and magic bytes
+   * agree, of at most 5 MB, by its Content-Length or as it streams (the read
+   * stops one byte past the cap).
+   */
+  async fetchImage(url: string): Promise<Uint8Array> {
+    return this.guarded(url, THUMBNAIL_IMAGE_ACCEPT, (finalUrl, response, signal) =>
+      this.readImage(finalUrl, response, signal),
     );
   }
 
@@ -260,6 +281,38 @@ export class SafeUrlFetcher implements IUrlFetcher, IJsonFetcher {
     if (body.length > maxBytes)
       throw new Error(`Fetching ${url.href} is more than ${maxBytes} bytes`);
     return JSON.parse(body.toString("utf8")) as unknown;
+  }
+
+  /** A 2xx accepted image of at most 5 MB whose bytes match its Content-Type; anything else rejects. */
+  private async readImage(
+    url: URL,
+    response: IncomingMessage,
+    signal: AbortSignal,
+  ): Promise<Uint8Array> {
+    const status = response.statusCode ?? 0;
+    const contentType = response.headers["content-type"] ?? null;
+    const format = thumbnailImageFormatOfContentType(contentType);
+    const declaredLength = Number(response.headers["content-length"] ?? 0);
+    let refusal: string | null = null;
+    if (status < 200 || status >= 300) refusal = `answered ${status}`;
+    else if (!format) refusal = `isn't an accepted image (${contentType || "no Content-Type"})`;
+    else if (declaredLength > THUMBNAIL_IMAGE_MAX_BYTES) {
+      refusal = `is more than ${THUMBNAIL_IMAGE_MAX_BYTES} bytes`;
+    }
+    if (refusal !== null || format === null) {
+      response.destroy();
+      throw new Error(`Fetching ${url.href} ${refusal}`);
+    }
+
+    // One byte over the cap is enough to know the image is too big.
+    const body = await readBody(response, signal, THUMBNAIL_IMAGE_MAX_BYTES + 1);
+    if (body.length > THUMBNAIL_IMAGE_MAX_BYTES) {
+      throw new Error(`Fetching ${url.href} is more than ${THUMBNAIL_IMAGE_MAX_BYTES} bytes`);
+    }
+    if (!startsLike(format, body)) {
+      throw new Error(`Fetching ${url.href} doesn't start like ${format}`);
+    }
+    return new Uint8Array(body);
   }
 }
 

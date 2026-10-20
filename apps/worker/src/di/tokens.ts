@@ -16,6 +16,12 @@ export const WORKER_TOKENS = {
   JsonFetcher: Symbol("IJsonFetcher"),
   /** `IOEmbedProvider`: the guarded oEmbed lookup that types and titles a page. */
   OEmbedProvider: Symbol("IOEmbedProvider"),
+  /** `IImageFetcher`: the guarded download of an image a Thumbnail is made from, the same fetcher as `UrlFetcher`. */
+  ImageFetcher: Symbol("IImageFetcher"),
+  /** `IThumbnailResizer`: turns a downloaded image into a card Thumbnail (sharp). */
+  ThumbnailResizer: Symbol("IThumbnailResizer"),
+  /** `IThumbnailStore`: where Thumbnails are kept (Supabase Storage, or a stand-in without it). */
+  ThumbnailStore: Symbol("IThumbnailStore"),
   /** `ProcessItemUseCase`: what a Process Item job runs. */
   ProcessItemUseCase: Symbol("ProcessItemUseCase"),
   /** `FailItemUseCase`: what a Process Item job's last failed attempt runs. */

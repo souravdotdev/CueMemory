@@ -26,18 +26,25 @@ export class DrizzleItemRepository implements IItemRepository {
     return row ?? null;
   }
 
-  async markReady(ref: ItemRef, type: ItemType, metadata: ItemMetadata): Promise<void> {
-    await this.finish(ref, { status: "ready", type, ...metadata });
+  async markReady(
+    ref: ItemRef,
+    type: ItemType,
+    metadata: ItemMetadata,
+    thumbnailKey: string | null,
+  ): Promise<void> {
+    await this.finish(ref, { status: "ready", type, ...metadata, thumbnailKey });
   }
 
   async markFailed(ref: ItemRef, type: ItemType): Promise<void> {
     await this.finish(ref, { status: "failed", type });
   }
 
-  /** Ends the Item's Processing with this status, Item type and (when Ready) metadata. */
+  /** Ends the Item's Processing with this status, Item type and (when Ready) metadata and Thumbnail key. */
   private async finish(
     ref: ItemRef,
-    fields: { status: ItemStatus; type: ItemType } & Partial<ItemMetadata>,
+    fields: { status: ItemStatus; type: ItemType } & Partial<ItemMetadata> & {
+        thumbnailKey?: string | null;
+      },
   ): Promise<void> {
     await this.db
       .update(items)

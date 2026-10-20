@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WORKER_TOKENS } from "@/di/tokens";
+import type { IThumbnailStore } from "@/domain/providers/IThumbnailStore";
 
 // ioredis connects as soon as it's constructed, so the shared Redis connection
 // is a stand-in. The Postgres client connects lazily, on its first query, which
@@ -20,6 +21,7 @@ async function productionContainer() {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe("the worker's production container", () => {
@@ -31,4 +33,24 @@ describe("the worker's production container", () => {
       expect(container.get(tokens[name])).toBeDefined();
     },
   );
+
+  it("keeps Thumbnails in Supabase Storage when it is configured", async () => {
+    vi.stubEnv("SUPABASE_URL", "https://project.supabase.co");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-key");
+    const { container, tokens } = await productionContainer();
+
+    expect(container.get<IThumbnailStore>(tokens.ThumbnailStore).keepsThumbnails).toBe(true);
+  });
+
+  it.each([
+    ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"],
+    ["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_URL"],
+  ])("starts without Thumbnails when %s is missing", async (missing, set) => {
+    vi.stubEnv(missing, "");
+    vi.stubEnv(set, set === "SUPABASE_URL" ? "https://project.supabase.co" : "service-role-key");
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { container, tokens } = await productionContainer();
+
+    expect(container.get<IThumbnailStore>(tokens.ThumbnailStore).keepsThumbnails).toBe(false);
+  });
 });

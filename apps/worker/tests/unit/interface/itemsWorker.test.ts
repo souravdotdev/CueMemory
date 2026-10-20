@@ -14,7 +14,12 @@ const USER_ID = "7f1c2b9e-1a2b-4c3d-8e9f-0a1b2c3d4e5f";
 
 // A test container whose Process Item use case is a stand-in reporting `result`.
 function testContainer(
-  result: ProcessItemResult = { outcome: "ready", type: "video", metadata: NO_METADATA },
+  result: ProcessItemResult = {
+    outcome: "ready",
+    type: "video",
+    metadata: NO_METADATA,
+    thumbnailKey: null,
+  },
 ) {
   const useCase = { execute: vi.fn(async () => result) };
   const container = new Container();

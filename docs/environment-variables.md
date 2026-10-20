@@ -9,7 +9,7 @@ Every app/package that reads `process.env` validates it through a Zod schema in 
 - `packages/db/src/postgres/env.ts` — `DATABASE_URL` must be a valid URL. Used by `postgres/client.ts` and `packages/db/drizzle.config.ts`.
 - `packages/db/src/redis/env.ts` — `REDIS_URL` must be a valid URL. Used by `redis/connection.ts`. Exported as a separate subpath (`@cue-memory/db/redis`) from the DB env, specifically so importing one doesn't force-validate the other.
 - `apps/api/src/env.ts` — `PORT` (coerced to a number, defaults to `4000`), `HOST` (the interface to bind to, defaults to `0.0.0.0`) and the auth configuration: `BETTER_AUTH_SECRET` (at least 32 characters), `BETTER_AUTH_URL` (an http(s) URL), `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (non-empty), `WEB_ORIGIN` (a bare http(s) origin: no path, no trailing slash) and the optional `AUTH_COOKIE_DOMAIN`. Every one except `PORT`, `HOST` and `AUTH_COOKIE_DOMAIN` is required, with no default, so a misconfigured deploy refuses to start (`tests/unit/env.test.ts`). `WEB_ORIGIN` replaced the old `CORS_ORIGIN`: it's both the only CORS origin and Better Auth's only trusted origin (see [Security](./security.md)). The container binds the parsed `env` under `TOKENS.Env`, and code reads it from there rather than from `process.env`. `DATABASE_URL`/`REDIS_URL` aren't re-validated here — importing `@cue-memory/db/client`/`@cue-memory/db/redis` (transitively, via `src/infrastructure/database/db.ts` and `src/rate-limit-redis.ts`, both imported only by the container) already validates them at import time, so `apps/api` inherits that check for free, and tests that never build the production container need neither variable.
-- `apps/worker` — no `env.ts` of its own: it needs only `DATABASE_URL` and `REDIS_URL`, and reads them through `@cue-memory/db`'s `client`/`redis` subpaths (via `src/infrastructure/database/db.ts` and the container), both of which validate themselves at import time. Its `dev` script loads `apps/worker/.env` with `tsx --env-file=.env`, like the API's.
+- `apps/worker` — no `env.ts` of its own: it reads `DATABASE_URL` and `REDIS_URL` through `@cue-memory/db`'s `client`/`redis` subpaths (via `src/infrastructure/database/db.ts` and the container), both of which validate themselves at import time. The optional Supabase Storage pair is read by `src/infrastructure/storage/supabaseEnv.ts`, called only by the container: either one missing (or empty) means no Thumbnail store, both set means `SUPABASE_URL` must be a URL and the key non-empty, or the worker refuses to start. Its `dev` script loads `apps/worker/.env` with `tsx --env-file=.env`, like the API's.
 - `apps/web/src/env.ts` — `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:4000`). Imported as a side effect in `next.config.ts` so an invalid value fails `next dev`/`next build` immediately, before anything else runs.
 
 One Next.js-specific detail: `apps/web/src/env.ts` reads `process.env.NEXT_PUBLIC_API_URL` as a single literal expression rather than spreading the whole `process.env` object into `safeParse`. Next.js statically replaces `process.env.NEXT_PUBLIC_*` expressions with their literal value at build time for anything that ends up in the client bundle — spreading the whole object would defeat that replacement and crash in the browser, where `process` doesn't exist.
@@ -41,12 +41,18 @@ For local sign-in, create a Google OAuth **web** client whose authorized redirec
 
 ## `apps/worker/.env`
 
-| Variable       | Purpose                                                            | Local dev value                                          |
-| -------------- | ------------------------------------------------------------------ | -------------------------------------------------------- |
-| `DATABASE_URL` | Postgres connection string, to update item status after processing | `postgres://postgres:postgres@localhost:5433/cue_memory` |
-| `REDIS_URL`    | Redis connection string, to consume queued jobs                    | `redis://localhost:6380`                                 |
+| Variable                    | Purpose                                                                                       | Local dev value                                                   |
+| --------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `DATABASE_URL`              | Postgres connection string, to update item status after processing                            | `postgres://postgres:postgres@localhost:5433/cue_memory`          |
+| `REDIS_URL`                 | Redis connection string, to consume queued jobs                                               | `redis://localhost:6380`                                          |
+| `SUPABASE_URL`              | Optional. The Supabase project's URL, for Thumbnails in Storage's private `thumbnails` bucket | `https://<project-ref>.supabase.co` (the dev project's)           |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional. The project's service role key, which the worker uploads Thumbnails with            | from the Supabase dashboard (Project Settings → API Keys, secret) |
 
-Both are required: the worker connects to Redis when it boots and refuses to start without either URL. It consumes the Items queue (see [Queue](./queue.md)). No `PORT` — the worker doesn't expose an HTTP server. `apps/worker/.env.example` lists both.
+`DATABASE_URL` and `REDIS_URL` are required: the worker connects to Redis when it boots and refuses to start without either URL. It consumes the Items queue (see [Queue](./queue.md)). No `PORT` — the worker doesn't expose an HTTP server. `apps/worker/.env.example` lists all four.
+
+The Supabase pair is optional: with either one missing, the worker still starts (it logs that Supabase Storage isn't configured), downloads no images, and every Item goes Ready without a Thumbnail. The bucket must exist before Thumbnails can be kept; the worker never creates it (see [Getting Started](./getting-started.md#thumbnail-storage)).
+
+**The service role key belongs only on the server.** It bypasses Supabase's row-level security for the whole project, so it goes only in server-side `.env` files and the deploy's secret store: never in `apps/web`, never behind a `NEXT_PUBLIC_` prefix, never in a client bundle, a log or a commit (see [Security](./security.md#thumbnail-storage)).
 
 ## `apps/web/.env`
 
