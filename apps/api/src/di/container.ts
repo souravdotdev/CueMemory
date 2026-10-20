@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { StorageClient } from "@supabase/storage-js";
 import { Container } from "inversify";
 import { AdmitSignInUseCase } from "@/application/use-cases/auth/AdmitSignInUseCase";
 import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
@@ -7,6 +8,7 @@ import { SaveItemUseCase } from "@/application/use-cases/items/SaveItemUseCase";
 import { TOKENS } from "@/di/tokens";
 import type { IQueueProvider } from "@/domain/providers/IQueueProvider";
 import type { ISessionProvider } from "@/domain/providers/ISessionProvider";
+import type { IThumbnailUrlProvider } from "@/domain/providers/IThumbnailUrlProvider";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 import type { IUserRepository } from "@/domain/repositories/IUserRepository";
 import { env, type Env } from "@/env";
@@ -21,6 +23,10 @@ import { BullMqQueueProvider, type ItemsQueue } from "@/infrastructure/queue/Bul
 import { itemsQueue } from "@/infrastructure/queue/itemsQueue";
 import { DrizzleItemRepository } from "@/infrastructure/repositories/DrizzleItemRepository";
 import { DrizzleUserRepository } from "@/infrastructure/repositories/DrizzleUserRepository";
+import {
+  SupabaseThumbnailUrlProvider,
+  type ThumbnailStorage,
+} from "@/infrastructure/storage/SupabaseThumbnailUrlProvider";
 import { ItemsController } from "@/interface/controllers/ItemsController";
 import { MeController } from "@/interface/controllers/MeController";
 import { rateLimitRedis } from "@/rate-limit-redis";
@@ -48,6 +54,28 @@ export function createContainer(): Container {
     .to(DrizzleItemRepository)
     .inSingletonScope();
   container.bind<IQueueProvider>(TOKENS.QueueProvider).to(BullMqQueueProvider).inSingletonScope();
+
+  // Without Supabase Storage there's no Thumbnail provider, and Item cards carry no Thumbnail.
+  if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
+    const supabaseUrl = env.SUPABASE_URL;
+    const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
+    container
+      .bind<ThumbnailStorage>(TOKENS.ThumbnailStorage)
+      .toDynamicValue(
+        // Just the Storage part of the Supabase client (supabase-js also starts Realtime, which
+        // needs a native WebSocket). It sends the service role key the way supabase-js does.
+        () =>
+          new StorageClient(new URL("storage/v1", supabaseUrl).href, {
+            apikey: serviceRoleKey,
+            Authorization: `Bearer ${serviceRoleKey}`,
+          }) satisfies ThumbnailStorage,
+      )
+      .inSingletonScope();
+    container
+      .bind<IThumbnailUrlProvider>(TOKENS.ThumbnailUrlProvider)
+      .to(SupabaseThumbnailUrlProvider)
+      .inSingletonScope();
+  }
 
   container
     .bind<Auth>(TOKENS.Auth)

@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { createClient } from "@supabase/supabase-js";
+import { StorageClient } from "@supabase/storage-js";
 import type { Redis } from "ioredis";
 import { Container } from "inversify";
 import { redisConnection } from "@cue-memory/db/redis";
@@ -67,7 +67,9 @@ export function createContainer(): Container {
 /**
  * Supabase Storage when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are
  * set; otherwise the stand-in, so the worker still runs, without Thumbnails.
- * A server client: no session to keep or refresh.
+ * Just the Storage part of the Supabase client, as in the API (supabase-js
+ * also starts Realtime, which needs a native WebSocket); it sends the service
+ * role key the way supabase-js does.
  */
 function thumbnailStore(): IThumbnailStore {
   const env = supabaseStorageEnv(process.env);
@@ -75,8 +77,9 @@ function thumbnailStore(): IThumbnailStore {
     console.warn("[worker] Supabase Storage isn't configured; Items get no Thumbnails");
     return new NoThumbnailStore();
   }
-  const supabase = createClient(env.url, env.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  const storage = new StorageClient(new URL("storage/v1", env.url).href, {
+    apikey: env.serviceRoleKey,
+    Authorization: `Bearer ${env.serviceRoleKey}`,
   });
-  return new SupabaseThumbnailStore(supabase);
+  return new SupabaseThumbnailStore(storage);
 }

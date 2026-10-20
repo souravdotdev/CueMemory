@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { StorageClient } from "@supabase/storage-js";
 import { injectable, unmanaged } from "inversify";
 import type { IThumbnailStore } from "@/domain/providers/IThumbnailStore";
 
@@ -6,10 +6,10 @@ import type { IThumbnailStore } from "@/domain/providers/IThumbnailStore";
 export const THUMBNAILS_BUCKET = "thumbnails";
 
 /**
- * Keeps card Thumbnails in the private `thumbnails` bucket, through a
- * Supabase client signed in with the service role key. Each upload upserts
- * its fixed key as `image/webp`, so a retry overwrites instead of failing on
- * a duplicate. supabase-js answers a failed upload with an error instead of
+ * Keeps card Thumbnails in the private `thumbnails` bucket, through Supabase's
+ * Storage client sending the service role key. Each upload upserts its fixed
+ * key as `image/webp`, so a retry overwrites instead of failing on a
+ * duplicate. The client answers a failed upload with an error instead of
  * throwing; it is thrown here so Processing sees the failure.
  */
 @injectable()
@@ -17,10 +17,10 @@ export class SupabaseThumbnailStore implements IThumbnailStore {
   readonly keepsThumbnails = true;
 
   // Not injected: the container builds the client from the environment.
-  constructor(@unmanaged() private readonly supabase: SupabaseClient) {}
+  constructor(@unmanaged() private readonly storage: StorageClient) {}
 
   async put(key: string, thumbnail: Uint8Array): Promise<void> {
-    const { error } = await this.supabase.storage
+    const { error } = await this.storage
       .from(THUMBNAILS_BUCKET)
       .upload(key, thumbnail, { contentType: "image/webp", upsert: true });
     if (error) {

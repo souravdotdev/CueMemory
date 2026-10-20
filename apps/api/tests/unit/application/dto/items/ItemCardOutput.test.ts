@@ -91,8 +91,11 @@ describe("toItemCardOutput", () => {
     expect(card.thumbnailUrl).toBeNull();
   });
 
-  it("refuses an Item with a Thumbnail key when no Thumbnail provider is given", async () => {
-    await expect(toItemCardOutput(readyItem, [])).rejects.toThrow("Thumbnail provider");
+  // With Thumbnail storage unconfigured there's no provider: the card shows no Thumbnail.
+  it("gives a null Thumbnail URL to an Item with a Thumbnail key when no Thumbnail provider is given", async () => {
+    const card = await toItemCardOutput(readyItem, []);
+
+    expect(card.thumbnailUrl).toBeNull();
   });
 
   it("gives a Failed Item the generic failure message", async () => {

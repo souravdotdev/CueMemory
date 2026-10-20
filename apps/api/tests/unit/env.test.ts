@@ -21,6 +21,8 @@ function loadEnv(overrides: Record<string, string | undefined> = {}) {
 
 beforeEach(() => {
   vi.stubEnv("AUTH_COOKIE_DOMAIN", undefined);
+  vi.stubEnv("SUPABASE_URL", undefined);
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", undefined);
 });
 
 afterEach(() => {
@@ -61,4 +63,35 @@ describe("api env", () => {
       await expect(loadEnv({ WEB_ORIGIN: origin })).rejects.toThrow("WEB_ORIGIN");
     },
   );
+
+  it("leaves Thumbnail storage unconfigured by default", async () => {
+    const env = await loadEnv();
+
+    expect(env.SUPABASE_URL).toBeUndefined();
+    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBeUndefined();
+  });
+
+  it("accepts a Supabase Storage configuration", async () => {
+    const env = await loadEnv({
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+    });
+
+    expect(env.SUPABASE_URL).toBe("https://project.supabase.co");
+    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe("service-role-key");
+  });
+
+  it("refuses a Supabase URL that isn't a URL", async () => {
+    await expect(
+      loadEnv({ SUPABASE_URL: "project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "key" }),
+    ).rejects.toThrow("SUPABASE_URL");
+  });
+
+  // Half a configuration would silently leave every Thumbnail off.
+  it.each([
+    ["SUPABASE_URL", { SUPABASE_SERVICE_ROLE_KEY: "service-role-key" }],
+    ["SUPABASE_SERVICE_ROLE_KEY", { SUPABASE_URL: "https://project.supabase.co" }],
+  ])("refuses a Supabase Storage configuration missing %s", async (name, overrides) => {
+    await expect(loadEnv(overrides)).rejects.toThrow(name);
+  });
 });

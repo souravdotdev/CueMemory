@@ -27,6 +27,10 @@ export const TOKENS = {
   ItemsQueue: Symbol("ItemsQueue"),
   /** Hands background work to the worker (`IQueueProvider`). */
   QueueProvider: Symbol("IQueueProvider"),
+  /** Supabase's Storage client (`ThumbnailStorage`); bound only when Supabase Storage is configured. */
+  ThumbnailStorage: Symbol("ThumbnailStorage"),
+  /** Signs links to Thumbnails (`IThumbnailUrlProvider`); bound only when Supabase Storage is configured. */
+  ThumbnailUrlProvider: Symbol("IThumbnailUrlProvider"),
   /** Saves a pasted URL as a Processing Item and enqueues its Processing (`SaveItemUseCase`). */
   SaveItemUseCase: Symbol("SaveItemUseCase"),
   /** Serves `POST /items` (`ItemsController`). */
