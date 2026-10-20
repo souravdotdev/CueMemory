@@ -14,6 +14,7 @@ describe("GuardedOEmbedProvider, JSON through the same guard", () => {
     await expect(oEmbeds().fetchOEmbed(at("/oembed.json?url=x&format=json"))).resolves.toEqual({
       type: "video",
       title: "A video",
+      thumbnailUrl: null,
     });
     expect(local.lastHeaders.accept).toBe("application/json");
     expect(local.lastHeaders["user-agent"]).toBe(USER_AGENT);
@@ -24,6 +25,7 @@ describe("GuardedOEmbedProvider, JSON through the same guard", () => {
     await expect(oEmbeds().fetchOEmbed(at("/oembed-post"))).resolves.toEqual({
       type: "rich",
       title: "Hello & welcome pic.twitter.com/x",
+      thumbnailUrl: null,
     });
   });
 
@@ -31,6 +33,7 @@ describe("GuardedOEmbedProvider, JSON through the same guard", () => {
     await expect(oEmbeds().fetchOEmbed(at("/oembed-encoded"))).resolves.toEqual({
       type: "rich",
       title: "WordPress 6.7 “Rollins” & more",
+      thumbnailUrl: null,
     });
   });
 
@@ -38,6 +41,21 @@ describe("GuardedOEmbedProvider, JSON through the same guard", () => {
     await expect(oEmbeds().fetchOEmbed(at("/oembed-plus-json"))).resolves.toEqual({
       type: "photo",
       title: null,
+      thumbnailUrl: null,
+    });
+  });
+
+  it("reads an answer's thumbnail_url", async () => {
+    await expect(oEmbeds().fetchOEmbed(at("/oembed-thumbnail"))).resolves.toEqual({
+      type: "video",
+      title: "A video",
+      thumbnailUrl: "https://i.example.com/hq.jpg",
+    });
+  });
+
+  it("ignores a thumbnail_url that isn't http(s)", async () => {
+    await expect(oEmbeds().fetchOEmbed(at("/oembed-thumbnail-unsafe"))).resolves.toMatchObject({
+      thumbnailUrl: null,
     });
   });
 

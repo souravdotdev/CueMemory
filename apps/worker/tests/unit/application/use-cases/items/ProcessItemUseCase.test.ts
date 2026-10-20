@@ -63,6 +63,7 @@ function oEmbedsAnswering(answer: Partial<OEmbed>) {
     fetchOEmbed: vi.fn(async (_endpointUrl: string): Promise<OEmbed> => ({
       type: null,
       title: null,
+      thumbnailUrl: null,
       ...answer,
     })),
   } satisfies IOEmbedProvider;
@@ -902,5 +903,88 @@ describe("ProcessItemUseCase, a page's Thumbnail", () => {
 
     await expect(result).resolves.toMatchObject({ outcome: "ready", thumbnailKey: null });
     expect(repository.markReady).toHaveBeenCalledWith(REF, "link", NO_METADATA, null);
+  });
+});
+
+describe("ProcessItemUseCase, the oEmbed Thumbnail", () => {
+  const KEY = `${USER_ID}/${ITEM_ID}.webp`;
+  const OEMBED_IMAGE = "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg";
+  const OG_IMAGE = "https://cdn.example.com/cover.jpg";
+  const thumbnails = (images: IImageFetcher) => ({
+    images,
+    resizer: resizerAnswering(),
+    store: thumbnailsInMemory().store,
+  });
+
+  it("keeps a saved YouTube video's oEmbed thumbnail as its Thumbnail", async () => {
+    const images = imagesAt(OEMBED_IMAGE);
+    const oEmbeds = oEmbedsAnswering({ type: "video", thumbnailUrl: OEMBED_IMAGE });
+
+    const video = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    const page = { ...htmlPage({ "og:image": OG_IMAGE }), finalUrl: video };
+
+    const { item, result } = run(video, fetcherAnswering(page), oEmbeds, thumbnails(images));
+
+    await expect(result).resolves.toMatchObject({
+      outcome: "ready",
+      type: "video",
+      thumbnailKey: KEY,
+    });
+    expect(images.fetchImage).toHaveBeenCalledWith(OEMBED_IMAGE);
+    expect(item).toMatchObject({ status: "ready", thumbnailKey: KEY });
+    expect(oEmbeds.fetchOEmbed).toHaveBeenCalledTimes(1);
+  });
+
+  it("prefers the oEmbed thumbnail over og:image", async () => {
+    const images = imagesAt(OEMBED_IMAGE, OG_IMAGE);
+    const page = htmlPage({ "og:image": OG_IMAGE }, { oEmbedLinks: [DISCOVERY] });
+
+    const { result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      oEmbedsAnswering({ type: "video", thumbnailUrl: OEMBED_IMAGE }),
+      thumbnails(images),
+    );
+
+    await expect(result).resolves.toMatchObject({ thumbnailKey: KEY });
+    expect(images.fetchImage.mock.calls).toEqual([[OEMBED_IMAGE]]);
+  });
+
+  it("falls through to og:image when the oEmbed thumbnail is refused", async () => {
+    const images = imagesAt(OG_IMAGE);
+    const page = htmlPage({ "og:image": OG_IMAGE }, { oEmbedLinks: [DISCOVERY] });
+
+    const { result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      oEmbedsAnswering({ type: "video", thumbnailUrl: OEMBED_IMAGE }),
+      thumbnails(images),
+    );
+
+    await expect(result).resolves.toMatchObject({ outcome: "ready", thumbnailKey: KEY });
+    expect(images.fetchImage.mock.calls).toEqual([[OEMBED_IMAGE], [OG_IMAGE]]);
+  });
+
+  it("keeps a typed Item's oEmbed thumbnail even when its page fetch fails", async () => {
+    const cover = "https://i.scdn.co/image/ab67616d00001e02";
+    const images = imagesAt(cover);
+    const oEmbeds = oEmbedsAnswering({ type: "rich", title: "A track", thumbnailUrl: cover });
+
+    const { item, result } = run(
+      "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC",
+      fetcherFailing(new Error("offline")),
+      oEmbeds,
+      thumbnails(images),
+    );
+
+    await expect(result).resolves.toEqual({
+      outcome: "ready",
+      type: "audio",
+      metadata: { title: "A track", description: null },
+      thumbnailKey: KEY,
+    });
+    expect(images.fetchImage).toHaveBeenCalledWith(cover);
+    expect(item).toMatchObject({ status: "ready", thumbnailKey: KEY });
+    expect(oEmbeds.fetchOEmbed).toHaveBeenCalledTimes(1);
   });
 });

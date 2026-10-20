@@ -12,7 +12,7 @@ const head = (tags: [string, string][]): PageHead => ({
 });
 
 const pageCandidates = (tags: [string, string][], finalUrl = PAGE_URL) =>
-  thumbnailCandidates({ finalUrl, isImage: false, head: head(tags) });
+  thumbnailCandidates({ finalUrl, isImage: false, head: head(tags), oEmbedThumbnailUrl: null });
 
 describe("Thumbnail candidates", () => {
   it("offers a page's og:image", () => {
@@ -31,6 +31,51 @@ describe("Thumbnail candidates", () => {
       "https://cdn.example.com/cover.jpg",
       "https://cdn.example.com/card.png",
     ]);
+  });
+
+  it("offers the oEmbed thumbnail first, ahead of og:image and twitter:image", () => {
+    const tags: [string, string][] = [
+      ["og:image", "https://cdn.example.com/cover.jpg"],
+      ["twitter:image", "https://cdn.example.com/card.png"],
+    ];
+
+    expect(
+      thumbnailCandidates({
+        finalUrl: PAGE_URL,
+        isImage: false,
+        head: head(tags),
+        oEmbedThumbnailUrl: "https://i.example.com/hq.jpg",
+      }),
+    ).toEqual([
+      "https://i.example.com/hq.jpg",
+      "https://cdn.example.com/cover.jpg",
+      "https://cdn.example.com/card.png",
+    ]);
+  });
+
+  it("offers the oEmbed thumbnail of an Item without a head (its page fetch failed)", () => {
+    expect(
+      thumbnailCandidates({
+        finalUrl: "https://www.instagram.com/p/abc/",
+        isImage: false,
+        head: null,
+        oEmbedThumbnailUrl: "https://scontent.example.com/abc.jpg",
+      }),
+    ).toEqual(["https://scontent.example.com/abc.jpg"]);
+  });
+
+  it("offers an image the oEmbed answer and the page both offer once, in the oEmbed place", () => {
+    expect(
+      thumbnailCandidates({
+        finalUrl: PAGE_URL,
+        isImage: false,
+        head: head([
+          ["og:image", "https://cdn.example.com/cover.jpg"],
+          ["twitter:image", "https://i.example.com/hq.jpg"],
+        ]),
+        oEmbedThumbnailUrl: "https://i.example.com/hq.jpg",
+      }),
+    ).toEqual(["https://i.example.com/hq.jpg", "https://cdn.example.com/cover.jpg"]);
   });
 
   it("offers a page's twitter:image when it has no og:image", () => {
@@ -82,11 +127,25 @@ describe("Thumbnail candidates", () => {
   it("offers an Image only its own final URL", () => {
     const finalUrl = "https://cdn.example.com/photos/sunset.png";
 
-    expect(thumbnailCandidates({ finalUrl, isImage: true, head: null })).toEqual([finalUrl]);
+    expect(
+      thumbnailCandidates({
+        finalUrl,
+        isImage: true,
+        head: null,
+        oEmbedThumbnailUrl: "https://i.example.com/other.jpg",
+      }),
+    ).toEqual([finalUrl]);
   });
 
   it("offers nothing for an Item that isn't an Image and has no head", () => {
-    expect(thumbnailCandidates({ finalUrl: PAGE_URL, isImage: false, head: null })).toEqual([]);
+    expect(
+      thumbnailCandidates({
+        finalUrl: PAGE_URL,
+        isImage: false,
+        head: null,
+        oEmbedThumbnailUrl: null,
+      }),
+    ).toEqual([]);
   });
 
   it("keeps an http: offer", () => {

@@ -122,6 +122,12 @@ function route(path: string, res: ServerResponse) {
             '<script async src="https://platform.twitter.com/widgets.js"></script>',
         }),
       );
+    case "/oembed-thumbnail":
+      return json(
+        '{"type":"video","title":"A video","thumbnail_url":"https://i.example.com/hq.jpg"}',
+      );
+    case "/oembed-thumbnail-unsafe":
+      return json('{"type":"photo","title":"A photo","thumbnail_url":"javascript:alert(1)"}');
     case "/oembed-encoded":
       // WordPress encodes entities in its JSON titles.
       return json('{"type":"rich","title":"WordPress 6.7 &#8220;Rollins&#8221; &amp; more"}');

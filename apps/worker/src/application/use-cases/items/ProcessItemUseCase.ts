@@ -44,7 +44,8 @@ import { thumbnailKeyOf } from "@/domain/rules/thumbnailKey";
  *
  * Every Item is fetched, even one a URL rule already types, for its title.
  * When the fetch fails or is refused, an Item a rule typed still becomes
- * Ready, titled by its known oEmbed provider if it has one (X, YouTube …);
+ * Ready, titled by its known oEmbed provider if it has one (X, YouTube …),
+ * and keeps that provider's thumbnail as its Thumbnail when it offers one;
  * an untyped one's error propagates, so the job is retried and, out of
  * attempts, the Item ends Failed as a Link. An oEmbed call that fails or is
  * refused never fails Processing: the page's other signals decide. Nor does
@@ -74,7 +75,16 @@ export class ProcessItemUseCase {
       if (typeFromSourceUrl === null) throw error;
       // A known provider still describes a post its site wouldn't serve.
       const answer = await this.ask(knownOEmbedRequestFor(item.sourceUrl));
-      return this.ready(ref, typeFromSourceUrl, metadataOf(null, answer), null);
+      const thumbnailKey = await this.keepThumbnail(
+        ref,
+        thumbnailCandidates({
+          finalUrl: item.sourceUrl,
+          isImage: false,
+          head: null,
+          oEmbedThumbnailUrl: answer?.oEmbed.thumbnailUrl ?? null,
+        }),
+      );
+      return this.ready(ref, typeFromSourceUrl, metadataOf(null, answer), thumbnailKey);
     }
 
     const head = page.kind === "html" ? page.head : null;
@@ -88,6 +98,7 @@ export class ProcessItemUseCase {
         finalUrl: page.finalUrl,
         isImage: type === "image" && page.kind === "file",
         head,
+        oEmbedThumbnailUrl: answer?.oEmbed.thumbnailUrl ?? null,
       }),
     );
     return this.ready(ref, type, metadataOf(head, answer), thumbnailKey);
