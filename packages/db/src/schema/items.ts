@@ -54,7 +54,8 @@ export const items = pgTable(
     status: itemStatusEnum("status").notNull().default("processing"),
     title: text("title"),
     description: text("description"),
-    // Object-storage key: thumbnails/{userId}/{itemId}.<ext>.
+    // The Thumbnail's object path in the private Supabase Storage bucket `thumbnails`:
+    // {userId}/{itemId}.webp. Null without a Thumbnail.
     thumbnailKey: text("thumbnail_key"),
     // Readable text, deliberately uncapped; keyword search reads it through search_vector.
     extractedText: text("extracted_text"),

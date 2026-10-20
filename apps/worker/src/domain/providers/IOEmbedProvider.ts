@@ -4,6 +4,8 @@ export interface OEmbed {
   type: string | null;
   /** The answer's `title`, or (without one) the text of a post the embed quotes; null if neither. */
   title: string | null;
+  /** The answer's `thumbnail_url` when it is an absolute http(s) URL; null otherwise. */
+  thumbnailUrl: string | null;
 }
 
 /**

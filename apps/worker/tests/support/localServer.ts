@@ -43,8 +43,54 @@ function pumpForever(res: ServerResponse, chunk: string | Buffer) {
   return pump;
 }
 
+// The start of a file of each kind, for the image fetch (which checks magic
+// bytes, never decodes): enough for its signature, padded.
+const IMAGE_BYTES: Record<string, Buffer> = {
+  png: Buffer.concat([PNG_START, Buffer.alloc(48)]),
+  jpeg: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(60)]),
+  gif: Buffer.concat([Buffer.from("GIF89a"), Buffer.alloc(58)]),
+  webp: Buffer.concat([Buffer.from("RIFF\x00\x00\x00\x00WEBPVP8 ", "latin1"), Buffer.alloc(48)]),
+  avif: Buffer.concat([
+    Buffer.from([0x00, 0x00, 0x00, 0x1c]),
+    Buffer.from("ftypavif\x00\x00\x00\x00avifmif1miaf", "latin1"),
+    Buffer.alloc(36),
+  ]),
+  heic: Buffer.concat([
+    Buffer.from([0x00, 0x00, 0x00, 0x18]),
+    Buffer.from("ftypheic\x00\x00\x00\x00mif1heic", "latin1"),
+    Buffer.alloc(40),
+  ]),
+  svg: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>'),
+  ico: Buffer.concat([Buffer.from([0x00, 0x00, 0x01, 0x00, 0x01, 0x00]), Buffer.alloc(58)]),
+  html: Buffer.from("<!doctype html><html><head></head></html>"),
+};
+const IMAGE_CONTENT_TYPES: Record<string, string> = {
+  png: "image/png",
+  jpeg: "image/jpeg",
+  jpg: "image/jpg",
+  gif: "image/gif",
+  webp: "image/webp",
+  avif: "image/avif",
+  heic: "image/heic",
+  svg: "image/svg+xml",
+  ico: "image/x-icon",
+  html: "text/html",
+  octet: "application/octet-stream",
+};
+/** The bytes `/img/<type>/<bytes>` sends (see IMAGE_BYTES), for checking what the image fetch returns. */
+export const imageBytes = (kind: string) => IMAGE_BYTES[kind]!;
+const FIVE_MB = 5 * 1024 * 1024;
+
 function route(path: string, res: ServerResponse) {
   const redirect = (location: string) => res.writeHead(302, { location }).end();
+  // An image: `/img/<Content-Type key>/<bytes key>`, so a type and a body can disagree.
+  const image = /^\/img\/([a-z]+)\/([a-z]+)$/.exec(path);
+  if (image) {
+    const [, type, bytes] = image;
+    return res
+      .writeHead(200, { "content-type": IMAGE_CONTENT_TYPES[type!]! })
+      .end(IMAGE_BYTES[bytes!]);
+  }
   const chain = /^\/chain\/(\d+)$/.exec(path);
   if (chain) {
     const left = Number(chain[1]);
@@ -76,6 +122,12 @@ function route(path: string, res: ServerResponse) {
             '<script async src="https://platform.twitter.com/widgets.js"></script>',
         }),
       );
+    case "/oembed-thumbnail":
+      return json(
+        '{"type":"video","title":"A video","thumbnail_url":"https://i.example.com/hq.jpg"}',
+      );
+    case "/oembed-thumbnail-unsafe":
+      return json('{"type":"photo","title":"A photo","thumbnail_url":"javascript:alert(1)"}');
     case "/oembed-encoded":
       // WordPress encodes entities in its JSON titles.
       return json('{"type":"rich","title":"WordPress 6.7 &#8220;Rollins&#8221; &amp; more"}');
@@ -143,6 +195,30 @@ function route(path: string, res: ServerResponse) {
       setTimeout(pumpForever(res, Buffer.alloc(64 * 1024, 0xdf)), 20);
       return;
     }
+    case "/to-image":
+      return redirect("/img/png/png");
+    case "/image-missing":
+      return res.writeHead(404, { "content-type": "image/png" }).end(IMAGE_BYTES.png);
+    case "/image-big-header": {
+      // Says it is over 5 MB, sends a start, and waits.
+      openResponses.add(res);
+      res.writeHead(200, { "content-type": "image/png", "content-length": FIVE_MB + 1 });
+      res.write(IMAGE_BYTES.png);
+      return;
+    }
+    case "/image-endless": {
+      // No length, and a body that never ends, streamed until the client hangs up.
+      res.writeHead(200, { "content-type": "image/png" });
+      res.write(PNG_START);
+      pumpForever(res, Buffer.alloc(64 * 1024))();
+      return;
+    }
+    case "/image-just-under": {
+      const body = Buffer.concat([PNG_START, Buffer.alloc(FIVE_MB - PNG_START.length)]);
+      return res.writeHead(200, { "content-type": "image/png" }).end(body);
+    }
+    case "/image-to-private":
+      return redirect("http://10.0.0.1/photo.png");
     case "/to-private":
       return redirect("http://10.0.0.1/admin");
     case "/to-metadata":

@@ -16,12 +16,16 @@ const validEnv = {
   GOOGLE_CLIENT_SECRET: "google-client-secret",
   WEB_ORIGIN: "http://localhost:3000",
   DATABASE_URL: "postgres://postgres:postgres@localhost:5433/cue_memory",
+  SUPABASE_URL: "https://project.supabase.co",
+  SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
 };
 
 // env.ts and the db client validate process.env at import time, so the
 // environment is stubbed before a fresh copy of the container is imported.
-async function productionContainer() {
-  for (const [name, value] of Object.entries(validEnv)) vi.stubEnv(name, value);
+async function productionContainer(overrides: Record<string, string | undefined> = {}) {
+  for (const [name, value] of Object.entries({ ...validEnv, ...overrides })) {
+    vi.stubEnv(name, value);
+  }
   vi.resetModules();
   const { createContainer } = await import("@/di/container");
   // The fresh module graph has its own token Symbols.
@@ -38,5 +42,25 @@ describe("the production container", () => {
     const { container, tokens } = await productionContainer();
 
     expect(container.get(tokens[name])).toBeDefined();
+  });
+
+  it("signs Thumbnail links with Supabase Storage when it's configured", async () => {
+    const { container, tokens } = await productionContainer();
+    const { SupabaseThumbnailUrlProvider } =
+      await import("@/infrastructure/storage/SupabaseThumbnailUrlProvider");
+
+    expect(container.get(tokens.ThumbnailUrlProvider)).toBeInstanceOf(SupabaseThumbnailUrlProvider);
+  });
+
+  // Item cards then carry no Thumbnail (toItemCardOutput with no provider).
+  it.each([
+    ["neither is set", { SUPABASE_URL: undefined, SUPABASE_SERVICE_ROLE_KEY: undefined }],
+    ["only SUPABASE_URL is set", { SUPABASE_SERVICE_ROLE_KEY: "" }],
+    ["only SUPABASE_SERVICE_ROLE_KEY is set", { SUPABASE_URL: undefined }],
+  ])("binds no Thumbnail provider when %s", async (_case, overrides) => {
+    const { container, tokens } = await productionContainer(overrides);
+
+    expect(container.isBound(tokens.ThumbnailUrlProvider)).toBe(false);
+    expect(container.isBound(tokens.ThumbnailStorage)).toBe(false);
   });
 });

@@ -45,6 +45,22 @@ pnpm db:studio     # optional: browse the database in Drizzle Studio
 
 See [Database](./database.md) for the schema itself and the full migration workflow.
 
+## Thumbnail storage
+
+Thumbnails are kept in Supabase Storage, in the same Supabase project as the dev database. It's optional: without it the worker runs and Items simply have no Thumbnails. To turn it on, create the bucket **once** in the dev project (the worker never creates it):
+
+1. In the Supabase dashboard, open **Storage → New bucket**.
+2. Name it `thumbnails` and leave **Public bucket** off: it must be private (the API hands out signed links).
+3. No policies are needed: the worker uploads with the service role key, which bypasses row-level security.
+
+Or, in the SQL editor:
+
+```sql
+insert into storage.buckets (id, name, public) values ('thumbnails', 'thumbnails', false);
+```
+
+Then set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `apps/worker/.env` (see [Environment Variables](./environment-variables.md#appsworkerenv)). Thumbnails land at `thumbnails/{userId}/{itemId}.webp`.
+
 ## Running the apps
 
 ```bash

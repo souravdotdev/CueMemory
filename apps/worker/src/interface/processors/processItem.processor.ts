@@ -23,7 +23,10 @@ export async function processItem(container: Container, data: unknown): Promise<
 
   if (result.outcome === "ready") {
     const titled = result.metadata.title === null ? "without a title" : "with a title";
-    console.log(`[worker] Item ${payload.data.itemId} is Ready as ${result.type}, ${titled}`);
+    const pictured = result.thumbnailKey === null ? "no Thumbnail" : "a Thumbnail";
+    console.log(
+      `[worker] Item ${payload.data.itemId} is Ready as ${result.type}, ${titled}, with ${pictured}`,
+    );
   } else {
     console.log(`[worker] Item ${payload.data.itemId} no longer exists; nothing to process`);
   }

@@ -9,6 +9,10 @@ const origin = httpUrl.refine((value) => URL.canParse(value) && new URL(value).o
   message: "Must be a bare origin, such as https://app.example.com (no path or trailing slash)",
 });
 
+// An optional setting whose empty value (`SUPABASE_URL=` in a .env file) counts as unset.
+const unsetWhenEmpty = <T extends z.ZodType>(value: T) =>
+  z.preprocess((raw) => (raw === "" ? undefined : raw), value.optional());
+
 const schema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   // The interface the server binds to. 0.0.0.0 (every interface) suits containers and hosts;
@@ -24,6 +28,11 @@ const schema = z.object({
   WEB_ORIGIN: origin,
   // The parent domain web and API share in production (e.g. `cuememory.app`); unset locally.
   AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
+  // Supabase Storage, where the worker keeps Thumbnails. Optional, as in the worker: with
+  // either one unset (or empty), Item cards carry no Thumbnail. The service role key bypasses
+  // Storage's row-level security; server only.
+  SUPABASE_URL: unsetWhenEmpty(httpUrl),
+  SUPABASE_SERVICE_ROLE_KEY: unsetWhenEmpty(z.string()),
 });
 
 export type Env = z.infer<typeof schema>;

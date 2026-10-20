@@ -21,6 +21,8 @@ function loadEnv(overrides: Record<string, string | undefined> = {}) {
 
 beforeEach(() => {
   vi.stubEnv("AUTH_COOKIE_DOMAIN", undefined);
+  vi.stubEnv("SUPABASE_URL", undefined);
+  vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", undefined);
 });
 
 afterEach(() => {
@@ -61,4 +63,46 @@ describe("api env", () => {
       await expect(loadEnv({ WEB_ORIGIN: origin })).rejects.toThrow("WEB_ORIGIN");
     },
   );
+
+  it("leaves Thumbnail storage unconfigured by default", async () => {
+    const env = await loadEnv();
+
+    expect(env.SUPABASE_URL).toBeUndefined();
+    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBeUndefined();
+  });
+
+  it("accepts a Supabase Storage configuration", async () => {
+    const env = await loadEnv({
+      SUPABASE_URL: "https://project.supabase.co",
+      SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
+    });
+
+    expect(env.SUPABASE_URL).toBe("https://project.supabase.co");
+    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe("service-role-key");
+  });
+
+  it.each(["project.supabase.co", "ftp://project.supabase.co"])(
+    "refuses a Supabase URL that isn't an http(s) URL (%s)",
+    async (url) => {
+      await expect(
+        loadEnv({ SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: "key" }),
+      ).rejects.toThrow("SUPABASE_URL");
+    },
+  );
+
+  // As in the worker: an empty value is unset, and half a configuration starts
+  // without Thumbnails (the container binds no Thumbnail provider).
+  it("treats empty Supabase settings as unset", async () => {
+    const env = await loadEnv({ SUPABASE_URL: "", SUPABASE_SERVICE_ROLE_KEY: "" });
+
+    expect(env.SUPABASE_URL).toBeUndefined();
+    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBeUndefined();
+  });
+
+  it.each([
+    ["SUPABASE_URL", { SUPABASE_SERVICE_ROLE_KEY: "service-role-key" }],
+    ["SUPABASE_SERVICE_ROLE_KEY", { SUPABASE_URL: "https://project.supabase.co" }],
+  ])("starts with a Supabase Storage configuration missing %s", async (_name, overrides) => {
+    await expect(loadEnv(overrides)).resolves.toMatchObject(overrides);
+  });
 });

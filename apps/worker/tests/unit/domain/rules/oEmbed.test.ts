@@ -123,7 +123,11 @@ describe("oEmbedRequestFor, discovery links", () => {
 });
 
 describe("itemTypeFromOEmbed", () => {
-  const answer = (type: string | null): OEmbed => ({ type, title: null });
+  const answer = (type: string | null): OEmbed => ({
+    type,
+    title: null,
+    thumbnailUrl: null,
+  });
   const provider = (pageUrl: string) => oEmbedRequestFor(pageUrl, null)!.provider;
 
   it.each([
