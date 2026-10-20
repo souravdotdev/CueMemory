@@ -32,6 +32,7 @@ import {
   pickMetadata,
   twitterCardMetadata,
 } from "@/domain/rules/pageMetadata";
+import { thumbnailCandidates } from "@/domain/rules/thumbnailCandidates";
 import { thumbnailKeyOf } from "@/domain/rules/thumbnailKey";
 
 /**
@@ -81,7 +82,14 @@ export class ProcessItemUseCase {
     const request = page.kind === "file" ? null : oEmbedRequestFor(page.finalUrl, head);
     const answer = await this.ask(request);
     const type = itemTypeOf(typeFromSourceUrl, page, answer);
-    const thumbnailKey = await this.keepThumbnail(ref, thumbnailCandidates(type, page));
+    const thumbnailKey = await this.keepThumbnail(
+      ref,
+      thumbnailCandidates({
+        finalUrl: page.finalUrl,
+        isImage: type === "image" && page.kind === "file",
+        head,
+      }),
+    );
     return this.ready(ref, type, metadataOf(head, answer), thumbnailKey);
   }
 
@@ -134,15 +142,6 @@ export class ProcessItemUseCase {
     await this.items.markReady(ref, type, metadata, thumbnailKey);
     return { outcome: "ready", type, metadata, thumbnailKey };
   }
-}
-
-/**
- * The images a Thumbnail could be made from, best first: for an Image whose
- * fetch ended at the image itself, that final URL. (A page's own preview
- * images, such as Open Graph's, are not candidates yet.)
- */
-function thumbnailCandidates(type: ItemType, page: FetchedPage): string[] {
-  return type === "image" && page.kind === "file" ? [page.finalUrl] : [];
 }
 
 /**

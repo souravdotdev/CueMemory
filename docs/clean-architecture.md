@@ -152,7 +152,8 @@ apps/worker/src/
                         IJsonFetcher.ts (fetchJson), IOEmbedProvider.ts (fetchOEmbed),
                         IImageFetcher.ts (fetchImage), IThumbnailResizer.ts (toCardThumbnail),
                         IThumbnailStore.ts (keepsThumbnails, put)
-    rules/              thumbnailImage.ts (accepted image formats, magic bytes), thumbnailKey.ts,
+    rules/              thumbnailCandidates.ts (which images, in which order), thumbnailImage.ts
+                        (accepted image formats, magic bytes), thumbnailKey.ts,
                         itemTypeFromUrl.ts, knownSites.ts (the known-site table, with each site's oEmbed
                         endpoint), itemTypeFromExtension.ts, itemTypeFromResponse.ts,
                         itemTypeFromContentType.ts, itemTypeFromMagicBytes.ts, mediaType.ts,

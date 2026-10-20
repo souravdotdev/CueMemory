@@ -16,5 +16,5 @@ A Thumbnail is a copy CueMemory keeps, never a link to the original picture: the
 - sharp (libvips, a native module) runs in the worker on untrusted images, so it accepts only the five formats, even though sharp could decode SVG, TIFF or HEIC, and refuses an image declaring more pixels than the cap before decoding it.
 - One stored size, the card's (800px wide). A larger view later is a new size and a backfill, not a URL parameter.
 - The image is downloaded twice for an Image Item: the page fetch reads only its first bytes to type it, then the Thumbnail download reads the whole file.
-- Candidates come in a list, best first; Images use their final URL. A page's `og:image`/`twitter:image` and an oEmbed `thumbnail_url` join the list later without changing the download, resize or store.
+- Candidates come in a list, best first, from one pure rule (`thumbnailCandidates`): an Image's final URL, or a page's `og:image` then `twitter:image`. An oEmbed `thumbnail_url` joins the front of the list later without changing the download, resize or store. Every candidate goes through the guard, so a page can't point the worker at an internal address through its `og:image`.
 - Deleting an Item or a User must also delete its Thumbnail object: Postgres cascades don't reach Storage.

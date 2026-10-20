@@ -121,6 +121,16 @@ function imagesAnswering() {
   return { fetchImage: vi.fn(async (_url: string) => IMAGE) } satisfies IImageFetcher;
 }
 
+// An image fetcher answering IMAGE only for these URLs; any other download is refused.
+function imagesAt(...urls: string[]) {
+  return {
+    fetchImage: vi.fn(async (url: string): Promise<Uint8Array> => {
+      if (urls.includes(url)) return IMAGE;
+      throw new Error(`Fetching ${url} isn't an accepted image (text/html)`);
+    }),
+  } satisfies IImageFetcher;
+}
+
 // An image fetcher whose every download fails (refused, not an image, over 5 MB …).
 function imagesFailing() {
   return {
@@ -695,9 +705,8 @@ describe("ProcessItemUseCase, Thumbnail", () => {
 
   it.each([
     ["a PDF", file("application/pdf", Buffer.from("%PDF-1.7"))],
-    ["an HTML page", htmlPage({ "og:type": "article" })],
     ["an unsuccessful answer", unsuccessful()],
-  ])("keeps no Thumbnail for %s (not an Image)", async (_case, page) => {
+  ])("keeps no Thumbnail for %s, which offers no image", async (_case, page) => {
     const images = imagesAnswering();
 
     const { result } = run("https://example.com/page", fetcherAnswering(page), undefined, {
@@ -767,5 +776,131 @@ describe("ProcessItemUseCase, Thumbnail", () => {
     });
     expect(images.fetchImage).not.toHaveBeenCalled();
     expect(store.put).not.toHaveBeenCalled();
+  });
+});
+
+describe("ProcessItemUseCase, a page's Thumbnail", () => {
+  const KEY = `${USER_ID}/${ITEM_ID}.webp`;
+  const OG_IMAGE = "https://cdn.example.com/cover.jpg";
+  const TWITTER_IMAGE = "https://cdn.example.com/card.png";
+  const thumbnails = (images: IImageFetcher) => ({
+    images,
+    resizer: resizerAnswering(),
+    store: thumbnailsInMemory().store,
+  });
+
+  it("keeps an article's og:image as its Thumbnail", async () => {
+    const images = imagesAt(OG_IMAGE);
+    const page = htmlPage({ "og:type": "article", "og:image": OG_IMAGE });
+
+    const { item, repository, result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      undefined,
+      thumbnails(images),
+    );
+
+    await expect(result).resolves.toMatchObject({
+      outcome: "ready",
+      type: "article",
+      thumbnailKey: KEY,
+    });
+    expect(images.fetchImage).toHaveBeenCalledWith(OG_IMAGE);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, "article", NO_METADATA, KEY);
+    expect(item).toMatchObject({ status: "ready", thumbnailKey: KEY });
+  });
+
+  it("keeps a page's twitter:image when it has no og:image", async () => {
+    const images = imagesAt(TWITTER_IMAGE);
+    const page = htmlPage({ "twitter:image": TWITTER_IMAGE });
+
+    const { result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      undefined,
+      thumbnails(images),
+    );
+
+    await expect(result).resolves.toMatchObject({ outcome: "ready", thumbnailKey: KEY });
+    expect(images.fetchImage).toHaveBeenCalledWith(TWITTER_IMAGE);
+  });
+
+  it("prefers og:image over twitter:image", async () => {
+    const images = imagesAt(OG_IMAGE, TWITTER_IMAGE);
+    const page = htmlPage({ "twitter:image": TWITTER_IMAGE, "og:image": OG_IMAGE });
+
+    const { result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      undefined,
+      thumbnails(images),
+    );
+
+    await expect(result).resolves.toMatchObject({ thumbnailKey: KEY });
+    expect(images.fetchImage.mock.calls).toEqual([[OG_IMAGE]]);
+  });
+
+  it("falls through to twitter:image when og:image is refused", async () => {
+    const images = imagesAt(TWITTER_IMAGE);
+    const page = htmlPage({ "og:image": OG_IMAGE, "twitter:image": TWITTER_IMAGE });
+
+    const { result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      undefined,
+      thumbnails(images),
+    );
+
+    await expect(result).resolves.toMatchObject({ outcome: "ready", thumbnailKey: KEY });
+    expect(images.fetchImage.mock.calls).toEqual([[OG_IMAGE], [TWITTER_IMAGE]]);
+  });
+
+  it("resolves a relative og:image against the URL the page was fetched from, after redirects", async () => {
+    const images = imagesAt("https://www.example.org/cover.jpg");
+    const page = {
+      ...htmlPage({ "og:image": "/cover.jpg" }),
+      finalUrl: "https://www.example.org/news/story",
+    };
+
+    const { result } = run(
+      "https://bit.ly/3xYz",
+      fetcherAnswering(page),
+      undefined,
+      thumbnails(images),
+    );
+
+    await expect(result).resolves.toMatchObject({ thumbnailKey: KEY });
+    expect(images.fetchImage).toHaveBeenCalledWith("https://www.example.org/cover.jpg");
+  });
+
+  it.each([
+    ["no image tags", htmlPage({ "og:type": "article" })],
+    ["only values that aren't http(s)", htmlPage({ "og:image": "data:image/png;base64,iVBO" })],
+  ])("marks a page with %s Ready without a Thumbnail", async (_case, page) => {
+    const images = imagesAnswering();
+
+    const { result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      undefined,
+      thumbnails(images),
+    );
+
+    await expect(result).resolves.toMatchObject({ outcome: "ready", thumbnailKey: null });
+    expect(images.fetchImage).not.toHaveBeenCalled();
+  });
+
+  it("marks a page Ready without a Thumbnail when every offered image fails", async () => {
+    const page = htmlPage({ "og:image": OG_IMAGE, "twitter:image": TWITTER_IMAGE });
+
+    const { repository, result } = run(
+      "https://example.com/page",
+      fetcherAnswering(page),
+      undefined,
+      thumbnails(imagesFailing()),
+    );
+
+    await expect(result).resolves.toMatchObject({ outcome: "ready", thumbnailKey: null });
+    expect(repository.markReady).toHaveBeenCalledWith(REF, "link", NO_METADATA, null);
   });
 });
