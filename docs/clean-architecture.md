@@ -32,6 +32,7 @@ apps/api/src/
     database/           Database.ts (the handle type), db.ts (the runtime Drizzle instance)
     queue/              BullMqQueueProvider.ts, itemsQueue.ts (the BullMQ Items queue)
     repositories/       DrizzleUserRepository.ts, DrizzleItemRepository.ts
+    storage/            SupabaseThumbnailUrlProvider.ts (signs Thumbnail links)
     mappers/            userMapper.ts, itemMapper.ts, tagMapper.ts (row -> entity)
   interface/
     routes/             auth.routes.ts, me.routes.ts, items.routes.ts (Fastify plugins)
@@ -50,7 +51,7 @@ What each layer holds:
 
 `di/` sits outside the four layers. It is the composition root: the only code that knows every concrete class.
 
-Items has a domain (`Item`, `Tag`, the Tag name rule), the `IItemRepository` and `IQueueProvider` ports with their adapters, the Item card output DTO, row mappers, and one use case and route: `SaveItemUseCase` behind `POST /items`. `IThumbnailUrlProvider` has no adapter and no token yet; a just-saved Item has no Thumbnail key, so `toItemCardOutput` needs no provider for it.
+Items has a domain (`Item`, `Tag`, the Tag name rule), the `IItemRepository` and `IQueueProvider` ports with their adapters, the Item card output DTO, row mappers, and one use case and route: `SaveItemUseCase` behind `POST /items`. `IThumbnailUrlProvider`'s adapter, `SupabaseThumbnailUrlProvider`, signs 1-hour links into the private `thumbnails` bucket. It's bound only when Supabase Storage is configured; with no provider, `toItemCardOutput` gives every card a null Thumbnail URL. A just-saved Item has no Thumbnail key, so `SaveItemUseCase` passes no provider.
 
 ## The dependency rule
 
@@ -82,13 +83,14 @@ To fix it, define a port in the domain and put the tool code in an infrastructur
 
 ## Tokens, the container and scopes
 
-Interfaces don't exist at runtime, so the container looks each dependency up by a token. `di/tokens.ts` exports `TOKENS`, one `Symbol` per bound dependency. A port's symbol is named after its interface (`TOKENS.UserRepository = Symbol("IUserRepository")`). Today the tokens are `Env`, `Database`, `UserRepository`, `Auth`, `SessionProvider`, `AdmitSignInUseCase`, `ResolveSignedInUserUseCase`, `GetMeUseCase`, `MeController`, `ItemRepository`, `ItemsQueue`, `QueueProvider`, `SaveItemUseCase`, `ItemsController` and `RateLimitRedis`.
+Interfaces don't exist at runtime, so the container looks each dependency up by a token. `di/tokens.ts` exports `TOKENS`, one `Symbol` per bound dependency. A port's symbol is named after its interface (`TOKENS.UserRepository = Symbol("IUserRepository")`). Today the tokens are `Env`, `Database`, `UserRepository`, `Auth`, `SessionProvider`, `AdmitSignInUseCase`, `ResolveSignedInUserUseCase`, `GetMeUseCase`, `MeController`, `ItemRepository`, `ItemsQueue`, `QueueProvider`, `ThumbnailStorage`, `ThumbnailUrlProvider`, `SaveItemUseCase`, `ItemsController` and `RateLimitRedis`.
 
 `di/container.ts` exports `createContainer()`, an InversifyJS `Container`. It is the only place in application code that creates an application class. It binds:
 
 - **Constants** (`toConstantValue`): the validated `Env`, the `Database` (`db` from `infrastructure/database/db.ts`), the rate-limit Redis and the BullMQ Items queue (`itemsQueue`).
 - **The Better Auth instance** (`toDynamicValue(...).inSingletonScope()`): built once, by `createAuth(database, config, { admitSignIn })` from the bound `Env` and `Database`. Its session-create hook gets `admitSignIn` as `{ execute }`, which asks the container for a fresh `AdmitSignInUseCase` on every sign-in. The binding ends `satisfies { api: SessionApi }`, so tsc checks that the instance still fits what `BetterAuthSessionProvider` needs.
 - **Adapters and controllers as singletons** (`.to(Class).inSingletonScope()`): `DrizzleUserRepository`, `DrizzleItemRepository`, `BetterAuthSessionProvider`, `BullMqQueueProvider`, `MeController`, `ItemsController`. One instance lives for the life of the process.
+- **Thumbnail signing, only when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set**: `ThumbnailStorage` (a Supabase `StorageClient`, `toDynamicValue(...).inSingletonScope()`, ending `satisfies ThumbnailStorage`) and `SupabaseThumbnailUrlProvider` as a singleton. Unset, neither token is bound.
 - **Use cases as transient** (`.to(Class).inTransientScope()`): each `container.get` builds a new one, so a use case never carries state from one request to the next.
 
 Setup rules that keep this working:

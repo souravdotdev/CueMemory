@@ -17,6 +17,7 @@
     "@fastify/cors": "^11.3.0",
     "@fastify/helmet": "^13.1.1",
     "@fastify/rate-limit": "^11.2.0",
+    "@supabase/storage-js": "^2.118.0",
     "better-auth": "^1.7.7",
     "bullmq": "^6.3.15",
     "drizzle-orm": "^0.45.2",
