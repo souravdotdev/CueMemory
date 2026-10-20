@@ -1,75 +1,57 @@
+import { isAvif, isGif, isJpeg, isPng, isWebp } from "@/domain/rules/magicBytes";
 import { mediaTypeOf } from "@/domain/rules/mediaType";
 
-/** The image formats a Thumbnail is made from. SVG (it can carry script), ICO and everything else are refused. */
-export type ThumbnailImageFormat = "jpeg" | "png" | "webp" | "gif" | "avif";
+/**
+ * The image formats a Thumbnail is made from, in the order a download asks
+ * for them: the media types that declare each (the first is its own; the
+ * rest are misspellings servers still send) and the magic bytes its files
+ * start with. SVG (it can carry script), ICO, HEIC and everything else are
+ * refused.
+ */
+const THUMBNAIL_IMAGE_FORMATS = {
+  avif: { mediaTypes: ["image/avif"], startsLike: isAvif },
+  webp: { mediaTypes: ["image/webp"], startsLike: isWebp },
+  png: { mediaTypes: ["image/png"], startsLike: isPng },
+  jpeg: { mediaTypes: ["image/jpeg", "image/jpg"], startsLike: isJpeg },
+  gif: { mediaTypes: ["image/gif"], startsLike: isGif },
+} as const satisfies Record<
+  string,
+  { mediaTypes: readonly [string, ...string[]]; startsLike: (bytes: Uint8Array) => boolean }
+>;
+
+export type ThumbnailImageFormat = keyof typeof THUMBNAIL_IMAGE_FORMATS;
+
+const FORMATS = Object.entries(THUMBNAIL_IMAGE_FORMATS) as [
+  ThumbnailImageFormat,
+  (typeof THUMBNAIL_IMAGE_FORMATS)[ThumbnailImageFormat],
+][];
 
 /** The most of an image downloaded for a Thumbnail: 5 MB. */
 export const THUMBNAIL_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
-const FORMAT_OF_MEDIA_TYPE: Record<string, ThumbnailImageFormat> = {
-  "image/jpeg": "jpeg",
-  // A common misspelling servers still send.
-  "image/jpg": "jpeg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "image/gif": "gif",
-  "image/avif": "avif",
-};
+const FORMAT_OF_MEDIA_TYPE = new Map<string, ThumbnailImageFormat>(
+  FORMATS.flatMap(([format, { mediaTypes }]) => mediaTypes.map((type) => [type, format] as const)),
+);
 
 /** The `Accept` header an image download sends: only the accepted formats. */
-export const THUMBNAIL_IMAGE_ACCEPT = "image/avif,image/webp,image/png,image/jpeg,image/gif";
+export const THUMBNAIL_IMAGE_ACCEPT = FORMATS.map(([, { mediaTypes }]) => mediaTypes[0]).join(",");
+
+/** Whether `format` (an image decoder's name for one) is an accepted Thumbnail image format. */
+export function isThumbnailImageFormat(format: string | undefined): format is ThumbnailImageFormat {
+  return format !== undefined && Object.hasOwn(THUMBNAIL_IMAGE_FORMATS, format);
+}
 
 /** The accepted image format a `Content-Type` declares, or null for any other (or none). */
 export function thumbnailImageFormatOfContentType(
   contentType: string | null,
 ): ThumbnailImageFormat | null {
-  return FORMAT_OF_MEDIA_TYPE[mediaTypeOf(contentType)] ?? null;
-}
-
-function ascii(bytes: Uint8Array, start: number, end: number): string {
-  return String.fromCharCode(...bytes.subarray(start, end));
-}
-
-function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
-  return signature.length <= bytes.length && signature.every((byte, i) => bytes[i] === byte);
+  return FORMAT_OF_MEDIA_TYPE.get(mediaTypeOf(contentType)) ?? null;
 }
 
 /**
  * Whether an image's bytes start the way its declared format's files do (its
  * magic bytes), so a file can't pass under another format's Content-Type.
- * AVIF is an ISO base media file whose `ftyp` box names `avif` (or `avis`)
- * as its major brand or, after a generic `mif1`/`msf1`, among its compatible
- * brands; HEIC, the same box naming `heic`, doesn't pass.
  */
 export function startsLike(format: ThumbnailImageFormat, bytes: Uint8Array): boolean {
-  switch (format) {
-    case "jpeg":
-      return startsWith(bytes, [0xff, 0xd8, 0xff]);
-    case "png":
-      return startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    case "gif":
-      return ["GIF87a", "GIF89a"].includes(ascii(bytes, 0, 6));
-    case "webp":
-      return ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 12) === "WEBP";
-    case "avif":
-      return isAvif(bytes);
-  }
-}
-
-const AVIF_BRANDS = new Set(["avif", "avis"]);
-
-function isAvif(bytes: Uint8Array): boolean {
-  if (ascii(bytes, 4, 8) !== "ftyp") return false;
-  const major = ascii(bytes, 8, 12);
-  if (AVIF_BRANDS.has(major)) return true;
-  if (major !== "mif1" && major !== "msf1") return false;
-  // The box's size (big-endian, bytes 0–4) bounds its compatible brands, from byte 16.
-  const boxEnd = Math.min(
-    bytes.length,
-    ((bytes[0]! << 24) | (bytes[1]! << 16) | (bytes[2]! << 8) | bytes[3]!) >>> 0,
-  );
-  for (let at = 16; at + 4 <= boxEnd; at += 4) {
-    if (AVIF_BRANDS.has(ascii(bytes, at, at + 4))) return true;
-  }
-  return false;
+  return THUMBNAIL_IMAGE_FORMATS[format].startsLike(bytes);
 }

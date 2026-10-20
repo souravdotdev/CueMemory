@@ -28,11 +28,10 @@ describe("SupabaseThumbnailUrlProvider", () => {
     expect(fake.createSignedUrl).toHaveBeenCalledWith(key, 3600);
   });
 
-  it("fails when Supabase Storage refuses to sign the key", async () => {
+  // One missing object (or a bad key) mustn't break a whole list of cards.
+  it("signs no link when Supabase Storage refuses to sign the key", async () => {
     const fake = storageAnswering({ data: null, error: new Error("Object not found") });
 
-    await expect(new SupabaseThumbnailUrlProvider(fake.storage).resolve(key)).rejects.toThrow(
-      "Object not found",
-    );
+    await expect(new SupabaseThumbnailUrlProvider(fake.storage).resolve(key)).resolves.toBeNull();
   });
 });

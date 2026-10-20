@@ -14,8 +14,6 @@ export const THUMBNAILS_BUCKET = "thumbnails";
  */
 @injectable()
 export class SupabaseThumbnailStore implements IThumbnailStore {
-  readonly keepsThumbnails = true;
-
   // Not injected: the container builds the client from the environment.
   constructor(@unmanaged() private readonly storage: StorageClient) {}
 

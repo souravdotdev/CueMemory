@@ -19,7 +19,6 @@ import { GuardedOEmbedProvider } from "@/infrastructure/http/GuardedOEmbedProvid
 import { SafeUrlFetcher } from "@/infrastructure/http/SafeUrlFetcher";
 import { SharpThumbnailResizer } from "@/infrastructure/images/SharpThumbnailResizer";
 import { DrizzleItemRepository } from "@/infrastructure/repositories/DrizzleItemRepository";
-import { NoThumbnailStore } from "@/infrastructure/storage/NoThumbnailStore";
 import { supabaseStorageEnv } from "@/infrastructure/storage/supabaseEnv";
 import { SupabaseThumbnailStore } from "@/infrastructure/storage/SupabaseThumbnailStore";
 
@@ -50,7 +49,9 @@ export function createContainer(): Container {
     .bind<IThumbnailResizer>(WORKER_TOKENS.ThumbnailResizer)
     .to(SharpThumbnailResizer)
     .inSingletonScope();
-  container.bind<IThumbnailStore>(WORKER_TOKENS.ThumbnailStore).toConstantValue(thumbnailStore());
+  // Without Supabase Storage there's no Thumbnail store, and Processing fetches no image.
+  const store = thumbnailStore();
+  if (store) container.bind<IThumbnailStore>(WORKER_TOKENS.ThumbnailStore).toConstantValue(store);
 
   container
     .bind<ProcessItemUseCase>(WORKER_TOKENS.ProcessItemUseCase)
@@ -66,16 +67,16 @@ export function createContainer(): Container {
 
 /**
  * Supabase Storage when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are
- * set; otherwise the stand-in, so the worker still runs, without Thumbnails.
+ * set; otherwise none, so the worker still runs, without Thumbnails.
  * Just the Storage part of the Supabase client, as in the API (supabase-js
  * also starts Realtime, which needs a native WebSocket); it sends the service
  * role key the way supabase-js does.
  */
-function thumbnailStore(): IThumbnailStore {
+function thumbnailStore(): IThumbnailStore | null {
   const env = supabaseStorageEnv(process.env);
   if (!env) {
     console.warn("[worker] Supabase Storage isn't configured; Items get no Thumbnails");
-    return new NoThumbnailStore();
+    return null;
   }
   const storage = new StorageClient(new URL("storage/v1", env.url).href, {
     apikey: env.serviceRoleKey,

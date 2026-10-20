@@ -4,7 +4,7 @@ import { WORKER_TOKENS } from "@/di/tokens";
 import type { IJsonFetcher } from "@/domain/providers/IJsonFetcher";
 import type { IOEmbedProvider, OEmbed } from "@/domain/providers/IOEmbedProvider";
 import { collapseWhitespace } from "@/domain/rules/collapseWhitespace";
-import { parsedUrl } from "@/domain/rules/parsedUrl";
+import { httpUrl } from "@/domain/rules/parsedUrl";
 
 /**
  * Asks an oEmbed endpoint through the guarded JSON fetch (`IJsonFetcher`,
@@ -25,19 +25,14 @@ export class GuardedOEmbedProvider implements IOEmbedProvider {
     const fields = answer as Record<string, unknown>;
     const type = stringOrNull(fields.type);
     const title = decoded(stringOrNull(fields.title)) ?? quotedText(stringOrNull(fields.html));
-    const thumbnailUrl = httpUrlOrNull(stringOrNull(fields.thumbnail_url));
+    // Only an absolute http(s) URL: the answer has no base to resolve a relative one against.
+    const thumbnailUrl = httpUrl(stringOrNull(fields.thumbnail_url));
     return { type, title, thumbnailUrl };
   }
 }
 
 function stringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
-}
-
-/** The value as an absolute http(s) URL; null for anything else (`data:`, `javascript:`, relative …). */
-function httpUrlOrNull(value: string | null): string | null {
-  const url = value === null ? null : parsedUrl(value.trim());
-  return url && (url.protocol === "https:" || url.protocol === "http:") ? url.href : null;
 }
 
 /**

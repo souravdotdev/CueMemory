@@ -1,4 +1,4 @@
-import { inject, injectable } from "inversify";
+import { inject, injectable, optional } from "inversify";
 import type { ProcessItemResult } from "@/application/dto/items/ProcessItemResult";
 import { WORKER_TOKENS } from "@/di/tokens";
 import {
@@ -6,6 +6,7 @@ import {
   type ItemRef,
   type ItemType,
   NO_METADATA,
+  type ReadyItem,
 } from "@/domain/entities/Item";
 import type { PageHead } from "@/domain/entities/PageHead";
 import type { IImageFetcher } from "@/domain/providers/IImageFetcher";
@@ -50,7 +51,8 @@ import { thumbnailKeyOf } from "@/domain/rules/thumbnailKey";
  * attempts, the Item ends Failed as a Link. An oEmbed call that fails or is
  * refused never fails Processing: the page's other signals decide. Nor does
  * a Thumbnail: a download that is refused or fails, an image that can't be
- * resized, or an upload that fails leaves the Item Ready without one.
+ * resized, or an upload that fails moves on to the next candidate image, and
+ * with none left the Item is Ready without one.
  */
 @injectable()
 export class ProcessItemUseCase {
@@ -60,7 +62,10 @@ export class ProcessItemUseCase {
     @inject(WORKER_TOKENS.OEmbedProvider) private readonly oEmbeds: IOEmbedProvider,
     @inject(WORKER_TOKENS.ImageFetcher) private readonly images: IImageFetcher,
     @inject(WORKER_TOKENS.ThumbnailResizer) private readonly resizer: IThumbnailResizer,
-    @inject(WORKER_TOKENS.ThumbnailStore) private readonly thumbnails: IThumbnailStore,
+    // Unbound without Supabase Storage configured: then no image is fetched.
+    @inject(WORKER_TOKENS.ThumbnailStore)
+    @optional()
+    private readonly thumbnails: IThumbnailStore | null = null,
   ) {}
 
   async execute(ref: ItemRef): Promise<ProcessItemResult> {
@@ -75,16 +80,11 @@ export class ProcessItemUseCase {
       if (typeFromSourceUrl === null) throw error;
       // A known provider still describes a post its site wouldn't serve.
       const answer = await this.ask(knownOEmbedRequestFor(item.sourceUrl));
-      const thumbnailKey = await this.keepThumbnail(
-        ref,
-        thumbnailCandidates({
-          finalUrl: item.sourceUrl,
-          isImage: false,
-          head: null,
-          oEmbedThumbnailUrl: answer?.oEmbed.thumbnailUrl ?? null,
-        }),
-      );
-      return this.ready(ref, typeFromSourceUrl, metadataOf(null, answer), thumbnailKey);
+      return this.ready(ref, {
+        type: typeFromSourceUrl,
+        metadata: metadataOf(null, answer),
+        thumbnailKey: await this.keepThumbnail(ref, item.sourceUrl, false, null, answer),
+      });
     }
 
     const head = page.kind === "html" ? page.head : null;
@@ -92,40 +92,38 @@ export class ProcessItemUseCase {
     const request = page.kind === "file" ? null : oEmbedRequestFor(page.finalUrl, head);
     const answer = await this.ask(request);
     const type = itemTypeOf(typeFromSourceUrl, page, answer);
-    const thumbnailKey = await this.keepThumbnail(
-      ref,
-      thumbnailCandidates({
-        finalUrl: page.finalUrl,
-        isImage: type === "image" && page.kind === "file",
-        head,
-        oEmbedThumbnailUrl: answer?.oEmbed.thumbnailUrl ?? null,
-      }),
-    );
-    return this.ready(ref, type, metadataOf(head, answer), thumbnailKey);
+    const isImage = type === "image" && page.kind === "file";
+    return this.ready(ref, {
+      type,
+      metadata: metadataOf(head, answer),
+      thumbnailKey: await this.keepThumbnail(ref, page.finalUrl, isImage, head, answer),
+    });
   }
 
   /**
-   * Keeps the first candidate image that downloads and resizes as the Item's
-   * card Thumbnail, at its fixed key, and returns that key; null when no
-   * candidate does, when the upload fails, or when there is no Thumbnail
-   * store (then nothing is downloaded at all).
+   * Keeps the first candidate image (thumbnailCandidates) that downloads,
+   * resizes and uploads as the Item's card Thumbnail, at its fixed key, and
+   * returns that key. Any failure moves on to the next candidate; null when
+   * none is kept, or when there is no Thumbnail store (then nothing is
+   * downloaded at all).
    */
-  private async keepThumbnail(ref: ItemRef, candidates: readonly string[]): Promise<string | null> {
-    if (!this.thumbnails.keepsThumbnails) return null;
-    for (const url of candidates) {
-      let thumbnail: Uint8Array;
+  private async keepThumbnail(
+    ref: ItemRef,
+    finalUrl: string,
+    isImage: boolean,
+    head: PageHead | null,
+    answer: OEmbedAnswer | null,
+  ): Promise<string | null> {
+    if (!this.thumbnails) return null;
+    const oEmbedThumbnailUrl = answer?.oEmbed.thumbnailUrl ?? null;
+    const key = thumbnailKeyOf(ref);
+    for (const url of thumbnailCandidates({ finalUrl, isImage, head, oEmbedThumbnailUrl })) {
       try {
-        thumbnail = await this.resizer.toCardThumbnail(await this.images.fetchImage(url));
-      } catch {
-        continue;
-      }
-      const key = thumbnailKeyOf(ref);
-      try {
-        await this.thumbnails.put(key, thumbnail);
+        const image = await this.images.fetchImage(url);
+        await this.thumbnails.put(key, await this.resizer.toCardThumbnail(image));
         return key;
       } catch {
-        // The store is down, not the image: another candidate wouldn't fare better.
-        return null;
+        // Refused, failed, undecodable or not uploaded: try the next candidate.
       }
     }
     return null;
@@ -144,14 +142,9 @@ export class ProcessItemUseCase {
     }
   }
 
-  private async ready(
-    ref: ItemRef,
-    type: ItemType,
-    metadata: ItemMetadata,
-    thumbnailKey: string | null,
-  ): Promise<ProcessItemResult> {
-    await this.items.markReady(ref, type, metadata, thumbnailKey);
-    return { outcome: "ready", type, metadata, thumbnailKey };
+  private async ready(ref: ItemRef, ready: ReadyItem): Promise<ProcessItemResult> {
+    await this.items.markReady(ref, ready);
+    return { outcome: "ready", ...ready };
   }
 }
 

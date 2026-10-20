@@ -53,11 +53,12 @@ describe("the production container", () => {
   });
 
   // Item cards then carry no Thumbnail (toItemCardOutput with no provider).
-  it("binds no Thumbnail provider when Supabase Storage isn't configured", async () => {
-    const { container, tokens } = await productionContainer({
-      SUPABASE_URL: undefined,
-      SUPABASE_SERVICE_ROLE_KEY: undefined,
-    });
+  it.each([
+    ["neither is set", { SUPABASE_URL: undefined, SUPABASE_SERVICE_ROLE_KEY: undefined }],
+    ["only SUPABASE_URL is set", { SUPABASE_SERVICE_ROLE_KEY: "" }],
+    ["only SUPABASE_SERVICE_ROLE_KEY is set", { SUPABASE_URL: undefined }],
+  ])("binds no Thumbnail provider when %s", async (_case, overrides) => {
+    const { container, tokens } = await productionContainer(overrides);
 
     expect(container.isBound(tokens.ThumbnailUrlProvider)).toBe(false);
     expect(container.isBound(tokens.ThumbnailStorage)).toBe(false);

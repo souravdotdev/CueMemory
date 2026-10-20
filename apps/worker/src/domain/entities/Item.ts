@@ -40,3 +40,14 @@ export interface ItemMetadata {
 
 /** No title and no description: the page couldn't be read, or said nothing. */
 export const NO_METADATA: ItemMetadata = { title: null, description: null };
+
+/**
+ * What Processing learned about an Item, written to it in one update when it
+ * becomes Ready: its Item type, title and description, and its Thumbnail key
+ * (null without a Thumbnail).
+ */
+export interface ReadyItem {
+  type: ItemType;
+  metadata: ItemMetadata;
+  thumbnailKey: string | null;
+}

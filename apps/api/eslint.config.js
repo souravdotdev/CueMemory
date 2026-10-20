@@ -13,6 +13,7 @@ const toolImports = [
   { group: ["postgres", "postgres/*"], message: "Postgres belongs in infrastructure." },
   { group: ["ioredis", "ioredis/*"], message: "Redis belongs in infrastructure." },
   { group: ["bullmq", "bullmq/*"], message: "BullMQ belongs in infrastructure." },
+  { group: ["@supabase/*"], message: "Supabase Storage belongs in infrastructure." },
   {
     group: ["@cue-memory/db", "@cue-memory/db/*"],
     message: "The database package belongs in infrastructure.",

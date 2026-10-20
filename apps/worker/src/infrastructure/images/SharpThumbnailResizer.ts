@@ -1,6 +1,7 @@
 import { injectable, unmanaged } from "inversify";
 import sharp from "sharp";
 import type { IThumbnailResizer } from "@/domain/providers/IThumbnailResizer";
+import { isThumbnailImageFormat } from "@/domain/rules/thumbnailImage";
 
 /** A card Thumbnail's widest. */
 export const CARD_THUMBNAIL_WIDTH = 800;
@@ -15,7 +16,7 @@ export interface SharpThumbnailResizerOptions {
 /**
  * Makes card Thumbnails with sharp (libvips). sharp decodes far more than the
  * accepted formats (SVG, TIFF, HEIC …), so anything whose decoded format
- * isn't JPEG, PNG, WebP, GIF or AVIF is refused here too, not only by the
+ * isn't one of them (thumbnailImage.ts) is refused here too, not only by the
  * fetch. The pixel cap is checked against the image's header before any
  * pixel is decoded, so a decompression bomb is refused cheaply; sharp reads
  * only the first frame of an animated image unless asked for more. Output
@@ -45,8 +46,10 @@ export class SharpThumbnailResizer implements IThumbnailResizer {
   }
 }
 
-/** JPEG, PNG, WebP, GIF, or AVIF (HEIF holding AV1; HEIC's HEVC isn't accepted). */
+/**
+ * An accepted Thumbnail image format by sharp's name for it. sharp names AVIF
+ * `heif` with AV1 compression; HEIC's HEVC isn't accepted.
+ */
 function isAcceptedFormat(format: string | undefined, compression: string | undefined): boolean {
-  if (format === "heif") return compression === "av1";
-  return format === "jpeg" || format === "png" || format === "webp" || format === "gif";
+  return isThumbnailImageFormat(format === "heif" && compression === "av1" ? "avif" : format);
 }

@@ -7,6 +7,7 @@ import {
   type ItemRef,
   type ItemType,
   NO_METADATA,
+  type ReadyItem,
 } from "@/domain/entities/Item";
 import type { OEmbedLink, PageHead } from "@/domain/entities/PageHead";
 import type { IOEmbedProvider, OEmbed } from "@/domain/providers/IOEmbedProvider";
@@ -33,11 +34,9 @@ function itemsInMemory(sourceUrl: string) {
   const owns = ({ itemId, userId }: ItemRef) => itemId === item.id && userId === item.userId;
   const repository: IItemRepository = {
     findById: vi.fn(async (ref: ItemRef) => (owns(ref) ? { ...item } : null)),
-    markReady: vi.fn(
-      async (ref: ItemRef, type: ItemType, metadata: ItemMetadata, thumbnailKey: string | null) => {
-        if (owns(ref)) Object.assign(item, { status: "ready", type, ...metadata, thumbnailKey });
-      },
-    ),
+    markReady: vi.fn(async (ref: ItemRef, { type, metadata, thumbnailKey }: ReadyItem) => {
+      if (owns(ref)) Object.assign(item, { status: "ready", type, ...metadata, thumbnailKey });
+    }),
     markFailed: vi.fn(async () => {}),
   };
   return { repository, item };
@@ -161,7 +160,6 @@ function resizerFailing() {
 function thumbnailsInMemory() {
   const objects = new Map<string, Uint8Array>();
   const store = {
-    keepsThumbnails: true,
     put: vi.fn(async (key: string, thumbnail: Uint8Array) => {
       objects.set(key, thumbnail);
     }),
@@ -172,19 +170,18 @@ function thumbnailsInMemory() {
 // A Thumbnail store whose every write fails.
 function thumbnailsFailing() {
   return {
-    keepsThumbnails: true,
     put: vi.fn(async (_key: string, _thumbnail: Uint8Array): Promise<void> => {
       throw new Error("Storage answered 500");
     }),
   } satisfies IThumbnailStore;
 }
 
-// The stand-in without Supabase Storage configured.
-function noThumbnailStore() {
+// A Thumbnail store whose first write fails and whose later writes succeed.
+function thumbnailsFailingOnce() {
+  let writes = 0;
   return {
-    keepsThumbnails: false,
     put: vi.fn(async (_key: string, _thumbnail: Uint8Array): Promise<void> => {
-      throw new Error("No Thumbnail store");
+      if (++writes === 1) throw new Error("Storage answered 500");
     }),
   } satisfies IThumbnailStore;
 }
@@ -192,7 +189,7 @@ function noThumbnailStore() {
 interface ThumbnailPorts {
   images?: IImageFetcher;
   resizer?: IThumbnailResizer;
-  store?: IThumbnailStore;
+  store?: IThumbnailStore | null;
 }
 
 // By default without a Thumbnail store, as the worker runs without Supabase Storage.
@@ -200,11 +197,7 @@ const useCaseFor = (
   repository: IItemRepository,
   fetcher: IUrlFetcher,
   oEmbeds: IOEmbedProvider = oEmbedsFailing(),
-  {
-    images = imagesFailing(),
-    resizer = resizerFailing(),
-    store = noThumbnailStore(),
-  }: ThumbnailPorts = {},
+  { images = imagesFailing(), resizer = resizerFailing(), store = null }: ThumbnailPorts = {},
 ) => new ProcessItemUseCase(repository, fetcher, oEmbeds, images, resizer, store);
 
 const run = (
@@ -329,7 +322,11 @@ describe("ProcessItemUseCase, Item type", () => {
     await result;
 
     expect(item.sourceUrl).toBe("https://bit.ly/3xYz");
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "video", NO_METADATA, null);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, {
+      type: "video",
+      metadata: NO_METADATA,
+      thumbnailKey: null,
+    });
   });
 });
 
@@ -349,7 +346,11 @@ describe("ProcessItemUseCase, title and description", () => {
       metadata,
       thumbnailKey: null,
     });
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "link", metadata, null);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, {
+      type: "link",
+      metadata,
+      thumbnailKey: null,
+    });
     expect(item).toMatchObject({ status: "ready", ...metadata });
   });
 
@@ -385,7 +386,11 @@ describe("ProcessItemUseCase, title and description", () => {
     const { repository, result } = run("https://example.com/paper", fetcherAnswering(page));
 
     await result;
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "pdf", NO_METADATA, null);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, {
+      type: "pdf",
+      metadata: NO_METADATA,
+      thumbnailKey: null,
+    });
   });
 });
 
@@ -601,7 +606,11 @@ describe("ProcessItemUseCase, failed fetches", () => {
         metadata: NO_METADATA,
         thumbnailKey: null,
       });
-      expect(repository.markReady).toHaveBeenCalledWith(REF, "video", NO_METADATA, null);
+      expect(repository.markReady).toHaveBeenCalledWith(REF, {
+        type: "video",
+        metadata: NO_METADATA,
+        thumbnailKey: null,
+      });
       expect(item).toMatchObject({ status: "ready", type: "video", title: null });
     },
   );
@@ -684,7 +693,11 @@ describe("ProcessItemUseCase, Thumbnail", () => {
     expect(objects).toEqual(new Map([[KEY, CARD_THUMBNAIL]]));
     // In the same update as its type, title and description.
     expect(repository.markReady).toHaveBeenCalledTimes(1);
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "image", NO_METADATA, KEY);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, {
+      type: "image",
+      metadata: NO_METADATA,
+      thumbnailKey: KEY,
+    });
     expect(item).toMatchObject({ status: "ready", type: "image", thumbnailKey: KEY });
   });
 
@@ -756,18 +769,20 @@ describe("ProcessItemUseCase, Thumbnail", () => {
       metadata: NO_METADATA,
       thumbnailKey: null,
     });
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "image", NO_METADATA, null);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, {
+      type: "image",
+      metadata: NO_METADATA,
+      thumbnailKey: null,
+    });
     expect(item).toMatchObject({ status: "ready", thumbnailKey: null });
   });
 
   it("downloads no image without a Thumbnail store", async () => {
     const images = imagesAnswering();
-    const store = noThumbnailStore();
-
     const { result } = run("https://example.com/sunset", photo(), undefined, {
       images,
       resizer: resizerAnswering(),
-      store,
+      store: null,
     });
 
     await expect(result).resolves.toMatchObject({
@@ -776,7 +791,6 @@ describe("ProcessItemUseCase, Thumbnail", () => {
       thumbnailKey: null,
     });
     expect(images.fetchImage).not.toHaveBeenCalled();
-    expect(store.put).not.toHaveBeenCalled();
   });
 });
 
@@ -807,7 +821,11 @@ describe("ProcessItemUseCase, a page's Thumbnail", () => {
       thumbnailKey: KEY,
     });
     expect(images.fetchImage).toHaveBeenCalledWith(OG_IMAGE);
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "article", NO_METADATA, KEY);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, {
+      type: "article",
+      metadata: NO_METADATA,
+      thumbnailKey: KEY,
+    });
     expect(item).toMatchObject({ status: "ready", thumbnailKey: KEY });
   });
 
@@ -856,6 +874,23 @@ describe("ProcessItemUseCase, a page's Thumbnail", () => {
     expect(images.fetchImage.mock.calls).toEqual([[OG_IMAGE], [TWITTER_IMAGE]]);
   });
 
+  it("falls through to twitter:image when keeping og:image's Thumbnail fails", async () => {
+    const images = imagesAt(OG_IMAGE, TWITTER_IMAGE);
+    const store = thumbnailsFailingOnce();
+    const page = htmlPage({ "og:image": OG_IMAGE, "twitter:image": TWITTER_IMAGE });
+
+    const { item, result } = run("https://example.com/page", fetcherAnswering(page), undefined, {
+      images,
+      resizer: resizerAnswering(),
+      store,
+    });
+
+    await expect(result).resolves.toMatchObject({ outcome: "ready", thumbnailKey: KEY });
+    expect(images.fetchImage.mock.calls).toEqual([[OG_IMAGE], [TWITTER_IMAGE]]);
+    expect(store.put).toHaveBeenCalledTimes(2);
+    expect(item).toMatchObject({ status: "ready", thumbnailKey: KEY });
+  });
+
   it("resolves a relative og:image against the URL the page was fetched from, after redirects", async () => {
     const images = imagesAt("https://www.example.org/cover.jpg");
     const page = {
@@ -902,7 +937,11 @@ describe("ProcessItemUseCase, a page's Thumbnail", () => {
     );
 
     await expect(result).resolves.toMatchObject({ outcome: "ready", thumbnailKey: null });
-    expect(repository.markReady).toHaveBeenCalledWith(REF, "link", NO_METADATA, null);
+    expect(repository.markReady).toHaveBeenCalledWith(REF, {
+      type: "link",
+      metadata: NO_METADATA,
+      thumbnailKey: null,
+    });
   });
 });
 

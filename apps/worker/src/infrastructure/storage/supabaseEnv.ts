@@ -5,18 +5,22 @@ export interface SupabaseStorageEnv {
   serviceRoleKey: string;
 }
 
+// An optional setting whose empty value (`SUPABASE_URL=` in a .env file) counts as unset.
+const unsetWhenEmpty = <T extends z.ZodType>(value: T) =>
+  z.preprocess((raw) => (raw === "" ? undefined : raw), value.optional());
+
+// The same rules as the API's env.ts. zod's plain url() also accepts "localhost:54321".
 const schema = z.object({
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  SUPABASE_URL: unsetWhenEmpty(z.url({ protocol: /^https?$/ })),
+  SUPABASE_SERVICE_ROLE_KEY: unsetWhenEmpty(z.string()),
 });
 
 /**
  * Supabase Storage's settings from the environment, or null when either is
- * missing (or empty): the worker then runs without Thumbnails. Both set but
- * malformed is a mistake, so it throws at startup instead.
+ * unset (or empty): the worker then runs without Thumbnails. A URL that is set
+ * but isn't an http(s) one is a mistake, so it throws at startup instead.
  */
 export function supabaseStorageEnv(env: NodeJS.ProcessEnv): SupabaseStorageEnv | null {
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return null;
   const parsed = schema.safeParse(env);
   if (!parsed.success) {
     const issues = parsed.error.issues
@@ -24,8 +28,6 @@ export function supabaseStorageEnv(env: NodeJS.ProcessEnv): SupabaseStorageEnv |
       .join("\n");
     throw new Error(`Invalid environment variables in the worker:\n${issues}`);
   }
-  return {
-    url: parsed.data.SUPABASE_URL,
-    serviceRoleKey: parsed.data.SUPABASE_SERVICE_ROLE_KEY,
-  };
+  const { SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey } = parsed.data;
+  return url && serviceRoleKey ? { url, serviceRoleKey } : null;
 }

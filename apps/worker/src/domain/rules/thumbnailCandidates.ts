@@ -1,5 +1,5 @@
 import { metaContent, type PageHead } from "@/domain/entities/PageHead";
-import { parsedUrl } from "@/domain/rules/parsedUrl";
+import { httpUrl } from "@/domain/rules/parsedUrl";
 
 /** What Processing learned about an Item that could offer it a Thumbnail. */
 export interface ThumbnailOffers {
@@ -34,17 +34,8 @@ export function thumbnailCandidates({
   const offered = [oEmbedThumbnailUrl];
   if (head) offered.push(metaContent(head, "og:image"), metaContent(head, "twitter:image"));
   const candidates = offered.flatMap((value) => {
-    const url = absoluteHttpUrl(value, finalUrl);
+    const url = httpUrl(value, finalUrl);
     return url ? [url] : [];
   });
   return [...new Set(candidates)];
-}
-
-/** The offered value made absolute against the page's URL, or null when it is blank or not http(s). */
-function absoluteHttpUrl(value: string | null, base: string): string | null {
-  const trimmed = value?.trim();
-  // A blank value would resolve to the page itself.
-  if (!trimmed) return null;
-  const url = parsedUrl(trimmed, base);
-  return url && (url.protocol === "https:" || url.protocol === "http:") ? url.href : null;
 }

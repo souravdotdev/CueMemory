@@ -2,9 +2,15 @@ import { and, eq } from "drizzle-orm";
 import { inject, injectable } from "inversify";
 import { items } from "@cue-memory/db/schema";
 import { WORKER_TOKENS } from "@/di/tokens";
-import type { Item, ItemMetadata, ItemRef, ItemStatus, ItemType } from "@/domain/entities/Item";
+import type { Item, ItemRef, ItemStatus, ItemType, ReadyItem } from "@/domain/entities/Item";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";
 import type { Database } from "@/infrastructure/database/Database";
+
+/** The `items` columns ending Processing sets: a Failed Item keeps no title, description or Thumbnail key. */
+type FinishedFields = Pick<typeof items.$inferInsert, "title" | "description" | "thumbnailKey"> & {
+  status: ItemStatus;
+  type: ItemType;
+};
 
 /** Items in the `items` table, through Drizzle, always scoped to their User. */
 @injectable()
@@ -26,12 +32,7 @@ export class DrizzleItemRepository implements IItemRepository {
     return row ?? null;
   }
 
-  async markReady(
-    ref: ItemRef,
-    type: ItemType,
-    metadata: ItemMetadata,
-    thumbnailKey: string | null,
-  ): Promise<void> {
+  async markReady(ref: ItemRef, { type, metadata, thumbnailKey }: ReadyItem): Promise<void> {
     await this.finish(ref, { status: "ready", type, ...metadata, thumbnailKey });
   }
 
@@ -39,13 +40,8 @@ export class DrizzleItemRepository implements IItemRepository {
     await this.finish(ref, { status: "failed", type });
   }
 
-  /** Ends the Item's Processing with this status, Item type and (when Ready) metadata and Thumbnail key. */
-  private async finish(
-    ref: ItemRef,
-    fields: { status: ItemStatus; type: ItemType } & Partial<ItemMetadata> & {
-        thumbnailKey?: string | null;
-      },
-  ): Promise<void> {
+  /** Ends the Item's Processing with this status and Item type and, when Ready, the rest it learned. */
+  private async finish(ref: ItemRef, fields: FinishedFields): Promise<void> {
     await this.db
       .update(items)
       .set({ ...fields, updatedAt: new Date() })

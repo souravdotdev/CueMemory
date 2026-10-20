@@ -9,37 +9,31 @@ const origin = httpUrl.refine((value) => URL.canParse(value) && new URL(value).o
   message: "Must be a bare origin, such as https://app.example.com (no path or trailing slash)",
 });
 
-const schema = z
-  .object({
-    PORT: z.coerce.number().int().positive().default(4000),
-    // The interface the server binds to. 0.0.0.0 (every interface) suits containers and hosts;
-    // set 127.0.0.1 locally so only this machine can reach the dev server.
-    HOST: z.string().min(1).default("0.0.0.0"),
-    // Signs and encrypts Sessions and OAuth tokens. Generate with `openssl rand -base64 32`.
-    BETTER_AUTH_SECRET: z.string().min(32),
-    // The API's own public URL; Google redirects back to `${BETTER_AUTH_URL}/api/auth/callback/google`.
-    BETTER_AUTH_URL: httpUrl,
-    GOOGLE_CLIENT_ID: z.string().min(1),
-    GOOGLE_CLIENT_SECRET: z.string().min(1),
-    // The web app's origin: the only one CORS and Better Auth trust.
-    WEB_ORIGIN: origin,
-    // The parent domain web and API share in production (e.g. `cuememory.app`); unset locally.
-    AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
-    // Supabase Storage, where the worker keeps Thumbnails. Both or neither: unset, Item cards
-    // carry no Thumbnail. The service role key bypasses Storage's row-level security; server only.
-    SUPABASE_URL: httpUrl.optional(),
-    SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-  })
-  .superRefine((value, ctx) => {
-    const { SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: key } = value;
-    if (Boolean(url) !== Boolean(key)) {
-      ctx.addIssue({
-        code: "custom",
-        path: [url ? "SUPABASE_SERVICE_ROLE_KEY" : "SUPABASE_URL"],
-        message: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY together, or neither",
-      });
-    }
-  });
+// An optional setting whose empty value (`SUPABASE_URL=` in a .env file) counts as unset.
+const unsetWhenEmpty = <T extends z.ZodType>(value: T) =>
+  z.preprocess((raw) => (raw === "" ? undefined : raw), value.optional());
+
+const schema = z.object({
+  PORT: z.coerce.number().int().positive().default(4000),
+  // The interface the server binds to. 0.0.0.0 (every interface) suits containers and hosts;
+  // set 127.0.0.1 locally so only this machine can reach the dev server.
+  HOST: z.string().min(1).default("0.0.0.0"),
+  // Signs and encrypts Sessions and OAuth tokens. Generate with `openssl rand -base64 32`.
+  BETTER_AUTH_SECRET: z.string().min(32),
+  // The API's own public URL; Google redirects back to `${BETTER_AUTH_URL}/api/auth/callback/google`.
+  BETTER_AUTH_URL: httpUrl,
+  GOOGLE_CLIENT_ID: z.string().min(1),
+  GOOGLE_CLIENT_SECRET: z.string().min(1),
+  // The web app's origin: the only one CORS and Better Auth trust.
+  WEB_ORIGIN: origin,
+  // The parent domain web and API share in production (e.g. `cuememory.app`); unset locally.
+  AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
+  // Supabase Storage, where the worker keeps Thumbnails. Optional, as in the worker: with
+  // either one unset (or empty), Item cards carry no Thumbnail. The service role key bypasses
+  // Storage's row-level security; server only.
+  SUPABASE_URL: unsetWhenEmpty(httpUrl),
+  SUPABASE_SERVICE_ROLE_KEY: unsetWhenEmpty(z.string()),
+});
 
 export type Env = z.infer<typeof schema>;
 

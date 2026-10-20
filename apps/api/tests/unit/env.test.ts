@@ -81,17 +81,28 @@ describe("api env", () => {
     expect(env.SUPABASE_SERVICE_ROLE_KEY).toBe("service-role-key");
   });
 
-  it("refuses a Supabase URL that isn't a URL", async () => {
-    await expect(
-      loadEnv({ SUPABASE_URL: "project.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "key" }),
-    ).rejects.toThrow("SUPABASE_URL");
+  it.each(["project.supabase.co", "ftp://project.supabase.co"])(
+    "refuses a Supabase URL that isn't an http(s) URL (%s)",
+    async (url) => {
+      await expect(
+        loadEnv({ SUPABASE_URL: url, SUPABASE_SERVICE_ROLE_KEY: "key" }),
+      ).rejects.toThrow("SUPABASE_URL");
+    },
+  );
+
+  // As in the worker: an empty value is unset, and half a configuration starts
+  // without Thumbnails (the container binds no Thumbnail provider).
+  it("treats empty Supabase settings as unset", async () => {
+    const env = await loadEnv({ SUPABASE_URL: "", SUPABASE_SERVICE_ROLE_KEY: "" });
+
+    expect(env.SUPABASE_URL).toBeUndefined();
+    expect(env.SUPABASE_SERVICE_ROLE_KEY).toBeUndefined();
   });
 
-  // Half a configuration would silently leave every Thumbnail off.
   it.each([
     ["SUPABASE_URL", { SUPABASE_SERVICE_ROLE_KEY: "service-role-key" }],
     ["SUPABASE_SERVICE_ROLE_KEY", { SUPABASE_URL: "https://project.supabase.co" }],
-  ])("refuses a Supabase Storage configuration missing %s", async (name, overrides) => {
-    await expect(loadEnv(overrides)).rejects.toThrow(name);
+  ])("starts with a Supabase Storage configuration missing %s", async (_name, overrides) => {
+    await expect(loadEnv(overrides)).resolves.toMatchObject(overrides);
   });
 });
