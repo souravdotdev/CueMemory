@@ -35,7 +35,7 @@ What form an Item's content takes: Article, Post, Video, Image, Audio, PDF, Code
 _Avoid_: Category, kind
 
 **Article**:
-The Item type for a written piece: a page that declares itself an article, or a page on a known publishing site such as Medium, Substack or dev.to. Documentation pages are Articles; a docs landing page is a Link.
+The Item type for a written piece: a page that declares itself an article, or a page on a known publishing site such as Medium, Substack or dev.to. Documentation pages and Wikipedia entries are Articles; a docs landing page and Wikipedia's Main Page are Links.
 _Avoid_: Page, blog, blog post
 
 **Post**:

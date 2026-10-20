@@ -190,6 +190,13 @@ export const KNOWN_SITES: readonly KnownSite[] = [
   { hosts: ["linkedin.com"], path: /^\/pulse\/[^/]+/, type: "article" },
   // An arXiv paper's abstract page; its full text is the PDF below.
   { hosts: ["arxiv.org"], path: /^\/abs\/[^/]+/, type: "article" },
+  // An encyclopedia entry, in any language; the Main Page and the other
+  // namespaces (talk, user, category …) are not one.
+  {
+    hosts: ["*.wikipedia.org"],
+    path: /^\/wiki\/(?!Main_Page$|(Special|Talk|User|User_talk|Wikipedia|Help|Portal|Category|File|Template|Draft):)[^/]+$/,
+    type: "article",
+  },
 
   // PDF
   { hosts: ["arxiv.org"], path: /^\/pdf\/[^/]+/, type: "pdf" },
