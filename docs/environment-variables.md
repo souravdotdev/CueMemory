@@ -16,26 +16,26 @@ One Next.js-specific detail: `apps/web/src/env.ts` reads `process.env.NEXT_PUBLI
 
 ## `packages/db/.env`
 
-| Variable       | Purpose                                     | Local dev value                                          |
-| -------------- | ------------------------------------------- | -------------------------------------------------------- |
-| `DATABASE_URL` | Postgres connection string, used by Drizzle | `postgres://postgres:postgres@localhost:5433/cue_memory` |
+| Variable       | Purpose                                     | Local dev value                                        |
+| -------------- | ------------------------------------------- | ------------------------------------------------------ |
+| `DATABASE_URL` | Postgres connection string, used by Drizzle | `postgres://postgres:postgres@localhost:5433/resonory` |
 
 Required for `pnpm db:generate`, `pnpm db:migrate`, `pnpm db:studio`, and any other direct use of `drizzle-kit` in this package.
 
 ## `apps/api/.env`
 
-| Variable               | Purpose                                                                                                                                                                                                              | Local dev value                                          |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `PORT`                 | Port the Fastify server listens on                                                                                                                                                                                   | `4000`                                                   |
-| `HOST`                 | Interface the server binds to; defaults to `0.0.0.0` (every interface, for containers and hosts)                                                                                                                     | `127.0.0.1`                                              |
-| `DATABASE_URL`         | Postgres connection string (via `@cue-memory/db/client`)                                                                                                                                                             | `postgres://postgres:postgres@localhost:5433/cue_memory` |
-| `REDIS_URL`            | Redis connection string (via `@cue-memory/db/redis`, for the rate-limit store)                                                                                                                                       | `redis://localhost:6380`                                 |
-| `BETTER_AUTH_SECRET`   | Signs Sessions and encrypts Sign-in identities' OAuth tokens; at least 32 characters                                                                                                                                 | output of `openssl rand -base64 32`                      |
-| `BETTER_AUTH_URL`      | The API's public URL; Google redirects back to `<BETTER_AUTH_URL>/api/auth/callback/google`                                                                                                                          | `http://localhost:4000`                                  |
-| `GOOGLE_CLIENT_ID`     | Google OAuth web client id                                                                                                                                                                                           | from Google Cloud Console                                |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth web client secret                                                                                                                                                                                       | from Google Cloud Console                                |
-| `WEB_ORIGIN`           | The web app's origin: the only one allowed to call this API with credentials, and the only one Better Auth trusts                                                                                                    | `http://localhost:3000`                                  |
-| `AUTH_COOKIE_DOMAIN`   | Optional. The parent domain web and API share in production (`app.<domain>`/`api.<domain>`), which turns on cross-subdomain Session cookies ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md)) | unset                                                    |
+| Variable               | Purpose                                                                                                                                                                                                              | Local dev value                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `PORT`                 | Port the Fastify server listens on                                                                                                                                                                                   | `4000`                                                 |
+| `HOST`                 | Interface the server binds to; defaults to `0.0.0.0` (every interface, for containers and hosts)                                                                                                                     | `127.0.0.1`                                            |
+| `DATABASE_URL`         | Postgres connection string (via `@cue-memory/db/client`)                                                                                                                                                             | `postgres://postgres:postgres@localhost:5433/resonory` |
+| `REDIS_URL`            | Redis connection string (via `@cue-memory/db/redis`, for the rate-limit store)                                                                                                                                       | `redis://localhost:6380`                               |
+| `BETTER_AUTH_SECRET`   | Signs Sessions and encrypts Sign-in identities' OAuth tokens; at least 32 characters                                                                                                                                 | output of `openssl rand -base64 32`                    |
+| `BETTER_AUTH_URL`      | The API's public URL; Google redirects back to `<BETTER_AUTH_URL>/api/auth/callback/google`                                                                                                                          | `http://localhost:4000`                                |
+| `GOOGLE_CLIENT_ID`     | Google OAuth web client id                                                                                                                                                                                           | from Google Cloud Console                              |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth web client secret                                                                                                                                                                                       | from Google Cloud Console                              |
+| `WEB_ORIGIN`           | The web app's origin: the only one allowed to call this API with credentials, and the only one Better Auth trusts                                                                                                    | `http://localhost:3000`                                |
+| `AUTH_COOKIE_DOMAIN`   | Optional. The parent domain web and API share in production (`app.<domain>`/`api.<domain>`), which turns on cross-subdomain Session cookies ([ADR 0003](./adr/0003-auth-lives-on-the-api-with-subdomain-cookies.md)) | unset                                                  |
 
 For local sign-in, create a Google OAuth **web** client whose authorized redirect URI is `http://localhost:4000/api/auth/callback/google`.
 
@@ -50,7 +50,7 @@ Optional Thumbnail storage, read by the same rules as the worker. With either on
 
 | Variable                    | Purpose                                                                                       | Local dev value                                                   |
 | --------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `DATABASE_URL`              | Postgres connection string, to update item status after processing                            | `postgres://postgres:postgres@localhost:5433/cue_memory`          |
+| `DATABASE_URL`              | Postgres connection string, to update item status after processing                            | `postgres://postgres:postgres@localhost:5433/resonory`            |
 | `REDIS_URL`                 | Redis connection string, to consume queued jobs                                               | `redis://localhost:6380`                                          |
 | `SUPABASE_URL`              | Optional. The Supabase project's URL, for Thumbnails in Storage's private `thumbnails` bucket | `https://<project-ref>.supabase.co` (the dev project's)           |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional. The project's service role key, which the worker uploads Thumbnails with            | from the Supabase dashboard (Project Settings → API Keys, secret) |

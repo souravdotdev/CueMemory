@@ -15,7 +15,7 @@ const validEnv = {
   GOOGLE_CLIENT_ID: "google-client-id",
   GOOGLE_CLIENT_SECRET: "google-client-secret",
   WEB_ORIGIN: "http://localhost:3000",
-  DATABASE_URL: "postgres://postgres:postgres@localhost:5433/cue_memory",
+  DATABASE_URL: "postgres://postgres:postgres@localhost:5433/resonory",
   SUPABASE_URL: "https://project.supabase.co",
   SUPABASE_SERVICE_ROLE_KEY: "service-role-key",
 };

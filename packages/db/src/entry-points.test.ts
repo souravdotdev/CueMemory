@@ -18,7 +18,7 @@ describe("database package entry points", () => {
   });
 
   it("imports the Postgres client without a Redis URL", async () => {
-    vi.stubEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/cue_memory");
+    vi.stubEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/resonory");
     vi.stubEnv("REDIS_URL", undefined);
 
     const { pgClient } = await import("@cue-memory/db/client");

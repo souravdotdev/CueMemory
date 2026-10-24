@@ -10,7 +10,7 @@ vi.mock("@cue-memory/db/redis", () => ({ redisConnection: { stub: "redis connect
 // importing the db client validates DATABASE_URL, so it's stubbed before a fresh
 // copy of the container is imported.
 async function productionContainer() {
-  vi.stubEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/cue_memory");
+  vi.stubEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/resonory");
   vi.resetModules();
   const { createContainer } = await import("@/di/container");
   // The fresh module graph has its own token Symbols.
