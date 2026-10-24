@@ -40,7 +40,7 @@ export async function buildApp(container: Container, options: FastifyServerOptio
     // Required: production binds the shared Redis; only a container that explicitly
     // binds IN_MEMORY_RATE_LIMITS (tests) counts in memory.
     redis: container.get<RateLimitRedis>(TOKENS.RateLimitRedis) ?? undefined,
-    nameSpace: "cue-memory-api-rate-limit-",
+    nameSpace: "resonory-api-rate-limit-",
   });
 
   // Before every other route, and stricter than the global limit above.

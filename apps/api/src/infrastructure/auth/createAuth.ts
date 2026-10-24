@@ -33,7 +33,7 @@ export interface AuthDeps {
  */
 export function createAuth(db: Database, config: AuthConfig, deps: AuthDeps) {
   return betterAuth({
-    appName: "CueMemory",
+    appName: "Resonory",
     secret: config.secret,
     baseURL: config.baseURL,
     trustedOrigins: [config.webOrigin],

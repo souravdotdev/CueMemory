@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FetchedPage } from "@/domain/providers/IUrlFetcher";
-import { SafeUrlFetcher, UrlRefusedError, USER_AGENT } from "@/infrastructure/http/SafeUrlFetcher";
+import { SafeUrlFetcher, UrlRefusedError } from "@/infrastructure/http/SafeUrlFetcher";
 import { at, local, localFetcher, PNG_START, useLocalServer } from "../../../support/localServer";
 
 useLocalServer();
@@ -27,7 +27,7 @@ function firstBytesOf(page: FetchedPage) {
 }
 
 describe("SafeUrlFetcher, allowed fetches", () => {
-  it("fetches an HTML page's head and sends the CueMemory User-Agent", async () => {
+  it("fetches an HTML page's head and sends the Resonory User-Agent", async () => {
     const page = await localFetcher().fetchPage(at("/article"));
 
     expect(page).toEqual({
@@ -36,7 +36,9 @@ describe("SafeUrlFetcher, allowed fetches", () => {
       contentType: "text/html; charset=utf-8",
       head: ARTICLE_TAGS(),
     });
-    expect(local.lastHeaders["user-agent"]).toBe(USER_AGENT);
+    expect(local.lastHeaders["user-agent"]).toBe(
+      "Resonory/1.0 (+link preview; classifies saved links)",
+    );
   });
 
   it("connects only to the checked address (site.test isn't in the real DNS)", async () => {

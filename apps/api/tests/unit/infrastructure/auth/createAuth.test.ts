@@ -29,6 +29,12 @@ function post(auth: ReturnType<typeof buildAuth>, path: string, body: object) {
 }
 
 describe("createAuth", () => {
+  it("names the app Resonory", async () => {
+    const context = await buildAuth().$context;
+
+    expect(context.appName).toBe("Resonory");
+  });
+
   it("offers no sign-in provider other than Google", async () => {
     const res = await post(buildAuth(), "/sign-in/social", { provider: "github" });
 
@@ -71,8 +77,8 @@ describe("createAuth", () => {
   });
 
   it("shares the Session cookie across subdomains when a cookie domain is configured", async () => {
-    const context = await buildAuth({ cookieDomain: "cuememory.app" }).$context;
+    const context = await buildAuth({ cookieDomain: "resonory.com" }).$context;
 
-    expect(context.authCookies.sessionToken.attributes.domain).toBe("cuememory.app");
+    expect(context.authCookies.sessionToken.attributes.domain).toBe("resonory.com");
   });
 });
