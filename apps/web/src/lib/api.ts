@@ -1,10 +1,10 @@
-import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
+import { ErrorResponseSchema } from "@resonory/shared/schemas/common";
 import {
   CreateItemResponseSchema,
   ListItemsResponseSchema,
   type CreateItemResponse,
   type ListItemsResponse,
-} from "@cue-memory/shared/schemas/items";
+} from "@resonory/shared/schemas/items";
 import { env } from "../env";
 
 const API_URL = env.NEXT_PUBLIC_API_URL;

@@ -1,5 +1,5 @@
 import type { User } from "@/domain/entities/User";
-import type { users } from "@cue-memory/db/schema";
+import type { users } from "@resonory/db/schema";
 
 // `emailVerified`/`updatedAt` are better-auth internals with no use case —
 // deliberately dropped here rather than spread, and `image` (the Drizzle key

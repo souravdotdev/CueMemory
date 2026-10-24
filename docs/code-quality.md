@@ -28,7 +28,7 @@ Shared config lives in `packages/eslint-config` (ESLint 9, flat config format):
 - `node-library.js` — thin wrapper around `base.js`; used by `apps/api`, `apps/worker`, and every `packages/*` package
 - `next.js` — `base.js`'s rules plus `eslint-config-next`'s React/JSX-a11y/Next-specific rules (core-web-vitals); used only by `apps/web`
 
-Every package has a short `eslint.config.js` importing the right shared config, and a `lint` script (`eslint .`). `apps/api`'s adds the dependency-rule lint guard: `no-restricted-imports` stops `src/domain/` and `src/application/` from importing Drizzle, Fastify, Better Auth, postgres, ioredis or `@cue-memory/db` (see [Clean Architecture](./clean-architecture.md#lint-guard)).
+Every package has a short `eslint.config.js` importing the right shared config, and a `lint` script (`eslint .`). `apps/api`'s adds the dependency-rule lint guard: `no-restricted-imports` stops `src/domain/` and `src/application/` from importing Drizzle, Fastify, Better Auth, postgres, ioredis or `@resonory/db` (see [Clean Architecture](./clean-architecture.md#lint-guard)).
 
 Also pinned rather than `latest`: `eslint@^9.39.5` and `@eslint/js@^9.39.0` — `eslint-config-next`'s transitive plugins (`eslint-plugin-react`, `eslint-plugin-jsx-a11y`, `eslint-plugin-import`) don't yet declare ESLint 10 as a supported peer.
 

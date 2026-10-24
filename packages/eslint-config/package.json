@@ -1,5 +1,5 @@
 {
-  "name": "@cue-memory/eslint-config",
+  "name": "@resonory/eslint-config",
   "version": "0.0.0",
   "private": true,
   "type": "module",

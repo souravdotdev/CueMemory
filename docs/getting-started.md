@@ -24,10 +24,20 @@ docker compose up -d
 
 This starts:
 
-- **Postgres 16** on `localhost:5433` (db `cue_memory`, user/pass `postgres`/`postgres`)
+- **Postgres 16** on `localhost:5433` (db `resonory`, user/pass `postgres`/`postgres`)
 - **Redis 7** on `localhost:6380`
 
 Stop them with `docker compose down` (add `-v` to also drop the Postgres volume and reset data).
+
+### Switching from the old database name
+
+If you set up local services before the database was renamed from `cue_memory` to `resonory`, your containers still run under the old Compose project. To move over (this starts you on an empty database):
+
+1. `docker compose -p cue-memory down` — stop the old containers
+2. `docker compose up -d` — start the new ones, with a new, empty `resonory_postgres-data` volume
+3. Change the database name at the end of `DATABASE_URL` from `cue_memory` to `resonory` in `apps/api/.env`, `apps/worker/.env` and `packages/db/.env`
+4. `pnpm db:migrate` — apply the migrations to the new database
+5. Optional: `docker volume rm cue-memory_postgres-data` — delete the old volume and its data
 
 ## Environment variables
 
@@ -86,7 +96,7 @@ All of these (except `format`/`format:check`, which run Prettier directly rather
 
 These same checks (plus commit-message linting) also run automatically in CI on every push and PR — see [Code Quality](./code-quality.md#continuous-integration).
 
-`apps/api`/`apps/worker`'s `start` script (`node dist/index.js`) now actually works — `pnpm build` bundles them with `tsup` rather than emitting raw `tsc` output, specifically to solve two compounding problems plain `tsc` couldn't: Node's ESM resolver needs explicit `.js` extensions on relative imports (which the source doesn't have), and every `@cue-memory/*` workspace package is plain TypeScript that was never compiled — plain `node` can't execute it at all, only bundler-based tools (`tsx` in dev, `tsup` in production) can. See [Architecture](./architecture.md#monorepo-layout) for the full explanation.
+`apps/api`/`apps/worker`'s `start` script (`node dist/index.js`) now actually works — `pnpm build` bundles them with `tsup` rather than emitting raw `tsc` output, specifically to solve two compounding problems plain `tsc` couldn't: Node's ESM resolver needs explicit `.js` extensions on relative imports (which the source doesn't have), and every `@resonory/*` workspace package is plain TypeScript that was never compiled — plain `node` can't execute it at all, only bundler-based tools (`tsx` in dev, `tsup` in production) can. See [Architecture](./architecture.md#monorepo-layout) for the full explanation.
 
 ## Smoke-testing the API
 

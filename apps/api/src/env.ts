@@ -26,7 +26,7 @@ const schema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   // The web app's origin: the only one CORS and Better Auth trust.
   WEB_ORIGIN: origin,
-  // The parent domain web and API share in production (e.g. `cuememory.app`); unset locally.
+  // The parent domain web and API share in production (e.g. `resonory.com`); unset locally.
   AUTH_COOKIE_DOMAIN: z.string().min(1).optional(),
   // Supabase Storage, where the worker keeps Thumbnails. Optional, as in the worker: with
   // either one unset (or empty), Item cards carry no Thumbnail. The service role key bypasses

@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { inject, injectable } from "inversify";
-import { items } from "@cue-memory/db/schema";
+import { items } from "@resonory/db/schema";
 import { WORKER_TOKENS } from "@/di/tokens";
 import type { Item, ItemRef, ItemStatus, ItemType, ReadyItem } from "@/domain/entities/Item";
 import type { IItemRepository } from "@/domain/repositories/IItemRepository";

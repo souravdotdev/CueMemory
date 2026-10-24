@@ -1,8 +1,8 @@
-# CueMemory — Product Plan
+# Resonory — Product Plan
 
 ## 1. One-liner
 
-Save anything you find online and forget about it. CueMemory organises it for you and brings it back **when you actually need it**: while you're browsing, searching or working on something related.
+Save anything you find online and forget about it. Resonory organises it for you and brings it back **when you actually need it**: while you're browsing, searching or working on something related.
 
 ## 2. The Problem
 
@@ -14,14 +14,14 @@ Saving isn't the failure. **Retrieval is.** Every existing tool assumes you'll r
 
 ## 3. The Solution
 
-CueMemory is a "save anything, never organise" library (like [mymind](https://mymind.com)) whose core job is **Resurfacing**: bringing forgotten saves back at the right moment. It resurfaces in four distinct ways:
+Resonory is a "save anything, never organise" library (like [mymind](https://mymind.com)) whose core job is **Resurfacing**: bringing forgotten saves back at the right moment. It resurfaces in four distinct ways:
 
-| Form                  | Triggered by                                                | Example                                                                             |
-| --------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| **Cue**               | What you're doing _outside_ CueMemory (searching, browsing) | You search "agile retrospective" and a small card says "You saved 2 things on this" |
-| **Related Items**     | What you're looking at _inside_ CueMemory                   | Opening or saving an Item shows "You saved 3 similar things"                        |
-| **Rediscover digest** | Time                                                        | A weekly email with a handful of forgotten Items worth a second look                |
-| **Reminder**          | A moment _you_ chose                                        | "Remind me about this in 2 weeks"                                                   |
+| Form                  | Triggered by                                               | Example                                                                             |
+| --------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **Cue**               | What you're doing _outside_ Resonory (searching, browsing) | You search "agile retrospective" and a small card says "You saved 2 things on this" |
+| **Related Items**     | What you're looking at _inside_ Resonory                   | Opening or saving an Item shows "You saved 3 similar things"                        |
+| **Rediscover digest** | Time                                                       | A weekly email with a handful of forgotten Items worth a second look                |
+| **Reminder**          | A moment _you_ chose                                       | "Remind me about this in 2 weeks"                                                   |
 
 All four run on one idea: every Item is understood **by meaning** (AI tags plus embeddings), so "agile principles" and "coding principles" are recognised as related even when no words overlap.
 
@@ -41,7 +41,7 @@ No folders, ever: organisation is AI tags plus your own tags. There are no Colle
 
 ## 6. Positioning & Competition
 
-**mymind makes you search. CueMemory finds you.**
+**mymind makes you search. Resonory finds you.**
 
 - **mymind**: the closest product. It has beautiful save-anything and AI tags, it's privacy-first and paid-only. But retrieval is still _pull_: you have to remember to open it and search. There's no contextual resurfacing.
 - **Raindrop.io**: a strong bookmark manager with collections and tags. It has no meaning-based retrieval and no resurfacing.

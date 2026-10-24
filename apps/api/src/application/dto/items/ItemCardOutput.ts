@@ -3,7 +3,7 @@ import type {
   ItemStatus as SharedItemStatus,
   ItemType as SharedItemType,
   TagSource as SharedTagSource,
-} from "@cue-memory/shared/schemas/items";
+} from "@resonory/shared/schemas/items";
 import type { Item, ItemStatus, ItemType } from "@/domain/entities/Item";
 import type { AppliedTag, TagSource } from "@/domain/entities/Tag";
 import type { IThumbnailUrlProvider } from "@/domain/providers/IThumbnailUrlProvider";

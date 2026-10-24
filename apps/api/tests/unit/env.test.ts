@@ -38,9 +38,9 @@ describe("api env", () => {
   });
 
   it("accepts an optional cookie domain", async () => {
-    const env = await loadEnv({ AUTH_COOKIE_DOMAIN: "cuememory.app" });
+    const env = await loadEnv({ AUTH_COOKIE_DOMAIN: "resonory.com" });
 
-    expect(env.AUTH_COOKIE_DOMAIN).toBe("cuememory.app");
+    expect(env.AUTH_COOKIE_DOMAIN).toBe("resonory.com");
   });
 
   it.each(Object.keys(validEnv))("refuses to load when %s is missing", async (name) => {

@@ -1,4 +1,4 @@
-import { ItemCardSchema } from "@cue-memory/shared/schemas/items";
+import { ItemCardSchema } from "@resonory/shared/schemas/items";
 import { describe, expect, it } from "vitest";
 import type { Item } from "@/domain/entities/Item";
 import type { AppliedTag, Tag } from "@/domain/entities/Tag";

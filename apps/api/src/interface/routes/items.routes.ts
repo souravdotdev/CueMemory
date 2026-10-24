@@ -1,6 +1,6 @@
 import type { Container } from "inversify";
 import type { FastifyPluginAsyncZod } from "fastify-type-provider-zod";
-import { CreateItemResponseSchema, CreateItemSchema } from "@cue-memory/shared/schemas/items";
+import { CreateItemResponseSchema, CreateItemSchema } from "@resonory/shared/schemas/items";
 import { TOKENS } from "@/di/tokens";
 import type { ItemsController } from "@/interface/controllers/ItemsController";
 import { authMiddleware } from "@/interface/middleware/auth.middleware";

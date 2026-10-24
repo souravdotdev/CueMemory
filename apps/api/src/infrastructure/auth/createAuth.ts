@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthMiddleware } from "better-auth/api";
-import { accounts, sessions, users, verifications } from "@cue-memory/db/schema";
+import { accounts, sessions, users, verifications } from "@resonory/db/schema";
 import type { Database } from "@/infrastructure/database/Database";
 import { createSignInHook, type AdmitSignIn } from "./signInHook";
 
@@ -33,7 +33,7 @@ export interface AuthDeps {
  */
 export function createAuth(db: Database, config: AuthConfig, deps: AuthDeps) {
   return betterAuth({
-    appName: "CueMemory",
+    appName: "Resonory",
     secret: config.secret,
     baseURL: config.baseURL,
     trustedOrigins: [config.webOrigin],

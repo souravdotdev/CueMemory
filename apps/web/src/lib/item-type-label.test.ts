@@ -1,4 +1,4 @@
-import { ItemTypeSchema } from "@cue-memory/shared/schemas/items";
+import { ItemTypeSchema } from "@resonory/shared/schemas/items";
 import { describe, expect, it } from "vitest";
 import { itemTypeLabel } from "./item-type-label";
 

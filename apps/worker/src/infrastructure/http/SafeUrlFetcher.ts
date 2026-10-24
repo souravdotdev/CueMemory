@@ -21,7 +21,7 @@ import { parsePageHead } from "@/infrastructure/http/parsePageHead";
 import { isPublicAddress } from "@/infrastructure/http/publicAddress";
 import { readBody } from "@/infrastructure/http/readBody";
 
-export const USER_AGENT = "CueMemory/1.0 (+link preview; classifies saved links)";
+export const USER_AGENT = "Resonory/1.0 (+link preview; classifies saved links)";
 
 export interface ResolvedAddress {
   address: string;

@@ -1,5 +1,5 @@
 {
-  "extends": "@cue-memory/typescript-config/nextjs.json",
+  "extends": "@resonory/typescript-config/nextjs.json",
   "compilerOptions": {
     "paths": {
       "@/*": ["./src/*"]

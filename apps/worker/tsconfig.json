@@ -1,5 +1,5 @@
 {
-  "extends": "@cue-memory/typescript-config/library.json",
+  "extends": "@resonory/typescript-config/library.json",
   "compilerOptions": {
     "outDir": "dist",
     // InversifyJS's @injectable/@inject are legacy (parameter) decorators.

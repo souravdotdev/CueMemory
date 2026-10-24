@@ -18,10 +18,10 @@ describe("database package entry points", () => {
   });
 
   it("imports the Postgres client without a Redis URL", async () => {
-    vi.stubEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/cue_memory");
+    vi.stubEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5433/resonory");
     vi.stubEnv("REDIS_URL", undefined);
 
-    const { pgClient } = await import("@cue-memory/db/client");
+    const { pgClient } = await import("@resonory/db/client");
 
     expect(pgClient).toBeDefined();
   });
@@ -30,7 +30,7 @@ describe("database package entry points", () => {
     vi.stubEnv("REDIS_URL", "redis://localhost:6380");
     vi.stubEnv("DATABASE_URL", undefined);
 
-    const { redisConnection } = await import("@cue-memory/db/redis");
+    const { redisConnection } = await import("@resonory/db/redis");
 
     expect(redisConnection).toBeDefined();
   });
@@ -38,12 +38,12 @@ describe("database package entry points", () => {
   it("refuses to load the Postgres client without a valid database URL", async () => {
     vi.stubEnv("DATABASE_URL", "not a url");
 
-    await expect(import("@cue-memory/db/client")).rejects.toThrow(/DATABASE_URL/);
+    await expect(import("@resonory/db/client")).rejects.toThrow(/DATABASE_URL/);
   });
 
   it("refuses to load the Redis connection without a valid Redis URL", async () => {
     vi.stubEnv("REDIS_URL", undefined);
 
-    await expect(import("@cue-memory/db/redis")).rejects.toThrow(/REDIS_URL/);
+    await expect(import("@resonory/db/redis")).rejects.toThrow(/REDIS_URL/);
   });
 });

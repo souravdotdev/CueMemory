@@ -9,6 +9,6 @@ export default defineConfig({
   sourcemap: true,
   // See apps/api/tsup.config.ts for the full rationale — same setup here.
   // esbuild reads the `@/` alias from tsconfig.json.
-  noExternal: [/^@cue-memory\//],
+  noExternal: [/^@resonory\//],
   skipNodeModulesBundle: true,
 });

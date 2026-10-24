@@ -1,3 +1,3 @@
-import { reactConfig } from "@cue-memory/vitest-config/react";
+import { reactConfig } from "@resonory/vitest-config/react";
 
 export default reactConfig;

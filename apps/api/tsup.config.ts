@@ -7,15 +7,15 @@ export default defineConfig({
   platform: "node",
   clean: true,
   sourcemap: true,
-  // Bundle the internal @cue-memory/* workspace packages — they're plain
+  // Bundle the internal @resonory/* workspace packages — they're plain
   // TypeScript source, never compiled to JS, and plain `node dist/index.js`
   // can't execute them at runtime unlike tsx's esbuild-based dev resolution.
   // skipNodeModulesBundle flips the default the other way: everything else
   // resolved from node_modules — including transitive deps pulled in only
   // through those workspace packages (ioredis, postgres via
-  // @cue-memory/db, invisible to tsup's own package.json-based
+  // @resonory/db, invisible to tsup's own package.json-based
   // auto-external detection) — stays external automatically, rather than
   // needing every transitive dependency hand-listed.
-  noExternal: [/^@cue-memory\//],
+  noExternal: [/^@resonory\//],
   skipNodeModulesBundle: true,
 });

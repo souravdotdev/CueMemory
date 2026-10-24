@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/postgres-js";
-import { pgClient } from "@cue-memory/db/client";
-import * as schema from "@cue-memory/db/schema";
+import { pgClient } from "@resonory/db/client";
+import * as schema from "@resonory/db/schema";
 import type { Database } from "./Database";
 
 /**

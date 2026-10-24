@@ -1,5 +1,5 @@
 import "reflect-metadata";
-import { MeResponseSchema } from "@cue-memory/shared/schemas/auth";
+import { MeResponseSchema } from "@resonory/shared/schemas/auth";
 import { describe, expect, it } from "vitest";
 import { GetMeUseCase } from "@/application/use-cases/auth/GetMeUseCase";
 import type { User } from "@/domain/entities/User";

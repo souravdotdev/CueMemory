@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
-import { CreateItemResponseSchema } from "@cue-memory/shared/schemas/items";
+import { CreateItemResponseSchema } from "@resonory/shared/schemas/items";
 import { SaveItemUseCase } from "@/application/use-cases/items/SaveItemUseCase";
 import type { Item } from "@/domain/entities/Item";
 import type { IQueueProvider } from "@/domain/providers/IQueueProvider";

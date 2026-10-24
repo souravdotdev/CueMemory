@@ -1,7 +1,7 @@
 import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
 import { Container } from "inversify";
-import { ErrorResponseSchema } from "@cue-memory/shared/schemas/common";
+import { ErrorResponseSchema } from "@resonory/shared/schemas/common";
 import { buildApp } from "@/app";
 import { TOKENS } from "@/di/tokens";
 import type { Env } from "@/env";

@@ -1,5 +1,5 @@
 import type { Tag, TagLink } from "@/domain/entities/Tag";
-import type { itemTags, tags } from "@cue-memory/db/schema";
+import type { itemTags, tags } from "@resonory/db/schema";
 
 // Dates pass through unchanged; ISO strings are the Item card output's job (see ADR 0001).
 export function toTag(row: typeof tags.$inferSelect): Tag {

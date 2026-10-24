@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues and specs live in GitHub Issues (souravdotdev/CueMemory), managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues and specs live in GitHub Issues (souravdotdev/Resonory), managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

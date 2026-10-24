@@ -1,6 +1,6 @@
 # Documentation
 
-Reference docs for the `cue-memory` monorepo, covering what's been set up and why.
+Reference docs for the `resonory` monorepo, covering what's been set up and why.
 
 - [Architecture](./architecture.md) — monorepo layout, tech stack, and the architectural pattern in use
 - [Clean Architecture](./clean-architecture.md) — the API's layers (domain/application/interface/infrastructure), the DI container, and where new code should go

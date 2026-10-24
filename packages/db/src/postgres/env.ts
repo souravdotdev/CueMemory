@@ -10,7 +10,7 @@ if (!parsed.success) {
   const issues = parsed.error.issues
     .map((issue) => `  - ${issue.path.join(".")}: ${issue.message}`)
     .join("\n");
-  throw new Error(`Invalid environment variables in @cue-memory/db:\n${issues}`);
+  throw new Error(`Invalid environment variables in @resonory/db:\n${issues}`);
 }
 
 export const dbEnv = parsed.data;

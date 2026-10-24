@@ -1,13 +1,13 @@
 # Items
 
-What Users save into CueMemory and how CueMemory makes sense of it.
+What Users save into Resonory and how Resonory makes sense of it.
 
 ## Language
 
 ### Items
 
 **Item**:
-A link a User saved into CueMemory, together with what CueMemory learned about it.
+A link a User saved into Resonory, together with what Resonory learned about it.
 _Avoid_: Bookmark, save, entry, note
 
 **Source URL**:
@@ -15,7 +15,7 @@ The address the User pasted to create an Item.
 _Avoid_: Link, original URL
 
 **Thumbnail**:
-The picture CueMemory keeps for an Item, copied from what its page or provider offers as its preview; for an Image, the image itself. Some Items have none.
+The picture Resonory keeps for an Item, copied from what its page or provider offers as its preview; for an Image, the image itself. Some Items have none.
 _Avoid_: Cover, preview image, OG image
 
 ### Tags
@@ -25,7 +25,7 @@ A short topic name a User organises their Items by. Every User has their own Tag
 _Avoid_: Label, category, folder, collection
 
 **Tag source**:
-Who put a Tag on a particular Item: CueMemory's AI or the User. The same Tag can come from the AI on one Item and from the User on another.
+Who put a Tag on a particular Item: Resonory's AI or the User. The same Tag can come from the AI on one Item and from the User on another.
 _Avoid_: AI-generated flag, origin
 
 ### Item types
@@ -73,7 +73,7 @@ _Avoid_: Other, generic, unknown
 ### Processing
 
 **Processing**:
-The work CueMemory does after an Item is saved to learn its type, title, description, thumbnail, and text.
+The work Resonory does after an Item is saved to learn its type, title, description, thumbnail, and text.
 _Avoid_: Ingestion, enrichment, parsing
 
 **Ready**:
@@ -91,11 +91,11 @@ Bringing a forgotten Item back to the User at a moment it's likely to be useful.
 _Avoid_: Recommendation, feed
 
 **Cue**:
-A Resurfacing triggered by what the User is doing outside CueMemory, such as a search they typed or a page they're reading.
+A Resurfacing triggered by what the User is doing outside Resonory, such as a search they typed or a page they're reading.
 _Avoid_: Nudge, suggestion, notification, reminder
 
 **Related Items**:
-Items similar in meaning to the one the User is looking at inside CueMemory.
+Items similar in meaning to the one the User is looking at inside Resonory.
 _Avoid_: Recommendations, similar posts
 
 **Rediscover digest**:

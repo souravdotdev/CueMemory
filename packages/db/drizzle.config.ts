@@ -1,5 +1,5 @@
 import { defineConfig } from "drizzle-kit";
-import { dbEnv } from "@cue-memory/db/client";
+import { dbEnv } from "@resonory/db/client";
 
 export default defineConfig({
   schema: "./src/schema/index.ts",

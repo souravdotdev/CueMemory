@@ -1,4 +1,4 @@
-name: cue-memory
+name: resonory
 
 services:
   postgres:
@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: cue_memory
+      POSTGRES_DB: resonory
     ports:
       - "5433:5432"
     volumes:

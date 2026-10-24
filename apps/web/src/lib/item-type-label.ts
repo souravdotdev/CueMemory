@@ -1,4 +1,4 @@
-import type { ItemType } from "@cue-memory/shared/schemas/items";
+import type { ItemType } from "@resonory/shared/schemas/items";
 
 const LABELS: Record<ItemType, string> = {
   article: "Article",

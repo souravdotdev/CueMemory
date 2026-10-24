@@ -1,4 +1,4 @@
-import { itemStatusEnum, itemTypeEnum } from "@cue-memory/db/schema";
+import { itemStatusEnum, itemTypeEnum } from "@resonory/db/schema";
 import { describe, expect, it } from "vitest";
 import { ITEM_STATUSES, ITEM_TYPES } from "@/domain/entities/Item";
 

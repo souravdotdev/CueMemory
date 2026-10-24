@@ -27,7 +27,7 @@ function firstBytesOf(page: FetchedPage) {
 }
 
 describe("SafeUrlFetcher, allowed fetches", () => {
-  it("fetches an HTML page's head and sends the CueMemory User-Agent", async () => {
+  it("fetches an HTML page's head and sends the Resonory User-Agent", async () => {
     const page = await localFetcher().fetchPage(at("/article"));
 
     expect(page).toEqual({

@@ -1,7 +1,7 @@
 import { UnrecoverableError } from "bullmq";
 import type { Container } from "inversify";
 import { z } from "zod";
-import { ProcessItemJobSchema } from "@cue-memory/shared/schemas/queue";
+import { ProcessItemJobSchema } from "@resonory/shared/schemas/queue";
 import type { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
 import { WORKER_TOKENS } from "@/di/tokens";
 

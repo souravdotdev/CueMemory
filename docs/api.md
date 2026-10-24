@@ -10,10 +10,10 @@ Today the API serves `GET /health`, Better Auth's routes under `/api/auth/*`, `G
 
 Every request and response between `apps/web` and `apps/api` is defined once, as a zod schema in `packages/shared` (see [ADR 0001](./adr/0001-shared-zod-contracts-package.md)). The package depends only on zod and has one entry point per context:
 
-- `@cue-memory/shared/schemas/common`: shared shapes, such as the error envelope (`ErrorResponseSchema`).
-- `@cue-memory/shared/schemas/auth`: the signed-in User (`MeResponseSchema`).
-- `@cue-memory/shared/schemas/items`: Item shapes, such as the create-Item input (`CreateItemSchema`) and the Item card (`ItemCardSchema`).
-- `@cue-memory/shared/schemas/queue`: not HTTP, but the API ↔ worker contract: the Items queue name, the Process Item job name and its payload (see [Queue](./queue.md)).
+- `@resonory/shared/schemas/common`: shared shapes, such as the error envelope (`ErrorResponseSchema`).
+- `@resonory/shared/schemas/auth`: the signed-in User (`MeResponseSchema`).
+- `@resonory/shared/schemas/items`: Item shapes, such as the create-Item input (`CreateItemSchema`) and the Item card (`ItemCardSchema`).
+- `@resonory/shared/schemas/queue`: not HTTP, but the API ↔ worker contract: the Items queue name, the Process Item job name and its payload (see [Queue](./queue.md)).
 
 Naming: zod schemas end in `Schema` and their inferred TypeScript types drop the suffix (for example `CreateItemSchema` / `CreateItemInput`, `ItemCardSchema` / `ItemCard`). A plain `Item` is always the domain entity in `apps/api/src/domain/entities`, never a wire shape.
 
@@ -50,7 +50,7 @@ app.post(
 
 ## Error envelope
 
-Every API error is sent in one envelope (`ErrorResponseSchema` in `@cue-memory/shared/schemas/common`), so the web app can handle errors in one place:
+Every API error is sent in one envelope (`ErrorResponseSchema` in `@resonory/shared/schemas/common`), so the web app can handle errors in one place:
 
 ```json
 { "error": { "code": "validation_failed", "message": "The request is invalid", "details": [] } }
@@ -119,7 +119,7 @@ The web app's requests (`apps/web/src/lib/api.ts`) send the Session cookie with 
 
 ### `GET /me`
 
-The signed-in User, in `MeResponseSchema` (`@cue-memory/shared/schemas/auth`). Protected by the auth middleware. Served by `meRoutes` → `MeController` → `GetMeUseCase`, which turns the domain User into `MeOutput`.
+The signed-in User, in `MeResponseSchema` (`@resonory/shared/schemas/auth`). Protected by the auth middleware. Served by `meRoutes` → `MeController` → `GetMeUseCase`, which turns the domain User into `MeOutput`.
 
 ```
 200 OK

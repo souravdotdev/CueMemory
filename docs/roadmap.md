@@ -1,6 +1,6 @@
 # Feature Roadmap
 
-Versions match the [product plan](../product-plan.md). CueMemory is a mymind-style "save anything, never organise" library whose differentiator is **Resurfacing**: bringing forgotten saves back when they're relevant.
+Versions match the [product plan](../product-plan.md). Resonory is a mymind-style "save anything, never organise" library whose differentiator is **Resurfacing**: bringing forgotten saves back when they're relevant.
 
 ## V1 — Launch (web app)
 

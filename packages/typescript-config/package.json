@@ -1,5 +1,5 @@
 {
-  "name": "@cue-memory/typescript-config",
+  "name": "@resonory/typescript-config",
   "version": "0.0.0",
   "private": true,
   "exports": {

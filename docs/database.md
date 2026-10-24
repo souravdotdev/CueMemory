@@ -1,6 +1,6 @@
 # Database
 
-Postgres, accessed through [Drizzle ORM](https://orm.drizzle.team) via the `postgres` (postgres.js) driver. `packages/db` owns all of it: the Drizzle schema for every table in `packages/db/src/schema/` (`auth.ts`, `items.ts`, `tags.ts`, `relations.ts`, exported together as `@cue-memory/db/schema`), the drizzle-kit config and migrations, and the raw connection (`pgClient`, `@cue-memory/db/client`, in `packages/db/src/postgres/client.ts`). The schema entry point is side-effect free (it validates no environment), so tests can import the tables without a database. `apps/api` wraps the connection in one `drizzle(pgClient, { schema })` instance (`apps/api/src/infrastructure/database/db.ts`).
+Postgres, accessed through [Drizzle ORM](https://orm.drizzle.team) via the `postgres` (postgres.js) driver. `packages/db` owns all of it: the Drizzle schema for every table in `packages/db/src/schema/` (`auth.ts`, `items.ts`, `tags.ts`, `relations.ts`, exported together as `@resonory/db/schema`), the drizzle-kit config and migrations, and the raw connection (`pgClient`, `@resonory/db/client`, in `packages/db/src/postgres/client.ts`). The schema entry point is side-effect free (it validates no environment), so tests can import the tables without a database. `apps/api` wraps the connection in one `drizzle(pgClient, { schema })` instance (`apps/api/src/infrastructure/database/db.ts`).
 
 ## Schema
 
@@ -56,20 +56,20 @@ pnpm db:reset      # LOCAL ONLY: drop every table, enum and drizzle's migration 
 
 `db:reset` (`packages/db/scripts/reset.ts`) drops and recreates the `public` schema and drops the `drizzle` schema, in one transaction. It refuses to run unless the `DATABASE_URL` host is `localhost`, `127.0.0.1` or `::1`. After a reset, `pnpm db:migrate` rebuilds the database from whatever is in `packages/db/migrations/`.
 
-These are all `turbo run <task> --filter=@cue-memory/db` under the hood (see root `package.json`). Requires `packages/db/.env` to be set — see [Environment Variables](./environment-variables.md).
+These are all `turbo run <task> --filter=@resonory/db` under the hood (see root `package.json`). Requires `packages/db/.env` to be set — see [Environment Variables](./environment-variables.md).
 
-**Workflow when you change the schema**: edit the table files in `packages/db/src/schema/` (and, for an Items enum or the Tag name rule, the matching domain constant in `apps/api`, or the schema-agreement test fails) → `pnpm --filter @cue-memory/db exec drizzle-kit generate --name <what_it_does>` (review the generated SQL in `packages/db/migrations/`) → `pnpm db:migrate` → commit the new migration files alongside the schema change. Never hand-edit generated migration files after they've been applied anywhere — generate a new one instead.
+**Workflow when you change the schema**: edit the table files in `packages/db/src/schema/` (and, for an Items enum or the Tag name rule, the matching domain constant in `apps/api`, or the schema-agreement test fails) → `pnpm --filter @resonory/db exec drizzle-kit generate --name <what_it_does>` (review the generated SQL in `packages/db/migrations/`) → `pnpm db:migrate` → commit the new migration files alongside the schema change. Never hand-edit generated migration files after they've been applied anywhere — generate a new one instead.
 
 **Name every migration after what it does** (e.g. `0001_create_items_table`, `0002_create_tags_and_item_tags`) by passing `--name`, instead of keeping drizzle-kit's random names like `0001_right_electro`. A random name can still be fixed before the migration is committed: rename the `.sql` file and its `tag` in `meta/_journal.json`. Drizzle tracks applied migrations by content hash and timestamp, not by name.
 
 ## Querying from apps
 
-Per [Clean Architecture](./clean-architecture.md#the-dependency-rule), only `apps/api`'s infrastructure layer touches Drizzle and `@cue-memory/db`; a lint rule stops `domain/` and `application/` from importing them. A repository in `apps/api/src/infrastructure/repositories/` implements a port from `domain/repositories/` and is the only place Drizzle query syntax appears for its entity. It receives the `Database` handle (`PostgresJsDatabase` over `@cue-memory/db/schema`, typed in `infrastructure/database/Database.ts`) by injection, and imports its tables from `@cue-memory/db/schema`:
+Per [Clean Architecture](./clean-architecture.md#the-dependency-rule), only `apps/api`'s infrastructure layer touches Drizzle and `@resonory/db`; a lint rule stops `domain/` and `application/` from importing them. A repository in `apps/api/src/infrastructure/repositories/` implements a port from `domain/repositories/` and is the only place Drizzle query syntax appears for its entity. It receives the `Database` handle (`PostgresJsDatabase` over `@resonory/db/schema`, typed in `infrastructure/database/Database.ts`) by injection, and imports its tables from `@resonory/db/schema`:
 
 ```ts
 import { eq } from "drizzle-orm";
 import { inject, injectable } from "inversify";
-import { users } from "@cue-memory/db/schema";
+import { users } from "@resonory/db/schema";
 import { TOKENS } from "@/di/tokens";
 import type { User } from "@/domain/entities/User";
 import type { IUserRepository } from "@/domain/repositories/IUserRepository";

@@ -1,11 +1,11 @@
 # Auth
 
-Identity for CueMemory: who a User is, how they sign in, and what happens when they leave.
+Identity for Resonory: who a User is, how they sign in, and what happens when they leave.
 
 ## Language
 
 **User**:
-A person who has signed in to CueMemory and owns everything they save.
+A person who has signed in to Resonory and owns everything they save.
 _Avoid_: Account, member, customer
 
 **Sign-in identity**:
@@ -17,7 +17,7 @@ The human-readable name shown for a User, taken from their sign-in provider. Not
 _Avoid_: Username, handle
 
 **User deletion**:
-A User's request to leave CueMemory. It ends all of their Sessions, can be undone by a User restore during the Grace period, and becomes permanent after it. "Delete my account" may still appear as UI copy.
+A User's request to leave Resonory. It ends all of their Sessions, can be undone by a User restore during the Grace period, and becomes permanent after it. "Delete my account" may still appear as UI copy.
 _Avoid_: Account deletion, deactivation, closing an account
 
 **User restore**:

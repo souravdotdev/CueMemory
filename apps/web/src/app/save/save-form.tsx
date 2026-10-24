@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button } from "@cue-memory/ui/button";
-import { CreateItemSchema } from "@cue-memory/shared/schemas/items";
+import { Button } from "@resonory/ui/button";
+import { CreateItemSchema } from "@resonory/shared/schemas/items";
 import { createItem } from "@/lib/api";
 
 export function SaveForm() {

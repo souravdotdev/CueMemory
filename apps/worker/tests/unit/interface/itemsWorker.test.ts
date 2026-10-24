@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { UnrecoverableError } from "bullmq";
 import { Container } from "inversify";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PROCESS_ITEM_JOB } from "@cue-memory/shared/schemas/queue";
+import { PROCESS_ITEM_JOB } from "@resonory/shared/schemas/queue";
 import type { ProcessItemResult } from "@/application/dto/items/ProcessItemResult";
 import type { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
 import { WORKER_TOKENS } from "@/di/tokens";

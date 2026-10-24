@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { mergeConfig } from "vitest/config";
-import { reactConfig } from "@cue-memory/vitest-config/react";
+import { reactConfig } from "@resonory/vitest-config/react";
 
 export default mergeConfig(reactConfig, {
   resolve: {

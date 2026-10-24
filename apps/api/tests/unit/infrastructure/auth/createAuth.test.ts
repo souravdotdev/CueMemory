@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { drizzle } from "drizzle-orm/postgres-js";
-import * as schema from "@cue-memory/db/schema";
+import * as schema from "@resonory/db/schema";
 import { createAuth, type AuthConfig, type AuthDeps } from "@/infrastructure/auth/createAuth";
 
 const config: AuthConfig = {
@@ -71,8 +71,8 @@ describe("createAuth", () => {
   });
 
   it("shares the Session cookie across subdomains when a cookie domain is configured", async () => {
-    const context = await buildAuth({ cookieDomain: "cuememory.app" }).$context;
+    const context = await buildAuth({ cookieDomain: "resonory.com" }).$context;
 
-    expect(context.authCookies.sessionToken.attributes.domain).toBe("cuememory.app");
+    expect(context.authCookies.sessionToken.attributes.domain).toBe("resonory.com");
   });
 });
