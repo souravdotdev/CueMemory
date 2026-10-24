@@ -29,7 +29,7 @@
     "@resonory/vitest-config": "workspace:*",
     "@types/node": "^26.5.1",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^9.39.5",
+    "eslint": "^10.12.0",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "vitest": "^5.0.1"
