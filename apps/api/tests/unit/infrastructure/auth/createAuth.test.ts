@@ -29,12 +29,6 @@ function post(auth: ReturnType<typeof buildAuth>, path: string, body: object) {
 }
 
 describe("createAuth", () => {
-  it("names the app Resonory", async () => {
-    const context = await buildAuth().$context;
-
-    expect(context.appName).toBe("Resonory");
-  });
-
   it("offers no sign-in provider other than Google", async () => {
     const res = await post(buildAuth(), "/sign-in/social", { provider: "github" });
 

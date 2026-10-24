@@ -34,7 +34,7 @@ Stop them with `docker compose down` (add `-v` to also drop the Postgres volume 
 If you set up local services before the database was renamed from `cue_memory` to `resonory`, your containers still run under the old Compose project. To move over (this starts you on an empty database):
 
 1. `docker compose -p cue-memory down` — stop the old containers
-2. `docker compose up -d` — starts the new ones, with a new, empty `resonory_postgres-data` volume
+2. `docker compose up -d` — start the new ones, with a new, empty `resonory_postgres-data` volume
 3. Change the database name at the end of `DATABASE_URL` from `cue_memory` to `resonory` in `apps/api/.env`, `apps/worker/.env` and `packages/db/.env`
 4. `pnpm db:migrate` — apply the migrations to the new database
 5. Optional: `docker volume rm cue-memory_postgres-data` — delete the old volume and its data
