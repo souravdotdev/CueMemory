@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
-import { PROCESS_ITEM_JOB } from "@cue-memory/shared/schemas/queue";
+import { PROCESS_ITEM_JOB } from "@resonory/shared/schemas/queue";
 import { BullMqQueueProvider, type ItemsQueue } from "@/infrastructure/queue/BullMqQueueProvider";
 
 const job = {

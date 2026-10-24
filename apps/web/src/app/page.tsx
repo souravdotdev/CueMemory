@@ -1,4 +1,4 @@
-import { Card } from "@cue-memory/ui/card";
+import { Card } from "@resonory/ui/card";
 import { fetchItems } from "@/lib/api";
 import { itemTypeLabel } from "@/lib/item-type-label";
 

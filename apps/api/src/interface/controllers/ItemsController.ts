@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { inject, injectable } from "inversify";
-import type { CreateItemInput } from "@cue-memory/shared/schemas/items";
+import type { CreateItemInput } from "@resonory/shared/schemas/items";
 import type { ItemCardOutput } from "@/application/dto/items/ItemCardOutput";
 import type { SaveItemUseCase } from "@/application/use-cases/items/SaveItemUseCase";
 import { TOKENS } from "@/di/tokens";

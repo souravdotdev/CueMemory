@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { inject, injectable } from "inversify";
-import { users } from "@cue-memory/db/schema";
+import { users } from "@resonory/db/schema";
 import { TOKENS } from "@/di/tokens";
 import type { User } from "@/domain/entities/User";
 import type { IUserRepository, UserSignInChanges } from "@/domain/repositories/IUserRepository";

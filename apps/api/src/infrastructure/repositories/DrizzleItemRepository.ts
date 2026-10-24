@@ -1,6 +1,6 @@
 import { getTableColumns } from "drizzle-orm";
 import { inject, injectable } from "inversify";
-import { items } from "@cue-memory/db/schema";
+import { items } from "@resonory/db/schema";
 import { TOKENS } from "@/di/tokens";
 import type { Item } from "@/domain/entities/Item";
 import type { IItemRepository, NewItem } from "@/domain/repositories/IItemRepository";

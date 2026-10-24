@@ -1,6 +1,6 @@
 import { Queue } from "bullmq";
-import { redisConnection } from "@cue-memory/db/redis";
-import { ITEMS_QUEUE } from "@cue-memory/shared/schemas/queue";
+import { redisConnection } from "@resonory/db/redis";
+import { ITEMS_QUEUE } from "@resonory/shared/schemas/queue";
 
 /**
  * The BullMQ Items queue, on the shared Redis connection (BullMQ needs its

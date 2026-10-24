@@ -1,5 +1,5 @@
 import type { Container } from "inversify";
-import { PROCESS_ITEM_JOB } from "@cue-memory/shared/schemas/queue";
+import { PROCESS_ITEM_JOB } from "@resonory/shared/schemas/queue";
 import { processItem } from "@/interface/processors/processItem.processor";
 import { processItemFailed } from "@/interface/processors/processItemFailed.processor";
 

@@ -12,17 +12,17 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cue-memory/shared": "workspace:*",
-    "@cue-memory/ui": "workspace:*",
+    "@resonory/shared": "workspace:*",
+    "@resonory/ui": "workspace:*",
     "next": "^16.3.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@cue-memory/eslint-config": "workspace:*",
-    "@cue-memory/typescript-config": "workspace:*",
-    "@cue-memory/vitest-config": "workspace:*",
+    "@resonory/eslint-config": "workspace:*",
+    "@resonory/typescript-config": "workspace:*",
+    "@resonory/vitest-config": "workspace:*",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
     "@types/node": "^26.5.1",

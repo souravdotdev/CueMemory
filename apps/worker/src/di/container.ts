@@ -2,7 +2,7 @@ import "reflect-metadata";
 import { StorageClient } from "@supabase/storage-js";
 import type { Redis } from "ioredis";
 import { Container } from "inversify";
-import { redisConnection } from "@cue-memory/db/redis";
+import { redisConnection } from "@resonory/db/redis";
 import { FailItemUseCase } from "@/application/use-cases/items/FailItemUseCase";
 import { ProcessItemUseCase } from "@/application/use-cases/items/ProcessItemUseCase";
 import { WORKER_TOKENS } from "@/di/tokens";

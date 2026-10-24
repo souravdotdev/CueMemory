@@ -1,6 +1,6 @@
 import { UnrecoverableError, Worker, type ConnectionOptions } from "bullmq";
 import type { Container } from "inversify";
-import { ITEMS_QUEUE } from "@cue-memory/shared/schemas/queue";
+import { ITEMS_QUEUE } from "@resonory/shared/schemas/queue";
 import { onItemsJobFailed } from "@/interface/itemsJobFailed";
 import { itemsJobHandler, type ItemsJob } from "@/interface/itemsJobs";
 

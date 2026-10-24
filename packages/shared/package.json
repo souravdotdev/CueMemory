@@ -1,5 +1,5 @@
 {
-  "name": "@cue-memory/shared",
+  "name": "@resonory/shared",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -18,9 +18,9 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@cue-memory/eslint-config": "workspace:*",
-    "@cue-memory/typescript-config": "workspace:*",
-    "@cue-memory/vitest-config": "workspace:*",
+    "@resonory/eslint-config": "workspace:*",
+    "@resonory/typescript-config": "workspace:*",
+    "@resonory/vitest-config": "workspace:*",
     "@types/node": "^26.5.1",
     "eslint": "^9.39.5",
     "typescript": "^6.0.3",

@@ -10,7 +10,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@cue-memory/ui", "@cue-memory/shared"],
+  transpilePackages: ["@resonory/ui", "@resonory/shared"],
   async headers() {
     return [
       {

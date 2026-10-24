@@ -1,5 +1,5 @@
 import type { Container } from "inversify";
-import { ProcessItemJobSchema } from "@cue-memory/shared/schemas/queue";
+import { ProcessItemJobSchema } from "@resonory/shared/schemas/queue";
 import type { FailItemUseCase } from "@/application/use-cases/items/FailItemUseCase";
 import { WORKER_TOKENS } from "@/di/tokens";
 

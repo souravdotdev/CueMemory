@@ -1,7 +1,7 @@
 // Before anything that declares a decorated class.
 import "reflect-metadata";
 import type { Redis } from "ioredis";
-import { ITEMS_QUEUE } from "@cue-memory/shared/schemas/queue";
+import { ITEMS_QUEUE } from "@resonory/shared/schemas/queue";
 import { createContainer } from "@/di/container";
 import { WORKER_TOKENS } from "@/di/tokens";
 import { createItemsWorker } from "@/interface/itemsWorker";

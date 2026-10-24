@@ -4,7 +4,7 @@ import {
   PROCESS_ITEM_JOB,
   ProcessItemJobSchema,
   type ProcessItemJob,
-} from "@cue-memory/shared/schemas/queue";
+} from "@resonory/shared/schemas/queue";
 import { TOKENS } from "@/di/tokens";
 import type { IQueueProvider, ProcessItemRequest } from "@/domain/providers/IQueueProvider";
 

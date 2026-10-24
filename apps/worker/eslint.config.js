@@ -1,4 +1,4 @@
-import { config } from "@cue-memory/eslint-config/node-library";
+import { config } from "@resonory/eslint-config/node-library";
 
 // The dependency rule (docs/clean-architecture.md): domain and application
 // code never import tools. Persistence, queue and cache libraries are reached
@@ -15,7 +15,7 @@ const toolImports = [
   { group: ["sharp", "sharp/*"], message: "Image decoding belongs in infrastructure." },
   { group: ["@supabase/*"], message: "Supabase Storage belongs in infrastructure." },
   {
-    group: ["@cue-memory/db", "@cue-memory/db/*"],
+    group: ["@resonory/db", "@resonory/db/*"],
     message: "The database package belongs in infrastructure.",
   },
 ];

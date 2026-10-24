@@ -1,7 +1,7 @@
 export const MAX_TAG_NAME_LENGTH = 50;
 
 // What a canonical slug looks like: runs of a-z 0-9 + # . joined by single hyphens.
-// The database CHECK on tags.name embeds the same pattern (see @cue-memory/db/schema).
+// The database CHECK on tags.name embeds the same pattern (see @resonory/db/schema).
 export const TAG_NAME_PATTERN = "^[a-z0-9+#.]+(-[a-z0-9+#.]+)*$";
 
 export type SlugifyTagNameResult =

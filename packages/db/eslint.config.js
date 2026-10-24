@@ -1,3 +1,3 @@
-import { config } from "@cue-memory/eslint-config/node-library";
+import { config } from "@resonory/eslint-config/node-library";
 
 export default config;

@@ -1,6 +1,6 @@
 import type { FastifyError, FastifyInstance, FastifyReply } from "fastify";
 import { hasZodFastifySchemaValidationErrors } from "fastify-type-provider-zod";
-import type { ErrorCode, ErrorResponse } from "@cue-memory/shared/schemas/common";
+import type { ErrorCode, ErrorResponse } from "@resonory/shared/schemas/common";
 import { AppError, type AppErrorCode } from "@/domain/errors";
 
 type SafeError = { code: ErrorCode; message: string };

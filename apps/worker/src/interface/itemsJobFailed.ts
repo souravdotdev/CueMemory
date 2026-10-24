@@ -1,5 +1,5 @@
 import type { Container } from "inversify";
-import { ITEMS_QUEUE } from "@cue-memory/shared/schemas/queue";
+import { ITEMS_QUEUE } from "@resonory/shared/schemas/queue";
 import { itemsJobHandler, type ItemsJob } from "@/interface/itemsJobs";
 
 /** What the `failed` handler reads from a BullMQ job. */
