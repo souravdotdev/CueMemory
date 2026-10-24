@@ -7,7 +7,7 @@ export const users = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     // Display name — better-auth's required `name`, mirrored from Google on every sign-in.
     name: text("name").notNull(),
-    // Where CueMemory emails the User. Captured once at sign-up and never overwritten
+    // Where Resonory emails the User. Captured once at sign-up and never overwritten
     // (spec #12): the sign-in hook refreshes only the name and avatar.
     email: text("email").notNull().unique(),
     // Required by better-auth's user model but not surfaced in the API's User entity.
